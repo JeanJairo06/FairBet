@@ -1,0 +1,22 @@
+<nav class="site-nav" aria-label="Navegacion principal">
+    <a href="{% url 'home' %}" class="site-nav__brand">
+        <i class="bi bi-trophy"></i>
+        FairBet
+    </a>
+
+    <div class="site-nav__links">
+        <a href="{% url 'home' %}"><i class="bi bi-house"></i> Inicio</a>
+    </div>
+
+    <div class="site-nav__auth">
+        {% if request.user.is_authenticated %}
+            <span class="site-nav__user"><i class="bi bi-person-circle"></i> {{ request.user.username }}</span>
+            <form method="post" action="{% url 'logout' %}">
+                {% csrf_token %}
+                <button type="submit" class="link-button">Salir</button>
+            </form>
+        {% else %}
+            <a href="{% url 'login' %}" class="site-nav__login"><i class="bi bi-box-arrow-in-right"></i> Ingresar</a>
+        {% endif %}
+    </div>
+</nav>

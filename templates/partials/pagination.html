@@ -1,0 +1,50 @@
+{% if page_obj %}
+<div class="app-pagination-bar">
+    <p class="app-pagination-summary mb-0">
+        <i class="bi bi-list-check" aria-hidden="true"></i>
+        Mostrando <strong>{{ page_obj.start_index }}</strong>-<strong>{{ page_obj.end_index }}</strong> de <strong>{{ paginator.count }}</strong> registros
+    </p>
+
+    {% if is_paginated %}
+        <nav aria-label="Paginacion">
+            <ul class="pagination pagination-sm app-pagination mb-0">
+                {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" aria-label="Pagina anterior">
+                            <i class="bi bi-chevron-left" aria-hidden="true"></i>
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link" aria-hidden="true"><i class="bi bi-chevron-left"></i></span>
+                    </li>
+                {% endif %}
+
+                {% for page_number in paginator.page_range %}
+                    {% if page_number == page_obj.number %}
+                        <li class="page-item active" aria-current="page">
+                            <span class="page-link">{{ page_number }}</span>
+                        </li>
+                    {% elif page_number >= page_obj.number|add:'-2' and page_number <= page_obj.number|add:'2' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" aria-label="Ir a pagina {{ page_number }}">{{ page_number }}</a>
+                        </li>
+                    {% endif %}
+                {% endfor %}
+
+                {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" aria-label="Pagina siguiente">
+                            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                        </a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled">
+                        <span class="page-link" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+                    </li>
+                {% endif %}
+            </ul>
+        </nav>
+    {% endif %}
+</div>
+{% endif %}
