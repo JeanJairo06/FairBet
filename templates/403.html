@@ -1,0 +1,16 @@
+{% extends 'base.html' %}
+
+{% block title %}Acceso denegado | FairBet Lab{% endblock %}
+
+{% block content %}
+<section class="hero-card">
+    <div class="hero-card__copy">
+        <p class="eyebrow">Permisos insuficientes</p>
+        <h2>Acceso denegado</h2>
+        <p>No tienes permisos para acceder a esta seccion.</p>
+        <div class="hero-actions">
+            <a href="{% url 'home' %}" class="button button--primary"><i class="bi bi-house"></i> Volver al inicio</a>
+        </div>
+    </div>
+</section>
+{% endblock %}

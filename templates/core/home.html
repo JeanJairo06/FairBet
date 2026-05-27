@@ -1,0 +1,29 @@
+{% extends 'base.html' %}
+
+{% block title %}Inicio | FairBet Lab{% endblock %}
+
+{% block content %}
+<section class="hero-card">
+    <div class="hero-card__copy">
+        <p class="eyebrow">Proyecto academico</p>
+        <h2>FairBet Lab</h2>
+        <p>
+            Plataforma educativa para simular apuestas deportivas con fichas virtuales,
+            controles de juego responsable, ledger de partida doble y auditoria.
+        </p>
+        <div class="hero-actions">
+            <a href="/admin/" class="button button--primary"><i class="bi bi-speedometer2"></i> Abrir admin</a>
+            <a href="/api/v1/docs/" class="button button--secondary"><i class="bi bi-file-earmark-code"></i> Ver API</a>
+        </div>
+    </div>
+    <div class="hero-card__panel">
+        <h3>Estado actual</h3>
+        <ul>
+            <li><i class="bi bi-check-circle"></i> Modelos del nucleo registrados</li>
+            <li><i class="bi bi-check-circle"></i> Admin habilitado</li>
+            <li><i class="bi bi-check-circle"></i> JWT listo para API v1</li>
+            <li><i class="bi bi-hourglass-split"></i> Servicios de negocio pendientes</li>
+        </ul>
+    </div>
+</section>
+{% endblock %}

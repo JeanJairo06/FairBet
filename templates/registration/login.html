@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}Ingresar | FairBet Lab{% endblock %}
+
+{% block content %}
+<section class="auth-layout">
+    <div class="auth-card">
+        <div class="auth-card__header">
+            <i class="bi bi-person-lock"></i>
+            <div>
+                <p class="eyebrow">Acceso interno</p>
+                <h2>Iniciar sesion</h2>
+            </div>
+        </div>
+
+        {% if form.errors %}
+            <div class="message message--error">
+                Usuario o contrasena invalidos. Intentalo nuevamente.
+            </div>
+        {% endif %}
+
+        <form method="post" class="auth-form">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ next }}">
+
+            <label for="id_username">Usuario</label>
+            {{ form.username }}
+
+            <label for="id_password">Contrasena</label>
+            {{ form.password }}
+
+            <button type="submit" class="button button--primary button--full">
+                <i class="bi bi-box-arrow-in-right"></i>
+                Ingresar
+            </button>
+        </form>
+    </div>
+</section>
+{% endblock %}
