@@ -21,6 +21,7 @@ from billetera.services.account_service import (
     obtener_o_crear_cuenta_sistema,
 )
 from billetera.services.ledger_service import crear_transaccion_ledger, validar_transaccion_balanceada
+from billetera.services.wallet_service import recargar_fichas, retirar_fichas
 from core.choices import (
     DirectionLedger,
     EstadoCuentaContable,
@@ -511,3 +512,94 @@ class AccountServiceTests(TestCase):
             {TipoCuentaContable.CASA, TipoCuentaContable.APUESTAS_PENDIENTES, TipoCuentaContable.BONOS},
         )
         self.assertEqual(Cuenta.objects.filter(usuario=None).count(), 3)
+
+
+class WalletServiceTests(TestCase):
+    def setUp(self):
+        self.usuario = get_user_model().objects.create_user(
+            username='wallet_service_user',
+            email='wallet_service_user@test.com',
+            password='test12345',
+        )
+        self.wallet = crear_cuenta_wallet_usuario(self.usuario)
+        self.casa = obtener_o_crear_cuenta_sistema(TipoCuentaContable.CASA)
+
+    def test_recargar_fichas_aumenta_saldo(self):
+        transaccion = recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='recarga-wallet-1')
+
+        self.assertEqual(transaccion.tipo_transaccion, TipoTransaccionLedger.RECARGA)
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('100.0000'))
+        self.assertEqual(calcular_saldo(self.casa), Decimal('-100.0000'))
+
+    def test_recargar_fichas_crea_entries_correctos(self):
+        transaccion = recargar_fichas(self.usuario, Decimal('75.0000'), idempotency_key='recarga-wallet-entries')
+
+        wallet_entry = transaccion.entries.get(cuenta=self.wallet)
+        casa_entry = transaccion.entries.get(cuenta=self.casa)
+
+        self.assertEqual(wallet_entry.direction, DirectionLedger.CREDIT)
+        self.assertEqual(wallet_entry.amount, Decimal('75.0000'))
+        self.assertEqual(casa_entry.direction, DirectionLedger.DEBIT)
+        self.assertEqual(casa_entry.amount, Decimal('75.0000'))
+        self.assertEqual(transaccion.idempotency_key, 'recarga-recarga-wallet-entries')
+        self.assertEqual(transaccion.metadata_json, {'operacion': 'recarga', 'monto': '75.0000'})
+
+    def test_recargar_fichas_es_idempotente(self):
+        primera = recargar_fichas(self.usuario, Decimal('50.0000'), idempotency_key='recarga-idempotente')
+        segunda = recargar_fichas(self.usuario, Decimal('50.0000'), idempotency_key='recarga-idempotente')
+
+        self.assertEqual(primera, segunda)
+        self.assertEqual(TransaccionLedger.objects.count(), 1)
+        self.assertEqual(LedgerEntry.objects.count(), 2)
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('50.0000'))
+
+    def test_recargar_fichas_rechaza_monto_negativo(self):
+        with self.assertRaises(MontoInvalidoError):
+            recargar_fichas(self.usuario, Decimal('-10.0000'), idempotency_key='recarga-negativa')
+
+        self.assertEqual(TransaccionLedger.objects.count(), 0)
+
+    def test_retirar_fichas_disminuye_saldo(self):
+        recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='retiro-base-1')
+
+        transaccion = retirar_fichas(self.usuario, Decimal('30.0000'), idempotency_key='retiro-wallet-1')
+
+        self.assertEqual(transaccion.tipo_transaccion, TipoTransaccionLedger.RETIRO)
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('70.0000'))
+        self.assertEqual(calcular_saldo(self.casa), Decimal('-70.0000'))
+
+    def test_retirar_fichas_crea_entries_correctos(self):
+        recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='retiro-base-entries')
+
+        transaccion = retirar_fichas(self.usuario, Decimal('40.0000'), idempotency_key='retiro-wallet-entries')
+        wallet_entry = transaccion.entries.get(cuenta=self.wallet)
+        casa_entry = transaccion.entries.get(cuenta=self.casa)
+
+        self.assertEqual(wallet_entry.direction, DirectionLedger.DEBIT)
+        self.assertEqual(wallet_entry.amount, Decimal('40.0000'))
+        self.assertEqual(casa_entry.direction, DirectionLedger.CREDIT)
+        self.assertEqual(casa_entry.amount, Decimal('40.0000'))
+        self.assertEqual(transaccion.idempotency_key, 'retiro-retiro-wallet-entries')
+        self.assertEqual(transaccion.metadata_json, {'operacion': 'retiro', 'monto': '40.0000'})
+
+    def test_retirar_fichas_falla_sin_saldo(self):
+        with self.assertRaises(SaldoInsuficienteError):
+            retirar_fichas(self.usuario, Decimal('10.0000'), idempotency_key='retiro-sin-saldo')
+
+        self.assertEqual(TransaccionLedger.objects.count(), 0)
+
+    def test_retirar_fichas_es_idempotente(self):
+        recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='retiro-idempotente-base')
+
+        primera = retirar_fichas(self.usuario, Decimal('80.0000'), idempotency_key='retiro-idempotente')
+        segunda = retirar_fichas(self.usuario, Decimal('80.0000'), idempotency_key='retiro-idempotente')
+
+        self.assertEqual(primera, segunda)
+        self.assertEqual(TransaccionLedger.objects.count(), 2)
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('20.0000'))
+
+    def test_retirar_fichas_rechaza_monto_cero(self):
+        with self.assertRaises(MontoInvalidoError):
+            retirar_fichas(self.usuario, Decimal('0.0000'), idempotency_key='retiro-cero')
+
+        self.assertEqual(TransaccionLedger.objects.count(), 0)
