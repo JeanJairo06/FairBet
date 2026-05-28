@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Apuestas deportivas | FairBet Lab{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/apuestas.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="module-header apuestas-header">
+    <div>
+        <p class="eyebrow">Apuestas deportivas</p>
+        <h2>Eventos disponibles</h2>
+        <p>Elige una seleccion, ingresa tus fichas virtuales y confirma tu apuesta educativa.</p>
+    </div>
+    <a href="{% url 'apuesta:mis_apuestas_web' %}" class="button button--secondary">
+        <i class="bi bi-receipt"></i> Mis apuestas
+    </a>
+</section>
+
+<section class="apuestas-layout">
+    <div class="apuestas-main">
+        <div class="responsible-strip">
+            <i class="bi bi-shield-check"></i>
+            <span>Juega con responsabilidad. Las fichas son virtuales y no tienen valor monetario real.</span>
+        </div>
+
+        {% for evento in eventos %}
+            <article class="evento-card">
+                <div class="evento-card__top">
+                    <div>
+                        <span class="evento-card__league">{{ evento.competicion }}</span>
+                        <h3>{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}</h3>
+                    </div>
+                    <span class="status-pill status-pill--ok">{{ evento.inicia_en|date:'d/m H:i' }}</span>
+                </div>
+
+                {% for mercado in evento.mercados.all %}
+                    {% if mercado.selecciones_activas %}
+                        <div class="mercado-row">
+                            <div class="mercado-row__title">
+                                <strong>{{ mercado.nombre }}</strong>
+                                <span>Min {{ mercado.stake_minimo }} | Max {{ mercado.stake_maximo }}</span>
+                            </div>
+                            <div class="odds-grid">
+                                {% for seleccion in mercado.selecciones_activas %}
+                                    <form method="post" class="odd-ticket">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="seleccion_id" value="{{ seleccion.id_seleccion }}">
+                                        <label>
+                                            <span>{{ seleccion.nombre }}</span>
+                                            <strong>{{ seleccion.odds_activa.odds }}</strong>
+                                        </label>
+                                        <input class="stake-input" type="number" name="stake" min="{{ mercado.stake_minimo }}" max="{{ mercado.stake_maximo }}" step="0.0001" placeholder="Fichas">
+                                        <button type="submit" class="button button--primary button--full">Apostar</button>
+                                    </form>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            </article>
+        {% empty %}
+            <section class="data-panel empty-state">No hay eventos disponibles para apostar en este momento.</section>
+        {% endfor %}
+    </div>
+
+    <aside class="apuestas-sidebar">
+        <div class="ticket-panel">
+            <p class="eyebrow">Panel</p>
+            <h3>Mis apuestas recientes</h3>
+            {% for apuesta in mis_apuestas %}
+                <div class="mini-bet">
+                    <strong>#{{ apuesta.id_apuesta }} - {{ apuesta.get_estado_apuesta_display }}</strong>
+                    <span>Stake: {{ apuesta.stake }} | Cuota: {{ apuesta.odds_total }}</span>
+                    <span>Pago potencial: {{ apuesta.payout_potencial }}</span>
+                </div>
+            {% empty %}
+                <p class="empty-state">Aun no tienes apuestas registradas.</p>
+            {% endfor %}
+            <a href="{% url 'apuesta:mis_apuestas_web' %}" class="button button--secondary button--full">Ver historial</a>
+        </div>
+    </aside>
+</section>
+{% endblock %}
