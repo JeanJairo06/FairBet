@@ -21,7 +21,14 @@ from billetera.services.account_service import (
     obtener_o_crear_cuenta_sistema,
 )
 from billetera.services.ledger_service import crear_transaccion_ledger, validar_transaccion_balanceada
-from billetera.services.wallet_service import bloquear_stake, recargar_fichas, retirar_fichas
+from billetera.services.wallet_service import (
+    bloquear_stake,
+    liquidar_apuesta_ganada,
+    liquidar_apuesta_perdida,
+    liquidar_apuesta_void,
+    recargar_fichas,
+    retirar_fichas,
+)
 from core.choices import (
     DirectionLedger,
     EstadoCuentaContable,
@@ -649,5 +656,123 @@ class WalletServiceTests(TestCase):
     def test_bloquear_stake_rechaza_monto_cero(self):
         with self.assertRaises(MontoInvalidoError):
             bloquear_stake(self.usuario, apuesta_id=14, monto=Decimal('0.0000'), idempotency_key='bloqueo-cero')
+
+        self.assertEqual(TransaccionLedger.objects.count(), 0)
+
+    def test_liquidar_apuesta_ganada_paga_payout(self):
+        recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='liquidacion-ganada-base')
+        bloquear_stake(self.usuario, apuesta_id=20, monto=Decimal('20.0000'), idempotency_key='liquidacion-ganada-bloqueo')
+
+        transaccion = liquidar_apuesta_ganada(
+            self.usuario,
+            apuesta_id=20,
+            stake=Decimal('20.0000'),
+            payout=Decimal('50.0000'),
+            idempotency_key='liquidacion-ganada',
+        )
+
+        self.assertEqual(transaccion.tipo_transaccion, TipoTransaccionLedger.LIQUIDACION)
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('130.0000'))
+        self.assertEqual(calcular_saldo(self.apuestas_pendientes), Decimal('0.0000'))
+        self.assertEqual(calcular_saldo(self.casa), Decimal('-130.0000'))
+
+    def test_liquidar_apuesta_ganada_crea_entries_correctos(self):
+        recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='liquidacion-ganada-entries-base')
+        bloquear_stake(self.usuario, apuesta_id=21, monto=Decimal('20.0000'), idempotency_key='liquidacion-ganada-entries-bloqueo')
+
+        transaccion = liquidar_apuesta_ganada(
+            self.usuario,
+            apuesta_id=21,
+            stake=Decimal('20.0000'),
+            payout=Decimal('50.0000'),
+            idempotency_key='liquidacion-ganada-entries',
+        )
+
+        pendientes_entry = transaccion.entries.get(cuenta=self.apuestas_pendientes)
+        casa_entry = transaccion.entries.get(cuenta=self.casa)
+        wallet_entry = transaccion.entries.get(cuenta=self.wallet)
+
+        self.assertEqual(pendientes_entry.direction, DirectionLedger.DEBIT)
+        self.assertEqual(pendientes_entry.amount, Decimal('20.0000'))
+        self.assertEqual(casa_entry.direction, DirectionLedger.DEBIT)
+        self.assertEqual(casa_entry.amount, Decimal('30.0000'))
+        self.assertEqual(wallet_entry.direction, DirectionLedger.CREDIT)
+        self.assertEqual(wallet_entry.amount, Decimal('50.0000'))
+        self.assertEqual(transaccion.tipo_referencia, 'apuesta')
+        self.assertEqual(transaccion.id_referencia, '21')
+
+    def test_liquidar_apuesta_ganada_rechaza_payout_menor_a_stake(self):
+        with self.assertRaises(MontoInvalidoError):
+            liquidar_apuesta_ganada(
+                self.usuario,
+                apuesta_id=22,
+                stake=Decimal('20.0000'),
+                payout=Decimal('10.0000'),
+                idempotency_key='liquidacion-payout-invalido',
+            )
+
+        self.assertEqual(TransaccionLedger.objects.count(), 0)
+
+    def test_liquidar_apuesta_perdida_mueve_stake_a_casa(self):
+        recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='liquidacion-perdida-base')
+        bloquear_stake(self.usuario, apuesta_id=23, monto=Decimal('20.0000'), idempotency_key='liquidacion-perdida-bloqueo')
+
+        transaccion = liquidar_apuesta_perdida(
+            self.usuario,
+            apuesta_id=23,
+            stake=Decimal('20.0000'),
+            idempotency_key='liquidacion-perdida',
+        )
+
+        self.assertEqual(transaccion.tipo_transaccion, TipoTransaccionLedger.LIQUIDACION)
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('80.0000'))
+        self.assertEqual(calcular_saldo(self.apuestas_pendientes), Decimal('0.0000'))
+        self.assertEqual(calcular_saldo(self.casa), Decimal('-80.0000'))
+
+    def test_liquidar_apuesta_void_devuelve_stake(self):
+        recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='liquidacion-void-base')
+        bloquear_stake(self.usuario, apuesta_id=24, monto=Decimal('20.0000'), idempotency_key='liquidacion-void-bloqueo')
+
+        transaccion = liquidar_apuesta_void(
+            self.usuario,
+            apuesta_id=24,
+            stake=Decimal('20.0000'),
+            idempotency_key='liquidacion-void',
+        )
+
+        self.assertEqual(transaccion.tipo_transaccion, TipoTransaccionLedger.LIQUIDACION)
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('100.0000'))
+        self.assertEqual(calcular_saldo(self.apuestas_pendientes), Decimal('0.0000'))
+        self.assertEqual(calcular_saldo(self.casa), Decimal('-100.0000'))
+
+    def test_liquidacion_es_idempotente(self):
+        recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='liquidacion-idempotente-base')
+        bloquear_stake(self.usuario, apuesta_id=25, monto=Decimal('20.0000'), idempotency_key='liquidacion-idempotente-bloqueo')
+
+        primera = liquidar_apuesta_perdida(
+            self.usuario,
+            apuesta_id=25,
+            stake=Decimal('20.0000'),
+            idempotency_key='liquidacion-idempotente',
+        )
+        segunda = liquidar_apuesta_perdida(
+            self.usuario,
+            apuesta_id=25,
+            stake=Decimal('20.0000'),
+            idempotency_key='liquidacion-idempotente',
+        )
+
+        self.assertEqual(primera, segunda)
+        self.assertEqual(TransaccionLedger.objects.count(), 3)
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('80.0000'))
+
+    def test_liquidacion_rechaza_monto_cero(self):
+        with self.assertRaises(MontoInvalidoError):
+            liquidar_apuesta_perdida(
+                self.usuario,
+                apuesta_id=26,
+                stake=Decimal('0.0000'),
+                idempotency_key='liquidacion-cero',
+            )
 
         self.assertEqual(TransaccionLedger.objects.count(), 0)

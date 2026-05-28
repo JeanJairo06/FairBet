@@ -409,9 +409,9 @@ class LiquidarApuestaTests(TestCase):
             activa=True,
             valido_desde=timezone.now(),
         )
-        crear_cuenta_wallet_usuario(self.usuario)
-        obtener_o_crear_cuenta_sistema(TipoCuentaContable.CASA)
-        obtener_o_crear_cuenta_sistema(TipoCuentaContable.APUESTAS_PENDIENTES)
+        self.wallet = crear_cuenta_wallet_usuario(self.usuario)
+        self.casa = obtener_o_crear_cuenta_sistema(TipoCuentaContable.CASA)
+        self.apuestas_pendientes = obtener_o_crear_cuenta_sistema(TipoCuentaContable.APUESTAS_PENDIENTES)
         recargar_fichas(self.usuario, Decimal('200.0000'), idempotency_key='setup-liquidacion')
 
     def crear_apuesta_aceptada(self, idempotency_key):
@@ -437,6 +437,9 @@ class LiquidarApuestaTests(TestCase):
         self.assertEqual(apuesta.liquidada_en, liquidacion.liquidado_en)
         self.assertEqual(liquidacion.payout, Decimal('25.0000'))
         self.assertEqual(liquidacion.resultado_liquidacion, ResultadoLiquidacion.WON)
+        self.assertEqual(liquidacion.transaction_liquidacion.tipo_transaccion, TipoTransaccionLedger.LIQUIDACION)
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('215.0000'))
+        self.assertEqual(calcular_saldo(self.apuestas_pendientes), Decimal('0.0000'))
         self.assertEqual(LiquidacionApuesta.objects.count(), 1)
 
     def test_liquida_apuesta_perdida(self):
@@ -452,6 +455,9 @@ class LiquidarApuestaTests(TestCase):
         self.assertEqual(apuesta.estado_apuesta, EstadoApuesta.LOST)
         self.assertEqual(liquidacion.payout, Decimal('0.0000'))
         self.assertEqual(liquidacion.resultado_liquidacion, ResultadoLiquidacion.LOST)
+        self.assertEqual(liquidacion.transaction_liquidacion.tipo_transaccion, TipoTransaccionLedger.LIQUIDACION)
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('190.0000'))
+        self.assertEqual(calcular_saldo(self.apuestas_pendientes), Decimal('0.0000'))
 
     def test_liquida_apuesta_anulada_devolviendo_stake(self):
         apuesta = self.crear_apuesta_aceptada('liquidacion-anulada')
@@ -466,3 +472,25 @@ class LiquidarApuestaTests(TestCase):
         self.assertEqual(apuesta.estado_apuesta, EstadoApuesta.VOID)
         self.assertEqual(liquidacion.payout, Decimal('10.0000'))
         self.assertEqual(liquidacion.resultado_liquidacion, ResultadoLiquidacion.VOID)
+        self.assertEqual(liquidacion.transaction_liquidacion.tipo_transaccion, TipoTransaccionLedger.LIQUIDACION)
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('200.0000'))
+        self.assertEqual(calcular_saldo(self.apuestas_pendientes), Decimal('0.0000'))
+
+    def test_no_liquida_dos_veces_la_misma_apuesta(self):
+        apuesta = self.crear_apuesta_aceptada('liquidacion-doble')
+
+        liquidar_apuesta(
+            apuesta=apuesta,
+            resultado=ResultadoLiquidacion.LOST,
+            liquidado_por=self.admin,
+        )
+        apuesta.refresh_from_db()
+
+        with self.assertRaises(ValidationError):
+            liquidar_apuesta(
+                apuesta=apuesta,
+                resultado=ResultadoLiquidacion.LOST,
+                liquidado_por=self.admin,
+            )
+
+        self.assertEqual(LiquidacionApuesta.objects.count(), 1)

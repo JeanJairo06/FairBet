@@ -5,18 +5,20 @@ from django.db import transaction
 from django.utils import timezone
 
 from apuesta.models import Apuesta, DetalleApuesta, LiquidacionApuesta
-from billetera.models import TransaccionLedger
-from billetera.services.wallet_service import bloquear_stake
+from billetera.services.wallet_service import (
+    bloquear_stake,
+    liquidar_apuesta_ganada,
+    liquidar_apuesta_perdida,
+    liquidar_apuesta_void,
+)
 from core.choices import (
     EstadoApuesta,
     EstadoCuentaJugador,
     EstadoEvento,
     EstadoMercado,
     EstadoSeleccion,
-    EstadoTransaccionLedger,
     ResultadoLiquidacion,
     TipoApuesta,
-    TipoTransaccionLedger,
 )
 from deporte.models import SeleccionMercado
 
@@ -111,22 +113,30 @@ def liquidar_apuesta(apuesta, resultado, liquidado_por=None, observacion=''):
     if resultado == ResultadoLiquidacion.WON:
         estado_apuesta = EstadoApuesta.WON
         payout = apuesta.stake * apuesta.odds_total
+        transaccion_liquidacion = liquidar_apuesta_ganada(
+            usuario=apuesta.usuario,
+            apuesta_id=apuesta.id_apuesta,
+            stake=apuesta.stake,
+            payout=payout,
+        )
     elif resultado == ResultadoLiquidacion.LOST:
         estado_apuesta = EstadoApuesta.LOST
         payout = apuesta.stake * 0
+        transaccion_liquidacion = liquidar_apuesta_perdida(
+            usuario=apuesta.usuario,
+            apuesta_id=apuesta.id_apuesta,
+            stake=apuesta.stake,
+        )
     elif resultado == ResultadoLiquidacion.VOID:
         estado_apuesta = EstadoApuesta.VOID
         payout = apuesta.stake
+        transaccion_liquidacion = liquidar_apuesta_void(
+            usuario=apuesta.usuario,
+            apuesta_id=apuesta.id_apuesta,
+            stake=apuesta.stake,
+        )
     else:
         raise ValidationError('Resultado de liquidacion no soportado.')
-
-    transaccion_liquidacion = TransaccionLedger.objects.create(
-        usuario=apuesta.usuario,
-        tipo_transaccion=TipoTransaccionLedger.LIQUIDACION,
-        tipo_referencia='apuesta',
-        id_referencia=str(apuesta.id_apuesta),
-        estado=EstadoTransaccionLedger.COMPLETED,
-    )
 
     liquidado_en = timezone.now()
     liquidacion = LiquidacionApuesta.objects.create(
