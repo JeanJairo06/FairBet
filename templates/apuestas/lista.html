@@ -45,16 +45,20 @@
                             </div>
                             <div class="odds-grid">
                                 {% for seleccion in mercado.selecciones_activas %}
-                                    <form method="post" class="odd-ticket">
-                                        {% csrf_token %}
-                                        <input type="hidden" name="seleccion_id" value="{{ seleccion.id_seleccion }}">
-                                        <label>
-                                            <span>{{ seleccion.nombre }}</span>
-                                            <strong>{{ seleccion.odds_activa.odds }}</strong>
-                                        </label>
-                                        <input class="stake-input" type="number" name="stake" min="{{ mercado.stake_minimo }}" max="{{ mercado.stake_maximo }}" step="0.0001" placeholder="Fichas">
-                                        <button type="submit" class="button button--primary button--full">Apostar</button>
-                                    </form>
+                                    <button
+                                        type="button"
+                                        class="odd-button"
+                                        data-seleccion-id="{{ seleccion.id_seleccion }}"
+                                        data-seleccion="{{ seleccion.nombre }}"
+                                        data-evento="{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}"
+                                        data-mercado="{{ mercado.nombre }}"
+                                        data-odds="{{ seleccion.odds_activa.odds }}"
+                                        data-min="{{ mercado.stake_minimo }}"
+                                        data-max="{{ mercado.stake_maximo }}"
+                                    >
+                                        <span>{{ seleccion.nombre }}</span>
+                                        <strong>{{ seleccion.odds_activa.odds }}</strong>
+                                    </button>
                                 {% endfor %}
                             </div>
                         </div>
@@ -68,7 +72,45 @@
 
     <aside class="apuestas-sidebar">
         <div class="ticket-panel">
-            <p class="eyebrow">Panel</p>
+            <p class="eyebrow">Ticket de apuesta</p>
+            <h3>Confirma tu seleccion</h3>
+            <form method="post" class="bet-slip" id="bet-slip">
+                {% csrf_token %}
+                <input type="hidden" name="seleccion_id" id="ticket-seleccion-id">
+                <div class="ticket-empty" id="ticket-empty">Selecciona una cuota para armar tu ticket.</div>
+                <div class="ticket-content" id="ticket-content" hidden>
+                    <span class="ticket-label">Evento</span>
+                    <strong id="ticket-evento"></strong>
+                    <span class="ticket-label">Mercado</span>
+                    <strong id="ticket-mercado"></strong>
+                    <span class="ticket-label">Seleccion</span>
+                    <strong id="ticket-seleccion"></strong>
+                    <div class="ticket-numbers">
+                        <div>
+                            <span>Cuota</span>
+                            <strong id="ticket-odds">0.0000</strong>
+                        </div>
+                        <div>
+                            <span>Pago potencial</span>
+                            <strong id="ticket-payout">0.0000</strong>
+                        </div>
+                    </div>
+                    <label class="ticket-label" for="ticket-stake">Fichas a apostar</label>
+                    <input class="stake-input" type="number" name="stake" id="ticket-stake" step="0.0001" placeholder="Ej. 10.0000">
+                    <div class="quick-stakes" aria-label="Montos rapidos">
+                        <button type="button" data-stake="10">10</button>
+                        <button type="button" data-stake="25">25</button>
+                        <button type="button" data-stake="50">50</button>
+                        <button type="button" data-stake="100">100</button>
+                    </div>
+                    <small id="ticket-limits"></small>
+                    <button type="submit" class="button button--primary button--full">Confirmar apuesta</button>
+                </div>
+            </form>
+        </div>
+
+        <div class="ticket-panel">
+            <p class="eyebrow">Historial</p>
             <h3>Mis apuestas recientes</h3>
             {% for apuesta in mis_apuestas %}
                 <div class="mini-bet">
@@ -83,4 +125,8 @@
         </div>
     </aside>
 </section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/apuestas.js' %}"></script>
 {% endblock %}

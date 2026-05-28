@@ -71,24 +71,43 @@
     gap: 10px;
 }
 
-.odd-ticket {
+.odd-button {
     display: grid;
     gap: 10px;
     padding: 12px;
     border: 1px solid var(--line);
     border-radius: 16px;
+    color: var(--text);
     background: rgba(255, 255, 255, 0.045);
+    cursor: pointer;
+    text-align: left;
 }
 
-.odd-ticket label {
+.odd-button:hover,
+.odd-button.is-selected {
+    border-color: var(--accent);
+    background: rgba(34, 197, 94, 0.12);
+}
+
+.odd-button.is-selected {
+    box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.55), 0 12px 32px rgba(34, 197, 94, 0.1);
+}
+
+.odd-button span,
+.odd-button strong {
     display: flex;
     justify-content: space-between;
     gap: 10px;
+}
+
+.odd-button span {
     color: var(--muted);
 }
 
-.odd-ticket strong {
+.odd-button strong {
+    justify-content: flex-end;
     color: var(--accent);
+    font-size: 1.1rem;
 }
 
 .stake-input {
@@ -106,6 +125,67 @@
     gap: 5px;
     padding: 12px 0;
     border-bottom: 1px solid var(--line);
+}
+
+.bet-slip,
+.ticket-content {
+    display: grid;
+    gap: 10px;
+}
+
+.ticket-empty {
+    padding: 14px;
+    border: 1px dashed var(--line);
+    border-radius: 14px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.ticket-label,
+.ticket-numbers span,
+.ticket-content small {
+    color: var(--muted);
+    font-size: 0.88rem;
+}
+
+.ticket-numbers {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.ticket-numbers > div {
+    display: grid;
+    gap: 4px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.045);
+}
+
+.ticket-numbers strong {
+    color: var(--accent);
+}
+
+.quick-stakes {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 8px;
+}
+
+.quick-stakes button {
+    min-height: 34px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.055);
+    cursor: pointer;
+}
+
+.quick-stakes button:hover {
+    color: #052e16;
+    border-color: var(--accent);
+    background: var(--accent);
 }
 
 .ticket-panel .button {
