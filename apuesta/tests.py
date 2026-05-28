@@ -9,7 +9,8 @@ from rest_framework.test import APIClient
 
 from apuesta.models import Apuesta, DetalleApuesta, LiquidacionApuesta
 from apuesta.servicios import crear_apuesta_simple, liquidar_apuesta
-from core.choices import EstadoApuesta, EstadoEvento, EstadoMercado, EstadoSeleccion, ResultadoLiquidacion, TipoMercado
+from core.choices import EstadoApuesta, EstadoCuentaJugador, EstadoEvento, EstadoMercado, EstadoSeleccion, ResultadoLiquidacion, TipoMercado
+from cuentas.models import PerfilJugador
 from deporte.models import EventoDeportivo, HistorialOdds, Mercado, SeleccionMercado
 
 
@@ -19,6 +20,14 @@ class CrearApuestaSimpleTests(TestCase):
             username='daniel',
             email='daniel@test.com',
             password='test12345',
+        )
+        self.perfil = PerfilJugador.objects.create(
+            usuario=self.usuario,
+            nombres='Daniel',
+            apellidos='Escribano',
+            dni='12345678',
+            fecha_nacimiento='2000-01-01',
+            estado_cuenta=EstadoCuentaJugador.VERIFICADO,
         )
         self.evento = EventoDeportivo.objects.create(
             deporte='Futbol',
@@ -154,6 +163,32 @@ class CrearApuestaSimpleTests(TestCase):
 
         self.assertEqual(Apuesta.objects.count(), 0)
 
+    def test_no_crea_apuesta_si_usuario_no_esta_verificado(self):
+        self.perfil.estado_cuenta = EstadoCuentaJugador.PENDIENTE_VERIFICACION
+        self.perfil.save(update_fields=['estado_cuenta'])
+
+        with self.assertRaises(ValidationError):
+            crear_apuesta_simple(
+                usuario=self.usuario,
+                seleccion_id=self.seleccion.id_seleccion,
+                stake=Decimal('10.0000'),
+            )
+
+        self.assertEqual(Apuesta.objects.count(), 0)
+
+    def test_no_crea_apuesta_si_usuario_esta_autoexcluido(self):
+        self.perfil.estado_cuenta = EstadoCuentaJugador.AUTOEXCLUIDO
+        self.perfil.save(update_fields=['estado_cuenta'])
+
+        with self.assertRaises(ValidationError):
+            crear_apuesta_simple(
+                usuario=self.usuario,
+                seleccion_id=self.seleccion.id_seleccion,
+                stake=Decimal('10.0000'),
+            )
+
+        self.assertEqual(Apuesta.objects.count(), 0)
+
 
 class ApuestaApiTests(TestCase):
     def setUp(self):
@@ -163,10 +198,26 @@ class ApuestaApiTests(TestCase):
             email='daniel_api@test.com',
             password='test12345',
         )
+        PerfilJugador.objects.create(
+            usuario=self.usuario,
+            nombres='Daniel',
+            apellidos='Api',
+            dni='22345678',
+            fecha_nacimiento='2000-01-01',
+            estado_cuenta=EstadoCuentaJugador.VERIFICADO,
+        )
         self.otro_usuario = get_user_model().objects.create_user(
             username='otro_usuario',
             email='otro@test.com',
             password='test12345',
+        )
+        PerfilJugador.objects.create(
+            usuario=self.otro_usuario,
+            nombres='Otro',
+            apellidos='Usuario',
+            dni='32345678',
+            fecha_nacimiento='2000-01-01',
+            estado_cuenta=EstadoCuentaJugador.VERIFICADO,
         )
         self.client.force_authenticate(user=self.usuario)
 
@@ -242,6 +293,14 @@ class LiquidarApuestaTests(TestCase):
             username='daniel_liquidacion',
             email='daniel_liquidacion@test.com',
             password='test12345',
+        )
+        PerfilJugador.objects.create(
+            usuario=self.usuario,
+            nombres='Daniel',
+            apellidos='Liquidacion',
+            dni='42345678',
+            fecha_nacimiento='2000-01-01',
+            estado_cuenta=EstadoCuentaJugador.VERIFICADO,
         )
         self.admin = get_user_model().objects.create_user(
             username='admin_liquidacion',
