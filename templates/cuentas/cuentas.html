@@ -28,7 +28,6 @@
 
     {% if can_admin_accounts %}
         {% include 'cuentas/partials/account_table.html' %}
-        {% include 'cuentas/partials/role_cards.html' %}
     {% elif self_profile %}
         <article class="accounts-panel accounts-readonly">
             <i class="bi bi-person"></i>

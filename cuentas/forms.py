@@ -38,72 +38,21 @@ class CuentaSearchForm(forms.Form):
         )
 
 
-class OperadorRegistroForm(UserCreationForm):
-    target_role = RolUsuario.OPERATOR
-    username_placeholder = 'operador_demo'
-    email_placeholder = 'operador@fairbet.local'
-
+class UsuarioRegistroForm(UserCreationForm):
+    rol = forms.ChoiceField(label='Tipo de usuario', choices=())
     nombres = forms.CharField(max_length=150)
     apellidos = forms.CharField(max_length=150)
-
-    class Meta:
-        model = Usuario
-        fields = (
-            'username',
-            'email',
-            'nombres',
-            'apellidos',
-            'password1',
-            'password2',
-        )
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        _decorate_fields(self.fields)
-        self.fields['username'].widget.attrs.setdefault('placeholder', self.username_placeholder)
-        self.fields['email'].widget.attrs.setdefault('placeholder', self.email_placeholder)
-        self.fields['nombres'].widget.attrs.setdefault('placeholder', 'Nombres')
-        self.fields['apellidos'].widget.attrs.setdefault('placeholder', 'Apellidos')
-
-    def clean_email(self):
-        email = self.cleaned_data['email'].strip().lower()
-        if Usuario.objects.filter(email=email).exists():
-            raise forms.ValidationError('Ya existe un usuario registrado con este correo.')
-        return email
-
-    def save(self, commit=True):
-        user = super().save(commit=False)
-        user.email = self.cleaned_data['email']
-        user.first_name = self.cleaned_data['nombres']
-        user.last_name = self.cleaned_data['apellidos']
-        user.rol = self.target_role
-        user.is_staff = False
-        user.is_superuser = False
-
-        if commit:
-            user.save()
-
-        return user
-
-
-class AdministradorRegistroForm(OperadorRegistroForm):
-    target_role = RolUsuario.ADMIN
-    username_placeholder = 'admin_interno'
-    email_placeholder = 'admin@fairbet.local'
-
-
-class JugadorRegistroForm(UserCreationForm):
-    nombres = forms.CharField(max_length=150)
-    apellidos = forms.CharField(max_length=150)
-    dni = forms.CharField(max_length=8)
+    dni = forms.CharField(max_length=8, required=False)
     fecha_nacimiento = forms.DateField(
-        widget=forms.DateInput(attrs={'type': 'date'})
+        required=False,
+        widget=forms.DateInput(attrs={'type': 'date'}),
     )
     telefono = forms.CharField(max_length=30, required=False)
 
     class Meta:
         model = Usuario
         fields = (
+            'rol',
             'username',
             'email',
             'nombres',
@@ -115,22 +64,19 @@ class JugadorRegistroForm(UserCreationForm):
             'password2',
         )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, current_user=None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.current_user = current_user
+        self.fields['rol'].choices = get_admin_assignable_roles(current_user)
         _decorate_fields(self.fields)
         self.fields['fecha_nacimiento'].widget.attrs['max'] = get_adult_date_limit().isoformat()
-        self.fields['username'].widget.attrs.setdefault('placeholder', 'jugador_demo')
-        self.fields['email'].widget.attrs.setdefault('placeholder', 'jugador@fairbet.local')
+        self.fields['rol'].widget.attrs['data-role-select'] = 'true'
+        self.fields['username'].widget.attrs.setdefault('placeholder', 'usuario_demo')
+        self.fields['email'].widget.attrs.setdefault('placeholder', 'usuario@fairbet.local')
         self.fields['nombres'].widget.attrs.setdefault('placeholder', 'Nombres')
         self.fields['apellidos'].widget.attrs.setdefault('placeholder', 'Apellidos')
-        self.fields['dni'].widget.attrs.setdefault('placeholder', '12345672')
+        self.fields['dni'].widget.attrs.setdefault('placeholder', '12345678')
         self.fields['telefono'].widget.attrs.setdefault('placeholder', '999999999')
-
-    def clean_dni(self):
-        dni = self.cleaned_data['dni'].strip()
-        if PerfilJugador.objects.filter(dni=dni).exists():
-            raise forms.ValidationError('Ya existe un perfil registrado con este DNI.')
-        return dni
 
     def clean_email(self):
         email = self.cleaned_data['email'].strip().lower()
@@ -138,16 +84,37 @@ class JugadorRegistroForm(UserCreationForm):
             raise forms.ValidationError('Ya existe un usuario registrado con este correo.')
         return email
 
+    def clean_rol(self):
+        rol = self.cleaned_data['rol']
+        if rol not in dict(get_admin_assignable_roles(self.current_user)):
+            raise forms.ValidationError('No tienes permisos para asignar ese rol.')
+        return rol
+
+    def clean_dni(self):
+        dni = self.cleaned_data.get('dni', '').strip()
+        if dni and PerfilJugador.objects.filter(dni=dni).exists():
+            raise forms.ValidationError('Ya existe un perfil registrado con este DNI.')
+        return dni
+
     def clean(self):
         cleaned_data = super().clean()
+        rol = cleaned_data.get('rol')
         dni = cleaned_data.get('dni')
         fecha_nacimiento = cleaned_data.get('fecha_nacimiento')
 
-        if dni and fecha_nacimiento:
-            kyc_result = resolve_kyc_status(dni, fecha_nacimiento)
-            cleaned_data['kyc_result'] = kyc_result
-            if not kyc_result.is_valid:
-                raise forms.ValidationError(kyc_result.message)
+        if rol == RolUsuario.PLAYER:
+            if not dni:
+                self.add_error('dni', 'El DNI es obligatorio para registrar jugadores.')
+            if not fecha_nacimiento:
+                self.add_error(
+                    'fecha_nacimiento',
+                    'La fecha de nacimiento es obligatoria para registrar jugadores.',
+                )
+            if dni and fecha_nacimiento:
+                kyc_result = resolve_kyc_status(dni, fecha_nacimiento)
+                cleaned_data['kyc_result'] = kyc_result
+                if not kyc_result.is_valid:
+                    raise forms.ValidationError(kyc_result.message)
 
         return cleaned_data
 
@@ -157,29 +124,32 @@ class JugadorRegistroForm(UserCreationForm):
         user.email = self.cleaned_data['email']
         user.first_name = self.cleaned_data['nombres']
         user.last_name = self.cleaned_data['apellidos']
-        user.rol = RolUsuario.PLAYER
+        user.rol = self.cleaned_data['rol']
+        user.is_staff = False
+        user.is_superuser = False
 
         if commit:
             user.save()
-            kyc_result = self.cleaned_data.get('kyc_result')
-            PerfilJugador.objects.create(
-                usuario=user,
-                nombres=self.cleaned_data['nombres'],
-                apellidos=self.cleaned_data['apellidos'],
-                dni=self.cleaned_data['dni'],
-                fecha_nacimiento=self.cleaned_data['fecha_nacimiento'],
-                telefono=self.cleaned_data.get('telefono', ''),
-                estado_cuenta=(
-                    kyc_result.estado_cuenta
-                    if kyc_result
-                    else EstadoCuentaJugador.PENDIENTE_VERIFICACION
-                ),
-                kyc_verificado_en=(
-                    None
-                    if not kyc_result or not kyc_result.is_valid
-                    else timezone.now()
-                ),
-            )
+            if user.rol == RolUsuario.PLAYER:
+                kyc_result = self.cleaned_data.get('kyc_result')
+                PerfilJugador.objects.create(
+                    usuario=user,
+                    nombres=self.cleaned_data['nombres'],
+                    apellidos=self.cleaned_data['apellidos'],
+                    dni=self.cleaned_data['dni'],
+                    fecha_nacimiento=self.cleaned_data['fecha_nacimiento'],
+                    telefono=self.cleaned_data.get('telefono', ''),
+                    estado_cuenta=(
+                        kyc_result.estado_cuenta
+                        if kyc_result
+                        else EstadoCuentaJugador.PENDIENTE_VERIFICACION
+                    ),
+                    kyc_verificado_en=(
+                        None
+                        if not kyc_result or not kyc_result.is_valid
+                        else timezone.now()
+                    ),
+                )
 
         return user
 
@@ -261,6 +231,6 @@ class PerfilJugadorSelfForm(forms.ModelForm):
         _decorate_fields(self.fields)
 
 
-RegistroJugadorForm = JugadorRegistroForm
-CuentaRegistroForm = JugadorRegistroForm
+RegistroJugadorForm = UsuarioRegistroForm
+CuentaRegistroForm = UsuarioRegistroForm
 CuentaGestionForm = CuentaAdminUpdateForm

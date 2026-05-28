@@ -5,11 +5,17 @@
             <h3>Cuentas registradas</h3>
             <p>Busca usuarios, filtra por rol, revisa KYC y administra accesos desde un solo listado.</p>
         </div>
-        <form method="get" class="accounts-search">
-            <i class="bi bi-search"></i>
-            {{ search_form.q }}
-            <button type="submit" class="accounts-search__button">Buscar</button>
-        </form>
+        <div class="accounts-panel__tools">
+            <a href="{% url 'cuentas:crear_usuario' %}" class="account-create-button">
+                <i class="bi bi-person-plus"></i>
+                Crear usuario
+            </a>
+            <form method="get" class="accounts-search">
+                <i class="bi bi-search"></i>
+                {{ search_form.q }}
+                <button type="submit" class="accounts-search__button">Buscar</button>
+            </form>
+        </div>
     </div>
 
     <div class="accounts-table-wrap">

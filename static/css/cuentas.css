@@ -5,8 +5,7 @@
 
 .accounts-heading,
 .accounts-panel,
-.account-stat,
-.role-card {
+.account-stat {
     border: 1px solid var(--line);
     background: rgba(17, 28, 51, 0.86);
     box-shadow: 0 18px 60px rgba(0, 0, 0, 0.22);
@@ -29,7 +28,6 @@
 
 .accounts-heading p,
 .accounts-panel p,
-.role-card small,
 .muted {
     color: var(--muted);
 }
@@ -185,6 +183,33 @@
     background: var(--accent);
     font-weight: 800;
     cursor: pointer;
+}
+
+.accounts-panel__tools {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+    width: min(620px, 100%);
+}
+
+.account-create-button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 44px;
+    padding: 0 14px;
+    border-radius: 12px;
+    color: #052e16;
+    background: var(--accent);
+    text-decoration: none;
+    font-weight: 900;
+    white-space: nowrap;
+}
+
+.account-create-button:hover {
+    filter: brightness(1.04);
 }
 
 .accounts-table-wrap {
@@ -454,54 +479,6 @@
     background: rgba(255, 255, 255, 0.035);
 }
 
-.role-launcher {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 16px;
-}
-
-.role-card {
-    display: grid;
-    gap: 8px;
-    min-height: 142px;
-    padding: 20px;
-    border-radius: 18px;
-    color: var(--text);
-    text-decoration: none;
-    transition: transform 0.18s ease, border-color 0.18s ease, background 0.18s ease;
-}
-
-.role-card:hover {
-    transform: translateY(-2px);
-    border-color: rgba(34, 197, 94, 0.42);
-    background: rgba(21, 36, 65, 0.94);
-}
-
-.role-card i {
-    display: grid;
-    place-items: center;
-    width: 42px;
-    height: 42px;
-    border-radius: 12px;
-    color: #052e16;
-    background: var(--accent);
-    font-size: 1.2rem;
-}
-
-.role-card span {
-    font-weight: 900;
-}
-
-.role-card--operator i {
-    color: #0b2545;
-    background: #93c5fd;
-}
-
-.role-card--admin i {
-    color: #2e1065;
-    background: #c4b5fd;
-}
-
 .account-create-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -550,6 +527,15 @@
 
 .account-form__split--three {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.account-role-section {
+    display: grid;
+    gap: 14px;
+}
+
+.account-role-section[hidden] {
+    display: none;
 }
 
 .account-form__row {
@@ -640,10 +626,6 @@
         flex-direction: column;
     }
 
-    .role-launcher {
-        grid-template-columns: 1fr;
-    }
-
     .account-create-grid {
         grid-template-columns: 1fr;
     }
@@ -660,6 +642,11 @@
 
     .accounts-search {
         grid-template-columns: auto minmax(0, 1fr);
+    }
+
+    .accounts-panel__tools {
+        align-items: stretch;
+        flex-direction: column;
     }
 
     .accounts-search__button {

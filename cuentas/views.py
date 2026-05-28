@@ -9,12 +9,10 @@ from django.views.generic import TemplateView
 
 from core.choices import EstadoCuentaJugador, RolUsuario
 from cuentas.forms import (
-    AdministradorRegistroForm,
     CuentaAdminUpdateForm,
     CuentaSearchForm,
-    JugadorRegistroForm,
-    OperadorRegistroForm,
     PerfilJugadorSelfForm,
+    UsuarioRegistroForm,
     get_admin_assignable_roles,
 )
 from cuentas.models import Usuario
@@ -121,44 +119,30 @@ class CuentasView(LoginRequiredMixin, TemplateView):
         }
 
 
-class CrearCuentaBaseView(AdminAccountRequiredMixin, TemplateView):
-    form_class = None
-    success_message = ''
+class CrearUsuarioView(AdminAccountRequiredMixin, TemplateView):
+    template_name = 'cuentas/crear_usuario.html'
     success_url = reverse_lazy('cuentas:cuentas')
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['form'] = kwargs.get('form') or self.form_class()
+        context['form'] = kwargs.get('form') or UsuarioRegistroForm(
+            current_user=self.request.user
+        )
         return context
 
     def post(self, request, *args, **kwargs):
-        form = self.form_class(request.POST)
+        form = UsuarioRegistroForm(request.POST, current_user=request.user)
 
         if form.is_valid():
             user = form.save()
-            messages.success(request, self.success_message.format(username=user.username))
+            messages.success(
+                request,
+                f'Usuario {user.username} creado correctamente como {user.get_rol_display()}.',
+            )
             return redirect(self.success_url)
 
         messages.error(request, 'Revisa los datos del formulario antes de continuar.')
         return self.render_to_response(self.get_context_data(form=form))
-
-
-class CrearJugadorView(CrearCuentaBaseView):
-    template_name = 'cuentas/crear_jugador.html'
-    form_class = JugadorRegistroForm
-    success_message = 'Jugador {username} creado con perfil KYC.'
-
-
-class CrearOperadorView(CrearCuentaBaseView):
-    template_name = 'cuentas/crear_operador.html'
-    form_class = OperadorRegistroForm
-    success_message = 'Operador {username} creado correctamente.'
-
-
-class CrearAdminView(CrearCuentaBaseView):
-    template_name = 'cuentas/crear_admin.html'
-    form_class = AdministradorRegistroForm
-    success_message = 'Administrador interno {username} creado con permisos limitados.'
 
 
 class EditarCuentaView(AdminAccountRequiredMixin, TemplateView):
