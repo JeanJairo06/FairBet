@@ -8,6 +8,7 @@ from apuesta.models import Apuesta, DetalleApuesta, LiquidacionApuesta
 from billetera.models import TransaccionLedger
 from core.choices import (
     EstadoApuesta,
+    EstadoCuentaJugador,
     EstadoEvento,
     EstadoMercado,
     EstadoSeleccion,
@@ -17,6 +18,16 @@ from core.choices import (
     TipoTransaccionLedger,
 )
 from deporte.models import SeleccionMercado
+
+
+def validar_usuario_puede_apostar(usuario):
+    perfil = getattr(usuario, 'perfil_jugador', None)
+
+    if perfil is None:
+        raise ValidationError('El usuario no tiene perfil de jugador.')
+
+    if perfil.estado_cuenta != EstadoCuentaJugador.VERIFICADO:
+        raise ValidationError('El usuario no esta habilitado para apostar.')
 
 
 def obtener_odds_activa(seleccion):
@@ -52,6 +63,7 @@ def crear_apuesta_simple(usuario, seleccion_id, stake, idempotency_key=None):
     seleccion = SeleccionMercado.objects.select_related('mercado__evento').get(pk=seleccion_id)
     odds_activa = obtener_odds_activa(seleccion)
 
+    validar_usuario_puede_apostar(usuario)
     validar_apuesta_simple(seleccion, odds_activa, stake)
 
     odds_total = odds_activa.odds
