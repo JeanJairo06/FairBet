@@ -4,6 +4,8 @@ from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
+from rest_framework import status
+from rest_framework.test import APIClient
 
 from apuesta.models import Apuesta, DetalleApuesta
 from apuesta.servicios import crear_apuesta_simple
@@ -125,3 +127,84 @@ class CrearApuestaSimpleTests(TestCase):
             )
 
         self.assertEqual(Apuesta.objects.count(), 0)
+
+
+class ApuestaApiTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.usuario = get_user_model().objects.create_user(
+            username='daniel_api',
+            email='daniel_api@test.com',
+            password='test12345',
+        )
+        self.otro_usuario = get_user_model().objects.create_user(
+            username='otro_usuario',
+            email='otro@test.com',
+            password='test12345',
+        )
+        self.client.force_authenticate(user=self.usuario)
+
+        self.evento = EventoDeportivo.objects.create(
+            deporte='Futbol',
+            competicion='Mundial 2026',
+            equipo_local='Peru',
+            equipo_visitante='Brasil',
+            inicia_en=timezone.now() + timezone.timedelta(days=1),
+        )
+        self.mercado = Mercado.objects.create(
+            evento=self.evento,
+            tipo_mercado=TipoMercado.UNO_X_DOS,
+            nombre='Resultado final',
+            estado_mercado=EstadoMercado.ABIERTO,
+            stake_minimo=Decimal('5.0000'),
+            stake_maximo=Decimal('100.0000'),
+        )
+        self.seleccion = SeleccionMercado.objects.create(
+            mercado=self.mercado,
+            codigo_seleccion='HOME_WIN',
+            nombre='Gana Peru',
+            estado_seleccion=EstadoSeleccion.ACTIVA,
+        )
+        HistorialOdds.objects.create(
+            seleccion=self.seleccion,
+            odds=Decimal('2.5000'),
+            numero_version=1,
+            activa=True,
+            valido_desde=timezone.now(),
+        )
+
+    def test_api_crea_apuesta_simple(self):
+        response = self.client.post(
+            '/api/v1/apuestas/',
+            {
+                'seleccion_id': self.seleccion.id_seleccion,
+                'stake': '10.0000',
+                'idempotency_key': 'api-apuesta-simple-1',
+            },
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Apuesta.objects.count(), 1)
+        self.assertEqual(response.data['estado_apuesta'], EstadoApuesta.ACCEPTED)
+        self.assertEqual(response.data['payout_potencial'], '25.0000')
+
+    def test_api_lista_solo_apuestas_del_usuario_autenticado(self):
+        apuesta_usuario = crear_apuesta_simple(
+            usuario=self.usuario,
+            seleccion_id=self.seleccion.id_seleccion,
+            stake=Decimal('10.0000'),
+            idempotency_key='api-lista-usuario',
+        )
+        crear_apuesta_simple(
+            usuario=self.otro_usuario,
+            seleccion_id=self.seleccion.id_seleccion,
+            stake=Decimal('15.0000'),
+            idempotency_key='api-lista-otro',
+        )
+
+        response = self.client.get('/api/v1/apuestas/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['results']), 1)
+        self.assertEqual(response.data['results'][0]['id_apuesta'], apuesta_usuario.id_apuesta)
