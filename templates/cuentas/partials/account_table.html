@@ -25,7 +25,7 @@
                     <th>Cuenta</th>
                     <th>Rol</th>
                     <th>KYC / Perfil</th>
-                    <th>Permisos / Estado</th>
+                    <th>Estado</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
@@ -71,41 +71,23 @@
                             {% endif %}
                         </td>
                         <td>
-                            <form method="post" action="{% url 'cuentas:actualizar_permisos' usuario.pk %}" class="account-permissions-form">
-                                {% csrf_token %}
-                                <label class="account-switch">
-                                    <input type="checkbox" name="is_active" {% if usuario.is_active %}checked{% endif %}>
-                                    <span class="account-switch__control"></span>
-                                    <span>Activo</span>
-                                </label>
-
-                                {% if usuario.rol == 'ADMIN' %}
-                                    <label class="account-switch">
-                                        <input type="checkbox" name="is_staff" {% if usuario.is_staff %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
-                                        <span class="account-switch__control"></span>
-                                        <span>Es staff</span>
-                                    </label>
-                                    <label class="account-switch">
-                                        <input type="checkbox" name="is_superuser" {% if usuario.is_superuser %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
-                                        <span class="account-switch__control"></span>
-                                        <span>Superusuario</span>
-                                    </label>
-                                    {% if not request.user.is_superuser %}
-                                        <small class="permissions-note">Solo un superusuario puede cambiar staff o superusuario.</small>
-                                    {% endif %}
-                                {% endif %}
-
-                                <button type="submit" class="account-action account-action--save account-action--compact">
-                                    Guardar
-                                </button>
-                            </form>
+                            {% if usuario.is_active %}
+                                <span class="status-badge status-badge--active">Activo</span>
+                            {% else %}
+                                <span class="status-badge status-badge--inactive">Inactivo</span>
+                            {% endif %}
                         </td>
                         <td>
                             <div class="account-table-actions">
-                                <a href="{% url 'cuentas:editar_cuenta' usuario.pk %}" class="account-action account-action--save">
-                                    <i class="bi bi-pencil-square"></i>
-                                    Editar
-                                </a>
+                                {% if usuario.is_superuser and not request.user.is_superuser %}
+                                    <span class="account-current">Cuenta protegida</span>
+                                {% else %}
+                                    <a href="{% url 'cuentas:editar_cuenta' usuario.pk %}" class="account-action account-action--save">
+                                        <i class="bi bi-pencil-square"></i>
+                                        Editar
+                                    </a>
+                                {% endif %}
+
                                 {% if usuario.pk == request.user.pk %}
                                     <span class="account-current">Cuenta actual</span>
                                 {% endif %}

@@ -28,11 +28,11 @@
 
     {% if can_admin_accounts %}
         {% include 'cuentas/partials/account_table.html' %}
-    {% elif self_profile %}
+    {% elif self_can_edit %}
         <article class="accounts-panel accounts-readonly">
             <i class="bi bi-person"></i>
             <h3>Mis datos personales</h3>
-            <p>Puedes actualizar tu informacion de contacto sin modificar rol ni estado KYC.</p>
+            <p>Puedes actualizar informacion personal y contrasena sin modificar rol, estado ni permisos.</p>
             <a href="{% url 'cuentas:perfil_jugador' %}" class="button button--primary">
                 <i class="bi bi-pencil-square"></i>
                 Editar mis datos

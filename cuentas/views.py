@@ -1,17 +1,16 @@
 from django.contrib import messages
+from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, Q
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
-from django.views import View
 from django.views.generic import TemplateView
 
 from core.choices import EstadoCuentaJugador, RolUsuario
 from cuentas.forms import (
     CuentaAdminUpdateForm,
-    CuentaPermisosForm,
+    CuentaSelfUpdateForm,
     CuentaSearchForm,
-    PerfilJugadorSelfForm,
     UsuarioRegistroForm,
     get_admin_assignable_roles,
 )
@@ -51,6 +50,7 @@ class CuentasView(LoginRequiredMixin, TemplateView):
                 'usuarios': self._get_usuarios(search_form),
                 'can_admin_accounts': self.can_admin_accounts,
                 'self_profile': getattr(self.request.user, 'perfil_jugador', None),
+                'self_can_edit': self.request.user.is_authenticated,
                 'stats': self._build_stats(),
             }
         )
@@ -148,21 +148,30 @@ class CrearUsuarioView(AdminAccountRequiredMixin, TemplateView):
 class EditarCuentaView(AdminAccountRequiredMixin, TemplateView):
     template_name = 'cuentas/editar_cuenta.html'
 
+    def dispatch(self, request, *args, **kwargs):
+        self.target_user = self._get_usuario()
+        if self._is_protected_admin(self.target_user) and self.target_user.pk != request.user.pk:
+            messages.error(request, 'La cuenta principal esta protegida y no puede ser editada por administradores secundarios.')
+            return redirect('cuentas:cuentas')
+
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        usuario = self._get_usuario()
+        usuario = self.target_user
         context.update(
             {
                 'usuario': usuario,
                 'form': kwargs.get('form') or self._build_form(usuario),
                 'assignable_roles': get_admin_assignable_roles(self.request.user),
                 'estados_kyc': EstadoCuentaJugador.choices,
+                'is_protected_admin': self._is_protected_admin(usuario),
             }
         )
         return context
 
     def post(self, request, *args, **kwargs):
-        usuario = self._get_usuario()
+        usuario = self.target_user
         form = CuentaAdminUpdateForm(
             request.POST,
             current_user=request.user,
@@ -171,6 +180,8 @@ class EditarCuentaView(AdminAccountRequiredMixin, TemplateView):
 
         if form.is_valid():
             form.apply()
+            if usuario.pk == request.user.pk and form.cleaned_data.get('password1'):
+                update_session_auth_hash(request, usuario)
             messages.success(request, f'Cuenta {usuario.username} actualizada correctamente.')
             return redirect('cuentas:cuentas')
 
@@ -178,6 +189,9 @@ class EditarCuentaView(AdminAccountRequiredMixin, TemplateView):
         return self.render_to_response(self.get_context_data(form=form))
 
     def _get_usuario(self):
+        if hasattr(self, 'target_user'):
+            return self.target_user
+
         return get_object_or_404(
             Usuario.objects.select_related('perfil_jugador'),
             pk=self.kwargs['pk'],
@@ -193,6 +207,9 @@ class EditarCuentaView(AdminAccountRequiredMixin, TemplateView):
                 'email': usuario.email,
                 'nombres': perfil.nombres if perfil else usuario.first_name,
                 'apellidos': perfil.apellidos if perfil else usuario.last_name,
+                'dni': perfil.dni if perfil else '',
+                'fecha_nacimiento': perfil.fecha_nacimiento if perfil else '',
+                'telefono': perfil.telefono if perfil else '',
                 'rol': usuario.rol,
                 'is_active': usuario.is_active,
                 'is_staff': usuario.is_staff,
@@ -201,47 +218,39 @@ class EditarCuentaView(AdminAccountRequiredMixin, TemplateView):
             },
         )
 
-
-class ActualizarPermisosCuentaView(AdminAccountRequiredMixin, View):
-    def post(self, request, *args, **kwargs):
-        target_user = get_object_or_404(Usuario, pk=kwargs['pk'])
-        form = CuentaPermisosForm(
-            request.POST,
-            current_user=request.user,
-            target_user=target_user,
+    def _is_protected_admin(self, usuario):
+        return (
+            usuario.is_superuser
+            and (usuario.pk == self.request.user.pk or not self.request.user.is_superuser)
         )
-
-        if form.is_valid():
-            form.apply()
-            messages.success(request, f'Permisos de {target_user.username} actualizados correctamente.')
-            return redirect('cuentas:cuentas')
-
-        messages.error(request, 'No se pudieron actualizar los permisos de la cuenta.')
-        return redirect('cuentas:cuentas')
 
 
 class PerfilJugadorView(LoginRequiredMixin, TemplateView):
     template_name = 'cuentas/perfil_jugador.html'
 
-    def dispatch(self, request, *args, **kwargs):
-        if getattr(request.user, 'perfil_jugador', None) is None:
-            messages.error(request, 'Tu cuenta no tiene un perfil de jugador editable.')
-            return redirect('cuentas:cuentas')
-
-        return super().dispatch(request, *args, **kwargs)
-
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context['form'] = kwargs.get('form') or PerfilJugadorSelfForm(
-            instance=self.request.user.perfil_jugador
+        perfil = getattr(self.request.user, 'perfil_jugador', None)
+        context['form'] = kwargs.get('form') or CuentaSelfUpdateForm(
+            user=self.request.user,
+            initial={
+                'username': self.request.user.username,
+                'email': self.request.user.email,
+                'nombres': perfil.nombres if perfil else self.request.user.first_name,
+                'apellidos': perfil.apellidos if perfil else self.request.user.last_name,
+                'telefono': perfil.telefono if perfil else '',
+            },
         )
+        context['perfil'] = perfil
         return context
 
     def post(self, request, *args, **kwargs):
-        form = PerfilJugadorSelfForm(request.POST, instance=request.user.perfil_jugador)
+        form = CuentaSelfUpdateForm(request.POST, user=request.user)
 
         if form.is_valid():
-            form.save()
+            form.apply()
+            if form.cleaned_data.get('password1'):
+                update_session_auth_hash(request, request.user)
             messages.success(request, 'Tus datos personales fueron actualizados.')
             return redirect('cuentas:cuentas')
 

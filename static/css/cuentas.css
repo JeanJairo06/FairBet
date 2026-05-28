@@ -35,6 +35,7 @@
 .accounts-heading__badge,
 .account-pill,
 .kyc-badge,
+.status-badge,
 .section-chip {
     display: inline-flex;
     align-items: center;
@@ -272,7 +273,8 @@
 }
 
 .account-pill,
-.kyc-badge {
+.kyc-badge,
+.status-badge {
     min-height: 28px;
     padding: 0 10px;
     border-radius: 999px;
@@ -301,6 +303,16 @@
 .kyc-badge--verificado {
     color: #bbf7d0;
     background: rgba(34, 197, 94, 0.14);
+}
+
+.status-badge--active {
+    color: #bbf7d0;
+    background: rgba(34, 197, 94, 0.14);
+}
+
+.status-badge--inactive {
+    color: #fecaca;
+    background: rgba(248, 113, 113, 0.14);
 }
 
 .kyc-badge--pendiente_verificacion {
@@ -416,6 +428,12 @@
     box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12);
 }
 
+.account-form__input:disabled,
+.account-form select:disabled {
+    opacity: 0.62;
+    cursor: not-allowed;
+}
+
 .account-form select option,
 .account-inline-control option {
     color: #0f172a;
@@ -469,12 +487,6 @@
     color: var(--muted);
     border: 1px solid var(--line);
     background: rgba(255, 255, 255, 0.035);
-}
-
-.account-permissions-form {
-    display: grid;
-    gap: 8px;
-    min-width: 170px;
 }
 
 .account-permissions-section {
@@ -554,6 +566,31 @@
     cursor: not-allowed;
 }
 
+.account-protected-notice {
+    display: flex;
+    gap: 14px;
+    padding: 16px;
+    border: 1px solid rgba(96, 165, 250, 0.28);
+    border-radius: 16px;
+    color: var(--text);
+    background: rgba(96, 165, 250, 0.08);
+}
+
+.account-protected-notice i {
+    color: #93c5fd;
+    font-size: 1.35rem;
+}
+
+.account-protected-notice h3,
+.account-protected-notice p {
+    margin: 0;
+}
+
+.account-protected-notice p {
+    margin-top: 4px;
+    color: var(--muted);
+}
+
 .account-create-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -594,6 +631,13 @@
     font-weight: 900;
 }
 
+.account-form__hint {
+    margin: 0;
+    color: var(--muted);
+    font-size: 0.84rem;
+    line-height: 1.45;
+}
+
 .account-form__split {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -615,6 +659,7 @@
 
 .account-form__row {
     display: grid;
+    align-content: start;
     gap: 8px;
     min-width: 0;
 }
@@ -660,6 +705,34 @@
     padding: 9px 11px;
     list-style: none;
     font-size: 0.84rem;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+}
+
+.account-form__row .errorlist {
+    max-width: 100%;
+}
+
+.account-form__help {
+    display: grid;
+    gap: 4px;
+    max-width: 100%;
+    padding: 10px 12px;
+    border: 1px solid rgba(148, 163, 184, 0.18);
+    border-radius: 12px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.035);
+    font-size: 0.78rem;
+    line-height: 1.35;
+    overflow-wrap: anywhere;
+}
+
+.account-form__help ul,
+.account-form__help ol {
+    display: grid;
+    gap: 4px;
+    margin: 0;
+    padding-left: 18px;
 }
 
 .button--full {
