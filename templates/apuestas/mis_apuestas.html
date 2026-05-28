@@ -1,0 +1,55 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mis apuestas | FairBet Lab{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/apuestas.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="module-header">
+    <div>
+        <p class="eyebrow">Apuestas deportivas</p>
+        <h2>Mis apuestas</h2>
+        <p>Consulta el estado de tus apuestas con fichas virtuales.</p>
+    </div>
+    <a href="{% url 'apuesta:apuestas_web' %}" class="button button--primary">
+        <i class="bi bi-plus-circle"></i> Nueva apuesta
+    </a>
+</section>
+
+<section class="data-panel">
+    <div class="table-wrap">
+        <table class="app-table">
+            <thead>
+                <tr>
+                    <th>Apuesta</th>
+                    <th>Stake</th>
+                    <th>Cuota</th>
+                    <th>Pago potencial</th>
+                    <th>Estado</th>
+                    <th>Fecha</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for apuesta in apuestas %}
+                    <tr>
+                        <td><strong>#{{ apuesta.id_apuesta }}</strong><span>{{ apuesta.get_tipo_apuesta_display }}</span></td>
+                        <td>{{ apuesta.stake }}</td>
+                        <td>{{ apuesta.odds_total }}</td>
+                        <td>{{ apuesta.payout_potencial }}</td>
+                        <td><span class="status-pill">{{ apuesta.get_estado_apuesta_display }}</span></td>
+                        <td>{{ apuesta.created_at|date:'d/m/Y H:i' }}</td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6" class="empty-state">Aun no tienes apuestas registradas.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% include 'partials/pagination.html' %}
+</section>
+{% endblock %}
