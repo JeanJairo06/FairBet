@@ -13,6 +13,13 @@ from billetera.exceptions import (
     TransaccionNoBalanceadaError,
 )
 from billetera.services.balance_service import calcular_saldo, calcular_saldo_usuario, validar_saldo_suficiente
+from billetera.services.account_service import (
+    asegurar_cuentas_sistema,
+    crear_cuenta_wallet_usuario,
+    obtener_cuenta_sistema,
+    obtener_cuenta_wallet,
+    obtener_o_crear_cuenta_sistema,
+)
 from billetera.services.ledger_service import crear_transaccion_ledger, validar_transaccion_balanceada
 from core.choices import (
     DirectionLedger,
@@ -430,3 +437,77 @@ class BalanceServiceTests(TestCase):
     def test_validar_saldo_suficiente_rechaza_monto_negativo(self):
         with self.assertRaises(MontoInvalidoError):
             validar_saldo_suficiente(self.wallet, Decimal('-1.0000'))
+
+
+class AccountServiceTests(TestCase):
+    def setUp(self):
+        self.usuario = get_user_model().objects.create_user(
+            username='account_service_user',
+            email='account_service_user@test.com',
+            password='test12345',
+        )
+
+    def test_crear_cuenta_wallet_usuario(self):
+        cuenta = crear_cuenta_wallet_usuario(self.usuario)
+
+        self.assertEqual(cuenta.usuario, self.usuario)
+        self.assertEqual(cuenta.tipo_cuenta, TipoCuentaContable.WALLET_USUARIO)
+        self.assertEqual(cuenta.codigo, f'WALLET-USUARIO-{self.usuario.pk}')
+
+    def test_crear_cuenta_wallet_usuario_es_idempotente(self):
+        primera = crear_cuenta_wallet_usuario(self.usuario)
+        segunda = crear_cuenta_wallet_usuario(self.usuario)
+
+        self.assertEqual(primera, segunda)
+        self.assertEqual(
+            Cuenta.objects.filter(usuario=self.usuario, tipo_cuenta=TipoCuentaContable.WALLET_USUARIO).count(),
+            1,
+        )
+
+    def test_obtener_cuenta_wallet_existente(self):
+        cuenta = crear_cuenta_wallet_usuario(self.usuario)
+
+        self.assertEqual(obtener_cuenta_wallet(self.usuario), cuenta)
+
+    def test_obtener_cuenta_wallet_falla_si_no_existe(self):
+        with self.assertRaises(CuentaNoEncontradaError):
+            obtener_cuenta_wallet(self.usuario)
+
+    def test_obtener_o_crear_cuenta_sistema_casa(self):
+        cuenta = obtener_o_crear_cuenta_sistema(TipoCuentaContable.CASA)
+
+        self.assertIsNone(cuenta.usuario)
+        self.assertEqual(cuenta.tipo_cuenta, TipoCuentaContable.CASA)
+        self.assertEqual(cuenta.codigo, 'SISTEMA-CASA')
+
+    def test_obtener_o_crear_cuenta_sistema_es_idempotente(self):
+        primera = obtener_o_crear_cuenta_sistema(TipoCuentaContable.APUESTAS_PENDIENTES)
+        segunda = obtener_o_crear_cuenta_sistema(TipoCuentaContable.APUESTAS_PENDIENTES)
+
+        self.assertEqual(primera, segunda)
+        self.assertEqual(
+            Cuenta.objects.filter(tipo_cuenta=TipoCuentaContable.APUESTAS_PENDIENTES, usuario=None).count(),
+            1,
+        )
+
+    def test_obtener_o_crear_cuenta_sistema_rechaza_wallet_usuario(self):
+        with self.assertRaises(ValueError):
+            obtener_o_crear_cuenta_sistema(TipoCuentaContable.WALLET_USUARIO)
+
+    def test_obtener_cuenta_sistema_existente(self):
+        cuenta = obtener_o_crear_cuenta_sistema(TipoCuentaContable.CASA)
+
+        self.assertEqual(obtener_cuenta_sistema(TipoCuentaContable.CASA), cuenta)
+
+    def test_obtener_cuenta_sistema_falla_si_no_existe(self):
+        with self.assertRaises(CuentaNoEncontradaError):
+            obtener_cuenta_sistema(TipoCuentaContable.CASA)
+
+    def test_asegurar_cuentas_sistema_crea_cuentas_base(self):
+        cuentas = asegurar_cuentas_sistema()
+
+        self.assertEqual(
+            set(cuentas.keys()),
+            {TipoCuentaContable.CASA, TipoCuentaContable.APUESTAS_PENDIENTES, TipoCuentaContable.BONOS},
+        )
+        self.assertEqual(Cuenta.objects.filter(usuario=None).count(), 3)
