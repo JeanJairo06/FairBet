@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-
+{% load static %}
 {% block title %}Juego Responsable | FairBet Lab{% endblock %}
 
 {% block content %}
@@ -121,16 +121,48 @@
                     {% endfor %}
                 </select>
 
+                <div id="contenedor-duracion" style="display: none; margin-bottom: 1rem;">
+                    <label for="id_duracion_dias" style="display: block; margin-bottom: 0.4rem; font-weight: 600; font-size: 0.85rem; color: var(--text-main);">
+                        Duración de la Autoexclusión
+                    </label>
+                    <select name="duracion_dias" id="id_duracion_dias" class="auth-form" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--bg-main); color: var(--text-main); color-scheme: dark; margin-bottom: 1rem;">
+                        <option value="7" style="background-color: #1e293b; color: #ffffff;">7 días (Pausa corta)</option>
+                        <option value="30" style="background-color: #1e293b; color: #ffffff;" selected>30 días (Un mes)</option>
+                        <option value="90" style="background-color: #1e293b; color: #ffffff;">90 días (Tres meses)</option>
+                    </select>
+                </div>
+
                 <label for="id_motivo">Motivo / Comentarios (Opcional)</label>
                 <textarea name="motivo" id="id_motivo" rows="3" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--bg-main); color: var(--text-main); resize: none; margin-bottom: 1.5rem;" placeholder="Detalles de la solicitud..."></textarea>
 
-                <button type="submit" class="button button--full" style="background-color: #dc2626; color: white; border: none;"
-                        onclick="return confirm('¿Está completamente seguro? Se cerrará su sesión y su cuenta quedará bloqueada de inmediato en FairBet Lab.');">
-                    <i class="bi bi-lock-fill"></i> Confirmar Bloqueo
+                <button type="button" id="btn-autoexcluir" class="button button--full" style="background-color: #dc2626; color: white; border: none;">
+                    <i class="bi bi-shield-slash"></i> Confirmar Bloqueo
                 </button>
             </form>
         </div>
 
     </div>
 </section>
+
+<div id="custom-confirm-modal" style="display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px); align-items: center; justify-content: center;">
+    <div class="auth-card" style="max-width: 450px; width: 90%; margin: 0; border: 1px solid #dc2626; box-shadow: 0 10px 25px rgba(0,0,0,0.5);">
+        <div style="text-align: center; margin-bottom: 1rem; color: #dc2626;">
+            <i class="bi bi-exclamation-triangle" style="font-size: 3rem;"></i>
+        </div>
+        <h3 style="text-align: center; color: var(--text-main); margin-bottom: 1rem; font-weight: 700;">¿Confirmar Autoexclusión?</h3>
+        <p style="color: var(--text-muted); font-size: 0.9rem; line-height: 1.5; text-align: center; margin-bottom: 1.5rem;">
+            Esta acción es irreversible y aplicará los controles bloqueantes en tu cuenta de inmediato de conformidad con las regulaciones de Juego Responsable. Se cerrará tu sesión actual y se restringirá tu acceso a FairBet Lab.
+        </p>
+        <div style="display: flex; gap: 1rem; justify-content: center;">
+            <button type="button" id="modal-cancel-btn" class="button" style="background: rgba(255,255,255,0.05); border: 1px solid var(--border-color); color: var(--text-main); padding: 0.75rem 1.5rem; border-radius: 6px; cursor: pointer;">
+                Cancelar
+            </button>
+            <button type="button" id="modal-confirm-btn" class="button" style="background-color: #dc2626; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 6px; cursor: pointer; font-weight: 600;">
+                Sí, Excluirme
+            </button>
+        </div>
+    </div>
+</div>
+
+<script src="{% static 'js/panel.js' %}"></script>
 {% endblock %}

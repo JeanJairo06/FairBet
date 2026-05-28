@@ -90,7 +90,13 @@ def panel_juego_responsable_view(request):
             try:
                 finaliza_en = None
                 if tipo == TipoAutoexclusion.TEMPORAL:
-                    finaliza_en = timezone.now() + timezone.timedelta(days=30)
+                    dias_str = request.POST.get('duracion_dias', '30')
+                    if dias_str not in ['7', '30', '90']:
+                        messages.error(request, "La duración de la autoexclusión temporal seleccionada es inválida.")
+                        return redirect('juego_responsable:panel')
+
+                    dias_excluir = int(dias_str)
+                    finaliza_en = timezone.now() + timezone.timedelta(days=dias_excluir)
 
                 Autoexclusion.objects.create(
                     usuario=usuario,
