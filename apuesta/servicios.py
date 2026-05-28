@@ -2,17 +2,32 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
 
-from apuesta.models import Apuesta, DetalleApuesta
+from apuesta.models import Apuesta, DetalleApuesta, LiquidacionApuesta
 from billetera.models import TransaccionLedger
 from core.choices import (
+    EstadoApuesta,
+    EstadoCuentaJugador,
+    EstadoEvento,
     EstadoMercado,
     EstadoSeleccion,
     EstadoTransaccionLedger,
+    ResultadoLiquidacion,
     TipoApuesta,
     TipoTransaccionLedger,
 )
 from deporte.models import SeleccionMercado
+
+
+def validar_usuario_puede_apostar(usuario):
+    perfil = getattr(usuario, 'perfil_jugador', None)
+
+    if perfil is None:
+        raise ValidationError('El usuario no tiene perfil de jugador.')
+
+    if perfil.estado_cuenta != EstadoCuentaJugador.VERIFICADO:
+        raise ValidationError('El usuario no esta habilitado para apostar.')
 
 
 def obtener_odds_activa(seleccion):
@@ -21,6 +36,13 @@ def obtener_odds_activa(seleccion):
 
 def validar_apuesta_simple(seleccion, odds_activa, stake):
     mercado = seleccion.mercado
+    evento = mercado.evento
+
+    if evento.estado_evento != EstadoEvento.PROGRAMADO:
+        raise ValidationError('El evento no esta disponible para nuevas apuestas.')
+
+    if evento.inicia_en <= timezone.now():
+        raise ValidationError('No se puede apostar sobre un evento que ya inicio.')
 
     if seleccion.estado_seleccion != EstadoSeleccion.ACTIVA:
         raise ValidationError('La seleccion no esta activa para apostar.')
@@ -37,10 +59,16 @@ def validar_apuesta_simple(seleccion, odds_activa, stake):
 
 @transaction.atomic
 def crear_apuesta_simple(usuario, seleccion_id, stake, idempotency_key=None):
+    if idempotency_key:
+        apuesta_existente = Apuesta.objects.filter(idempotency_key=idempotency_key).first()
+        if apuesta_existente:
+            return apuesta_existente
+
     stake = Decimal(stake)
-    seleccion = SeleccionMercado.objects.select_related('mercado').get(pk=seleccion_id)
+    seleccion = SeleccionMercado.objects.select_related('mercado__evento').get(pk=seleccion_id)
     odds_activa = obtener_odds_activa(seleccion)
 
+    validar_usuario_puede_apostar(usuario)
     validar_apuesta_simple(seleccion, odds_activa, stake)
 
     odds_total = odds_activa.odds
@@ -76,3 +104,46 @@ def crear_apuesta_simple(usuario, seleccion_id, stake, idempotency_key=None):
     )
 
     return apuesta
+
+
+@transaction.atomic
+def liquidar_apuesta(apuesta, resultado, liquidado_por=None, observacion=''):
+    if apuesta.estado_apuesta != EstadoApuesta.ACCEPTED:
+        raise ValidationError('Solo se pueden liquidar apuestas aceptadas.')
+
+    if resultado == ResultadoLiquidacion.WON:
+        estado_apuesta = EstadoApuesta.WON
+        payout = apuesta.stake * apuesta.odds_total
+    elif resultado == ResultadoLiquidacion.LOST:
+        estado_apuesta = EstadoApuesta.LOST
+        payout = apuesta.stake * 0
+    elif resultado == ResultadoLiquidacion.VOID:
+        estado_apuesta = EstadoApuesta.VOID
+        payout = apuesta.stake
+    else:
+        raise ValidationError('Resultado de liquidacion no soportado.')
+
+    transaccion_liquidacion = TransaccionLedger.objects.create(
+        usuario=apuesta.usuario,
+        tipo_transaccion=TipoTransaccionLedger.LIQUIDACION,
+        tipo_referencia='apuesta',
+        id_referencia=str(apuesta.id_apuesta),
+        estado=EstadoTransaccionLedger.COMPLETED,
+    )
+
+    liquidado_en = timezone.now()
+    liquidacion = LiquidacionApuesta.objects.create(
+        apuesta=apuesta,
+        resultado_liquidacion=resultado,
+        payout=payout,
+        transaction_liquidacion=transaccion_liquidacion,
+        liquidado_por=liquidado_por,
+        liquidado_en=liquidado_en,
+        observacion=observacion,
+    )
+
+    apuesta.estado_apuesta = estado_apuesta
+    apuesta.liquidada_en = liquidado_en
+    apuesta.save(update_fields=['estado_apuesta', 'liquidada_en'])
+
+    return liquidacion
