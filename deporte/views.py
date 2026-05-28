@@ -26,8 +26,7 @@ class EventoListView(DeporteLoginRequiredMixin, ListView):
         q = self.request.GET.get('q')
         if q:
             queryset = queryset.filter(
-                Q(deporte__icontains=q)
-                | Q(competicion__icontains=q)
+                Q(competicion__icontains=q)
                 | Q(equipo_local__icontains=q)
                 | Q(equipo_visitante__icontains=q)
             )

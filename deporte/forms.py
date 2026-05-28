@@ -14,7 +14,6 @@ class EventoDeportivoForm(BaseStyledModelForm):
     class Meta:
         model = EventoDeportivo
         fields = [
-            'deporte',
             'competicion',
             'equipo_local',
             'equipo_visitante',
@@ -27,6 +26,14 @@ class EventoDeportivoForm(BaseStyledModelForm):
         widgets = {
             'inicia_en': forms.DateTimeInput(attrs={'type': 'datetime-local'}),
         }
+
+    def save(self, commit=True):
+        evento = super().save(commit=False)
+        evento.deporte = 'Futbol'
+        if commit:
+            evento.save()
+            self.save_m2m()
+        return evento
 
 
 class MercadoForm(BaseStyledModelForm):
