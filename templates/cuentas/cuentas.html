@@ -1,0 +1,214 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Cuentas | FairBet Lab{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/cuentas.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="accounts-page">
+    <div class="accounts-heading">
+        <div>
+            <p class="eyebrow">Usuarios, roles y KYC</p>
+            <h2>Cuentas</h2>
+            <p>
+                Gestiona perfiles de jugador, validacion local de DNI, mayoria de edad y estados
+                de cuenta para el flujo educativo de FairBet Lab.
+            </p>
+        </div>
+        <span class="accounts-heading__badge">
+            <i class="bi bi-shield-lock"></i>
+            KYC simulado
+        </span>
+    </div>
+
+    <div class="account-stats">
+        <article class="account-stat">
+            <span>Total</span>
+            <strong>{{ stats.total }}</strong>
+        </article>
+        <article class="account-stat account-stat--ok">
+            <span>Verificados</span>
+            <strong>{{ stats.verificados }}</strong>
+        </article>
+        <article class="account-stat account-stat--pending">
+            <span>Pendientes</span>
+            <strong>{{ stats.pendientes }}</strong>
+        </article>
+        <article class="account-stat account-stat--risk">
+            <span>Bloqueados</span>
+            <strong>{{ stats.bloqueados }}</strong>
+        </article>
+        <article class="account-stat account-stat--risk">
+            <span>Autoexcluidos</span>
+            <strong>{{ stats.autoexcluidos }}</strong>
+        </article>
+    </div>
+
+    <div class="accounts-grid">
+        <article class="accounts-panel accounts-panel--wide">
+            <div class="accounts-panel__header">
+                <div>
+                    <h3>Perfiles registrados</h3>
+                    <p>Consulta el estado operativo de cada cuenta y su informacion KYC local.</p>
+                </div>
+                <form method="get" class="accounts-search">
+                    <i class="bi bi-search"></i>
+                    <input type="search" name="q" value="{{ q }}" placeholder="Buscar usuario, correo o DNI">
+                </form>
+            </div>
+
+            <div class="accounts-table-wrap">
+                <table class="accounts-table">
+                    <thead>
+                        <tr>
+                            <th>Usuario</th>
+                            <th>Rol</th>
+                            <th>DNI</th>
+                            <th>Estado KYC</th>
+                            <th>Verificado en</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for usuario in usuarios %}
+                            <tr>
+                                <td>
+                                    <div class="account-user">
+                                        <span class="account-user__avatar">
+                                            {{ usuario.username|first|upper }}
+                                        </span>
+                                        <div>
+                                            <strong>{{ usuario.username }}</strong>
+                                            <small>{{ usuario.email }}</small>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="account-pill">{{ usuario.get_rol_display }}</span>
+                                </td>
+                                <td>
+                                    {% if usuario.perfil_jugador %}
+                                        {{ usuario.perfil_jugador.dni }}
+                                    {% else %}
+                                        <span class="muted">Sin perfil</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if usuario.perfil_jugador %}
+                                        <span class="kyc-badge kyc-badge--{{ usuario.perfil_jugador.estado_cuenta }}">
+                                            {{ usuario.perfil_jugador.get_estado_cuenta_display }}
+                                        </span>
+                                    {% else %}
+                                        <span class="kyc-badge kyc-badge--pendiente_verificacion">Pendiente</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    {% if usuario.perfil_jugador.kyc_verificado_en %}
+                                        {{ usuario.perfil_jugador.kyc_verificado_en|date:'d/m/Y H:i' }}
+                                    {% else %}
+                                        <span class="muted">No verificado</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="5" class="accounts-empty">
+                                    No se encontraron cuentas con los filtros actuales.
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </article>
+
+        <aside class="accounts-panel">
+            <div class="accounts-panel__header accounts-panel__header--stack">
+                <h3>Registrar jugador</h3>
+                <p>El alta usa validaciones locales desacopladas para permitir una futura API de KYC.</p>
+            </div>
+
+            {% if can_manage_accounts %}
+                <form method="post" class="account-form" novalidate>
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                        <div class="account-form__errors">
+                            {{ form.non_field_errors }}
+                        </div>
+                    {% endif %}
+
+                    <div class="account-form__row">
+                        <label for="{{ form.username.id_for_label }}">Usuario</label>
+                        {{ form.username }}
+                        {{ form.username.errors }}
+                    </div>
+
+                    <div class="account-form__row">
+                        <label for="{{ form.email.id_for_label }}">Correo</label>
+                        {{ form.email }}
+                        {{ form.email.errors }}
+                    </div>
+
+                    <div class="account-form__split">
+                        <div class="account-form__row">
+                            <label for="{{ form.nombres.id_for_label }}">Nombres</label>
+                            {{ form.nombres }}
+                            {{ form.nombres.errors }}
+                        </div>
+                        <div class="account-form__row">
+                            <label for="{{ form.apellidos.id_for_label }}">Apellidos</label>
+                            {{ form.apellidos }}
+                            {{ form.apellidos.errors }}
+                        </div>
+                    </div>
+
+                    <div class="account-form__split">
+                        <div class="account-form__row">
+                            <label for="{{ form.dni.id_for_label }}">DNI</label>
+                            {{ form.dni }}
+                            {{ form.dni.errors }}
+                        </div>
+                        <div class="account-form__row">
+                            <label for="{{ form.fecha_nacimiento.id_for_label }}">Nacimiento</label>
+                            {{ form.fecha_nacimiento }}
+                            {{ form.fecha_nacimiento.errors }}
+                        </div>
+                    </div>
+
+                    <div class="account-form__row">
+                        <label for="{{ form.telefono.id_for_label }}">Telefono</label>
+                        {{ form.telefono }}
+                        {{ form.telefono.errors }}
+                    </div>
+
+                    <div class="account-form__split">
+                        <div class="account-form__row">
+                            <label for="{{ form.password1.id_for_label }}">Contrasena</label>
+                            {{ form.password1 }}
+                            {{ form.password1.errors }}
+                        </div>
+                        <div class="account-form__row">
+                            <label for="{{ form.password2.id_for_label }}">Confirmar</label>
+                            {{ form.password2 }}
+                            {{ form.password2.errors }}
+                        </div>
+                    </div>
+
+                    <button type="submit" class="button button--primary button--full">
+                        <i class="bi bi-person-plus"></i>
+                        Crear cuenta
+                    </button>
+                </form>
+            {% else %}
+                <div class="accounts-readonly">
+                    <i class="bi bi-lock"></i>
+                    <p>Tu usuario puede consultar su perfil, pero no registrar nuevas cuentas.</p>
+                </div>
+            {% endif %}
+        </aside>
+    </div>
+</section>
+{% endblock %}
