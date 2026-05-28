@@ -89,6 +89,12 @@ class MovimientoListView(ListAPIView):
     serializer_class = LedgerEntrySerializer
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return LedgerEntry.objects.none()
+
+        if self.request.user.is_staff:
+            return LedgerEntry.objects.select_related('transaccion', 'cuenta').order_by('-created_at')
+
         cuenta = obtener_cuenta_wallet(self.request.user)
         return (
             LedgerEntry.objects.filter(cuenta=cuenta)
@@ -103,6 +109,12 @@ class TransaccionDetailView(RetrieveAPIView):
     lookup_url_kwarg = 'transaction_id'
 
     def get_queryset(self):
+        if getattr(self, 'swagger_fake_view', False):
+            return TransaccionLedger.objects.none()
+
+        if self.request.user.is_staff:
+            return TransaccionLedger.objects.prefetch_related('entries__cuenta').order_by('-created_at')
+
         return (
             TransaccionLedger.objects.filter(usuario=self.request.user)
             .prefetch_related('entries__cuenta')
