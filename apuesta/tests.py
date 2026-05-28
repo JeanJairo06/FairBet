@@ -7,9 +7,9 @@ from django.utils import timezone
 from rest_framework import status
 from rest_framework.test import APIClient
 
-from apuesta.models import Apuesta, DetalleApuesta
-from apuesta.servicios import crear_apuesta_simple
-from core.choices import EstadoApuesta, EstadoMercado, EstadoSeleccion, TipoMercado
+from apuesta.models import Apuesta, DetalleApuesta, LiquidacionApuesta
+from apuesta.servicios import crear_apuesta_simple, liquidar_apuesta
+from core.choices import EstadoApuesta, EstadoMercado, EstadoSeleccion, ResultadoLiquidacion, TipoMercado
 from deporte.models import EventoDeportivo, HistorialOdds, Mercado, SeleccionMercado
 
 
@@ -208,3 +208,99 @@ class ApuestaApiTests(TestCase):
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(len(response.data['results']), 1)
         self.assertEqual(response.data['results'][0]['id_apuesta'], apuesta_usuario.id_apuesta)
+
+
+class LiquidarApuestaTests(TestCase):
+    def setUp(self):
+        self.usuario = get_user_model().objects.create_user(
+            username='daniel_liquidacion',
+            email='daniel_liquidacion@test.com',
+            password='test12345',
+        )
+        self.admin = get_user_model().objects.create_user(
+            username='admin_liquidacion',
+            email='admin_liquidacion@test.com',
+            password='test12345',
+            is_staff=True,
+        )
+        self.evento = EventoDeportivo.objects.create(
+            deporte='Futbol',
+            competicion='Mundial 2026',
+            equipo_local='Peru',
+            equipo_visitante='Brasil',
+            inicia_en=timezone.now() + timezone.timedelta(days=1),
+        )
+        self.mercado = Mercado.objects.create(
+            evento=self.evento,
+            tipo_mercado=TipoMercado.UNO_X_DOS,
+            nombre='Resultado final',
+            estado_mercado=EstadoMercado.ABIERTO,
+            stake_minimo=Decimal('5.0000'),
+            stake_maximo=Decimal('100.0000'),
+        )
+        self.seleccion = SeleccionMercado.objects.create(
+            mercado=self.mercado,
+            codigo_seleccion='HOME_WIN',
+            nombre='Gana Peru',
+            estado_seleccion=EstadoSeleccion.ACTIVA,
+        )
+        HistorialOdds.objects.create(
+            seleccion=self.seleccion,
+            odds=Decimal('2.5000'),
+            numero_version=1,
+            activa=True,
+            valido_desde=timezone.now(),
+        )
+
+    def crear_apuesta_aceptada(self, idempotency_key):
+        return crear_apuesta_simple(
+            usuario=self.usuario,
+            seleccion_id=self.seleccion.id_seleccion,
+            stake=Decimal('10.0000'),
+            idempotency_key=idempotency_key,
+        )
+
+    def test_liquida_apuesta_ganadora(self):
+        apuesta = self.crear_apuesta_aceptada('liquidacion-ganada')
+
+        liquidacion = liquidar_apuesta(
+            apuesta=apuesta,
+            resultado=ResultadoLiquidacion.WON,
+            liquidado_por=self.admin,
+            observacion='Seleccion ganadora confirmada.',
+        )
+
+        apuesta.refresh_from_db()
+        self.assertEqual(apuesta.estado_apuesta, EstadoApuesta.WON)
+        self.assertEqual(apuesta.liquidada_en, liquidacion.liquidado_en)
+        self.assertEqual(liquidacion.payout, Decimal('25.0000'))
+        self.assertEqual(liquidacion.resultado_liquidacion, ResultadoLiquidacion.WON)
+        self.assertEqual(LiquidacionApuesta.objects.count(), 1)
+
+    def test_liquida_apuesta_perdida(self):
+        apuesta = self.crear_apuesta_aceptada('liquidacion-perdida')
+
+        liquidacion = liquidar_apuesta(
+            apuesta=apuesta,
+            resultado=ResultadoLiquidacion.LOST,
+            liquidado_por=self.admin,
+        )
+
+        apuesta.refresh_from_db()
+        self.assertEqual(apuesta.estado_apuesta, EstadoApuesta.LOST)
+        self.assertEqual(liquidacion.payout, Decimal('0.0000'))
+        self.assertEqual(liquidacion.resultado_liquidacion, ResultadoLiquidacion.LOST)
+
+    def test_liquida_apuesta_anulada_devolviendo_stake(self):
+        apuesta = self.crear_apuesta_aceptada('liquidacion-anulada')
+
+        liquidacion = liquidar_apuesta(
+            apuesta=apuesta,
+            resultado=ResultadoLiquidacion.VOID,
+            liquidado_por=self.admin,
+        )
+
+        apuesta.refresh_from_db()
+        self.assertEqual(apuesta.estado_apuesta, EstadoApuesta.VOID)
+        self.assertEqual(liquidacion.payout, Decimal('10.0000'))
+        self.assertEqual(liquidacion.resultado_liquidacion, ResultadoLiquidacion.VOID)
