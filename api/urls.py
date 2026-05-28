@@ -8,6 +8,7 @@ app_name = 'api'
 
 urlpatterns = [
     path('', include('apuesta.urls')),
+    path('', include('billetera.urls')),
     path('auth/token/', TokenObtainPairView.as_view(), name='token_obtain'),
     path('auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('schema/', SpectacularAPIView.as_view(permission_classes=[AllowAny]), name='schema'),

@@ -3,6 +3,8 @@ from decimal import Decimal
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError, transaction
 from django.test import TestCase
+from rest_framework import status
+from rest_framework.test import APIClient
 
 from billetera.models import Cuenta, LedgerEntry, TransaccionLedger
 from billetera.exceptions import (
@@ -567,6 +569,7 @@ class WalletServiceTests(TestCase):
 
         self.assertEqual(TransaccionLedger.objects.count(), 0)
 
+
     def test_retirar_fichas_disminuye_saldo(self):
         recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='retiro-base-1')
 
@@ -776,3 +779,125 @@ class WalletServiceTests(TestCase):
             )
 
         self.assertEqual(TransaccionLedger.objects.count(), 0)
+
+
+class BilleteraApiTests(TestCase):
+    def setUp(self):
+        self.client = APIClient()
+        self.usuario = get_user_model().objects.create_user(
+            username='billetera_api_user',
+            email='billetera_api_user@test.com',
+            password='test12345',
+        )
+        self.otro_usuario = get_user_model().objects.create_user(
+            username='billetera_api_otro',
+            email='billetera_api_otro@test.com',
+            password='test12345',
+        )
+        self.wallet = crear_cuenta_wallet_usuario(self.usuario)
+        crear_cuenta_wallet_usuario(self.otro_usuario)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.CASA)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.APUESTAS_PENDIENTES)
+        self.client.force_authenticate(user=self.usuario)
+
+    def test_api_consulta_saldo(self):
+        recargar_fichas(self.usuario, Decimal('120.0000'), idempotency_key='api-saldo-base')
+
+        response = self.client.get('/api/v1/billetera/saldo/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['saldo'], '120.0000')
+
+    def test_api_saldo_falla_si_no_tiene_wallet(self):
+        usuario_sin_wallet = get_user_model().objects.create_user(
+            username='billetera_api_sin_wallet',
+            email='billetera_api_sin_wallet@test.com',
+            password='test12345',
+        )
+        self.client.force_authenticate(user=usuario_sin_wallet)
+
+        response = self.client.get('/api/v1/billetera/saldo/')
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+    def test_api_recarga_fichas(self):
+        response = self.client.post(
+            '/api/v1/billetera/recargas/',
+            {'monto': '100.0000', 'idempotency_key': 'api-recarga-1'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['tipo_transaccion'], TipoTransaccionLedger.RECARGA)
+        self.assertEqual(response.data['estado'], EstadoTransaccionLedger.COMPLETED)
+        self.assertEqual(response.data['monto'], Decimal('100.0000'))
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('100.0000'))
+
+    def test_api_recarga_idempotente(self):
+        primera = self.client.post(
+            '/api/v1/billetera/recargas/',
+            {'monto': '50.0000', 'idempotency_key': 'api-recarga-idempotente'},
+            format='json',
+        )
+        segunda = self.client.post(
+            '/api/v1/billetera/recargas/',
+            {'monto': '50.0000', 'idempotency_key': 'api-recarga-idempotente'},
+            format='json',
+        )
+
+        self.assertEqual(primera.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(segunda.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(primera.data['transaction_id'], segunda.data['transaction_id'])
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('50.0000'))
+
+    def test_api_retiro_fichas(self):
+        recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='api-retiro-base')
+
+        response = self.client.post(
+            '/api/v1/billetera/retiros/',
+            {'monto': '40.0000', 'idempotency_key': 'api-retiro-1'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['tipo_transaccion'], TipoTransaccionLedger.RETIRO)
+        self.assertEqual(response.data['monto'], Decimal('40.0000'))
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('60.0000'))
+
+    def test_api_retiro_falla_sin_saldo(self):
+        response = self.client.post(
+            '/api/v1/billetera/retiros/',
+            {'monto': '40.0000', 'idempotency_key': 'api-retiro-sin-saldo'},
+            format='json',
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertEqual(TransaccionLedger.objects.count(), 0)
+
+    def test_api_lista_movimientos_solo_del_usuario(self):
+        recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='api-movimientos-user')
+        recargar_fichas(self.otro_usuario, Decimal('200.0000'), idempotency_key='api-movimientos-otro')
+
+        response = self.client.get('/api/v1/billetera/movimientos/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data['results']), 1)
+        self.assertEqual(response.data['results'][0]['amount'], '100.0000')
+
+    def test_api_detalle_transaccion_del_usuario(self):
+        transaccion = recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='api-detalle-user')
+
+        response = self.client.get(f'/api/v1/billetera/transacciones/{transaccion.transaction_id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(response.data['transaction_id'], str(transaccion.transaction_id))
+        self.assertEqual(response.data['tipo_transaccion'], TipoTransaccionLedger.RECARGA)
+        self.assertEqual(len(response.data['entries']), 1)
+        self.assertEqual(response.data['entries'][0]['cuenta'], self.wallet.codigo)
+
+    def test_api_no_permite_ver_transaccion_de_otro_usuario(self):
+        transaccion = recargar_fichas(self.otro_usuario, Decimal('100.0000'), idempotency_key='api-detalle-otro')
+
+        response = self.client.get(f'/api/v1/billetera/transacciones/{transaccion.transaction_id}/')
+
+        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
