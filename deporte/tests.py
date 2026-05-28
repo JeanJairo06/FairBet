@@ -121,3 +121,28 @@ class CatalogoDeportivoServiceTests(TestCase):
             with self.subTest(url=url):
                 response = self.client.get(url)
                 self.assertEqual(response.status_code, 200)
+
+    def test_formulario_evento_guarda_futbol_por_defecto(self):
+        get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
+        self.client.login(username='operador', password='test12345')
+
+        response = self.client.post(
+            reverse('deporte:evento_crear'),
+            {
+                'competicion': 'Copa Peru',
+                'equipo_local': 'Equipo A',
+                'equipo_visitante': 'Equipo B',
+                'inicia_en': (timezone.now() + timedelta(days=2)).strftime('%Y-%m-%dT%H:%M'),
+                'estado_evento': EstadoEvento.PROGRAMADO,
+                'marcador_local': 0,
+                'marcador_visitante': 0,
+            },
+        )
+
+        self.assertRedirects(response, reverse('deporte:eventos_lista'))
+        self.assertTrue(
+            self.evento.__class__.objects.filter(
+                competicion='Copa Peru',
+                deporte='Futbol',
+            ).exists()
+        )

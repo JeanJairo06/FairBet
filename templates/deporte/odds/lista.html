@@ -45,7 +45,7 @@
                         </td>
                         <td>{{ item.seleccion.mercado.nombre }}</td>
                         <td>{{ item.seleccion.mercado.evento.equipo_local }} vs {{ item.seleccion.mercado.evento.equipo_visitante }}</td>
-                        <td><strong>{{ item.odds }}</strong></td>
+                        <td><strong>{{ item.odds|floatformat:2 }}</strong></td>
                         <td>{{ item.numero_version }}</td>
                         <td>
                             {{ item.valido_desde|date:'d/m/Y H:i' }}
