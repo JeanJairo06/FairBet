@@ -46,7 +46,7 @@
                         <td>{{ mercado.evento.equipo_local }} vs {{ mercado.evento.equipo_visitante }}</td>
                         <td>{{ mercado.get_tipo_mercado_display }}</td>
                         <td><span class="status-pill">{{ mercado.get_estado_mercado_display }}</span></td>
-                        <td>{{ mercado.stake_minimo }} - {{ mercado.stake_maximo }}</td>
+                        <td>{{ mercado.stake_minimo|floatformat:"-4" }} - {{ mercado.stake_maximo|floatformat:"-4" }}</td>
                         <td>{% if mercado.permite_in_play %}Si{% else %}No{% endif %}</td>
                         <td class="table-actions">
                             <a href="{% url 'deporte:mercado_editar' mercado.pk %}" title="Editar mercado">
