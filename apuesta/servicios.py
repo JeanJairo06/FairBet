@@ -5,17 +5,20 @@ from django.db import transaction
 from django.utils import timezone
 
 from apuesta.models import Apuesta, DetalleApuesta, LiquidacionApuesta
-from billetera.models import TransaccionLedger
+from billetera.services.wallet_service import (
+    bloquear_stake,
+    liquidar_apuesta_ganada,
+    liquidar_apuesta_perdida,
+    liquidar_apuesta_void,
+)
 from core.choices import (
     EstadoApuesta,
     EstadoCuentaJugador,
     EstadoEvento,
     EstadoMercado,
     EstadoSeleccion,
-    EstadoTransaccionLedger,
     ResultadoLiquidacion,
     TipoApuesta,
-    TipoTransaccionLedger,
 )
 from deporte.models import SeleccionMercado
 
@@ -74,14 +77,6 @@ def crear_apuesta_simple(usuario, seleccion_id, stake, idempotency_key=None):
     odds_total = odds_activa.odds
     payout_potencial = stake * odds_total
 
-    transaccion_bloqueo = TransaccionLedger.objects.create(
-        usuario=usuario,
-        tipo_transaccion=TipoTransaccionLedger.BLOQUEO_APUESTA,
-        idempotency_key=f'bloqueo-{idempotency_key}' if idempotency_key else None,
-        tipo_referencia='apuesta',
-        estado=EstadoTransaccionLedger.COMPLETED,
-    )
-
     apuesta = Apuesta.objects.create(
         usuario=usuario,
         tipo_apuesta=TipoApuesta.SIMPLE,
@@ -90,11 +85,6 @@ def crear_apuesta_simple(usuario, seleccion_id, stake, idempotency_key=None):
         payout_potencial=payout_potencial,
         idempotency_key=idempotency_key,
     )
-    apuesta.aceptar(transaccion_bloqueo)
-    apuesta.save(update_fields=['estado_apuesta', 'transaction_bloqueo', 'aceptada_en'])
-
-    transaccion_bloqueo.id_referencia = str(apuesta.id_apuesta)
-    transaccion_bloqueo.save(update_fields=['id_referencia'])
 
     DetalleApuesta.objects.create(
         apuesta=apuesta,
@@ -102,6 +92,15 @@ def crear_apuesta_simple(usuario, seleccion_id, stake, idempotency_key=None):
         odds_snapshot=odds_activa.odds,
         version_odds=odds_activa.numero_version,
     )
+
+    transaccion_bloqueo = bloquear_stake(
+        usuario=usuario,
+        apuesta_id=apuesta.id_apuesta,
+        monto=stake,
+        idempotency_key=idempotency_key or f'apuesta-{apuesta.id_apuesta}',
+    )
+    apuesta.aceptar(transaccion_bloqueo)
+    apuesta.save(update_fields=['estado_apuesta', 'transaction_bloqueo', 'aceptada_en'])
 
     return apuesta
 
@@ -114,22 +113,30 @@ def liquidar_apuesta(apuesta, resultado, liquidado_por=None, observacion=''):
     if resultado == ResultadoLiquidacion.WON:
         estado_apuesta = EstadoApuesta.WON
         payout = apuesta.stake * apuesta.odds_total
+        transaccion_liquidacion = liquidar_apuesta_ganada(
+            usuario=apuesta.usuario,
+            apuesta_id=apuesta.id_apuesta,
+            stake=apuesta.stake,
+            payout=payout,
+        )
     elif resultado == ResultadoLiquidacion.LOST:
         estado_apuesta = EstadoApuesta.LOST
         payout = apuesta.stake * 0
+        transaccion_liquidacion = liquidar_apuesta_perdida(
+            usuario=apuesta.usuario,
+            apuesta_id=apuesta.id_apuesta,
+            stake=apuesta.stake,
+        )
     elif resultado == ResultadoLiquidacion.VOID:
         estado_apuesta = EstadoApuesta.VOID
         payout = apuesta.stake
+        transaccion_liquidacion = liquidar_apuesta_void(
+            usuario=apuesta.usuario,
+            apuesta_id=apuesta.id_apuesta,
+            stake=apuesta.stake,
+        )
     else:
         raise ValidationError('Resultado de liquidacion no soportado.')
-
-    transaccion_liquidacion = TransaccionLedger.objects.create(
-        usuario=apuesta.usuario,
-        tipo_transaccion=TipoTransaccionLedger.LIQUIDACION,
-        tipo_referencia='apuesta',
-        id_referencia=str(apuesta.id_apuesta),
-        estado=EstadoTransaccionLedger.COMPLETED,
-    )
 
     liquidado_en = timezone.now()
     liquidacion = LiquidacionApuesta.objects.create(
