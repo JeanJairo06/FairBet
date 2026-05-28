@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+
+{% block title %}Selecciones | FairBet Lab{% endblock %}
+
+{% block content %}
+<section class="module-header">
+    <div>
+        <p class="eyebrow">Catalogo deportivo</p>
+        <h2>Selecciones</h2>
+        <p>Opciones apostables dentro de cada mercado.</p>
+    </div>
+    <a href="{% url 'deporte:seleccion_crear' %}" class="button button--primary">
+        <i class="bi bi-plus-circle"></i> Nueva seleccion
+    </a>
+</section>
+
+{% include 'deporte/_tabs.html' with active_tab='selecciones' %}
+
+<form class="module-search" method="get">
+    <i class="bi bi-search"></i>
+    <input type="search" name="q" value="{{ request.GET.q }}" placeholder="Buscar por codigo, seleccion, mercado o evento">
+    <button type="submit" class="button button--secondary">Buscar</button>
+</form>
+
+<section class="data-panel">
+    <div class="table-wrap">
+        <table class="app-table">
+            <thead>
+                <tr>
+                    <th>Seleccion</th>
+                    <th>Codigo</th>
+                    <th>Mercado</th>
+                    <th>Evento</th>
+                    <th>Estado</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for seleccion in selecciones %}
+                    <tr>
+                        <td><strong>{{ seleccion.nombre }}</strong></td>
+                        <td>{{ seleccion.codigo_seleccion }}</td>
+                        <td>{{ seleccion.mercado.nombre }}</td>
+                        <td>{{ seleccion.mercado.evento.equipo_local }} vs {{ seleccion.mercado.evento.equipo_visitante }}</td>
+                        <td><span class="status-pill">{{ seleccion.get_estado_seleccion_display }}</span></td>
+                        <td class="table-actions">
+                            <a href="{% url 'deporte:seleccion_editar' seleccion.pk %}" title="Editar seleccion">
+                                <i class="bi bi-pencil-square"></i>
+                            </a>
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="6" class="empty-state">Aun no hay selecciones registradas.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% include 'partials/pagination.html' %}
+</section>
+{% endblock %}

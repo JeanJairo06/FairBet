@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+
+{% block title %}Odds | FairBet Lab{% endblock %}
+
+{% block content %}
+<section class="module-header">
+    <div>
+        <p class="eyebrow">Catalogo deportivo</p>
+        <h2>Odds</h2>
+        <p>Historial de cuotas por seleccion, con una sola odds vigente por seleccion.</p>
+    </div>
+    <a href="{% url 'deporte:odds_actualizar' %}" class="button button--primary">
+        <i class="bi bi-arrow-repeat"></i> Actualizar odds
+    </a>
+</section>
+
+{% include 'deporte/_tabs.html' with active_tab='odds' %}
+
+<form class="module-search" method="get">
+    <i class="bi bi-search"></i>
+    <input type="search" name="q" value="{{ request.GET.q }}" placeholder="Buscar por seleccion, mercado o evento">
+    <button type="submit" class="button button--secondary">Buscar</button>
+</form>
+
+<section class="data-panel">
+    <div class="table-wrap">
+        <table class="app-table">
+            <thead>
+                <tr>
+                    <th>Seleccion</th>
+                    <th>Mercado</th>
+                    <th>Evento</th>
+                    <th>Odds</th>
+                    <th>Version</th>
+                    <th>Vigencia</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for item in odds %}
+                    <tr>
+                        <td>
+                            <strong>{{ item.seleccion.nombre }}</strong>
+                            <span>{{ item.seleccion.codigo_seleccion }}</span>
+                        </td>
+                        <td>{{ item.seleccion.mercado.nombre }}</td>
+                        <td>{{ item.seleccion.mercado.evento.equipo_local }} vs {{ item.seleccion.mercado.evento.equipo_visitante }}</td>
+                        <td><strong>{{ item.odds }}</strong></td>
+                        <td>{{ item.numero_version }}</td>
+                        <td>
+                            {{ item.valido_desde|date:'d/m/Y H:i' }}
+                            {% if item.valido_hasta %}<span>hasta {{ item.valido_hasta|date:'d/m/Y H:i' }}</span>{% endif %}
+                        </td>
+                        <td>
+                            {% if item.activa %}
+                                <span class="status-pill status-pill--ok">Vigente</span>
+                            {% else %}
+                                <span class="status-pill">Historica</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="7" class="empty-state">Aun no hay odds registradas.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% include 'partials/pagination.html' %}
+</section>
+{% endblock %}
