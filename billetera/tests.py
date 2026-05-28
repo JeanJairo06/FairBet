@@ -5,7 +5,14 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from billetera.models import Cuenta, LedgerEntry, TransaccionLedger
-from billetera.exceptions import CuentaBloqueadaError, MontoInvalidoError, TransaccionNoBalanceadaError
+from billetera.exceptions import (
+    CuentaBloqueadaError,
+    CuentaNoEncontradaError,
+    MontoInvalidoError,
+    SaldoInsuficienteError,
+    TransaccionNoBalanceadaError,
+)
+from billetera.services.balance_service import calcular_saldo, calcular_saldo_usuario, validar_saldo_suficiente
 from billetera.services.ledger_service import crear_transaccion_ledger, validar_transaccion_balanceada
 from core.choices import (
     DirectionLedger,
@@ -311,3 +318,115 @@ class LedgerServiceTests(TestCase):
 
         with self.assertRaises(TransaccionNoBalanceadaError):
             validar_transaccion_balanceada(transaccion_ledger)
+
+
+class BalanceServiceTests(TestCase):
+    def setUp(self):
+        self.usuario = get_user_model().objects.create_user(
+            username='balance_user',
+            email='balance_user@test.com',
+            password='test12345',
+        )
+        self.otro_usuario = get_user_model().objects.create_user(
+            username='balance_user_sin_wallet',
+            email='balance_user_sin_wallet@test.com',
+            password='test12345',
+        )
+        self.wallet = Cuenta.objects.create(
+            usuario=self.usuario,
+            tipo_cuenta=TipoCuentaContable.WALLET_USUARIO,
+            codigo='WALLET-BALANCE-1',
+            nombre='Wallet balance 1',
+        )
+        self.casa = Cuenta.objects.create(
+            tipo_cuenta=TipoCuentaContable.CASA,
+            codigo='CASA-BALANCE-1',
+            nombre='Casa balance 1',
+        )
+
+    def crear_movimiento_balanceado(self, wallet_direction, casa_direction, amount, idempotency_key):
+        return crear_transaccion_ledger(
+            usuario=self.usuario,
+            tipo_transaccion=TipoTransaccionLedger.TRANSFERENCIA,
+            entries=[
+                {
+                    'cuenta': self.wallet,
+                    'direction': wallet_direction,
+                    'amount': amount,
+                },
+                {
+                    'cuenta': self.casa,
+                    'direction': casa_direction,
+                    'amount': amount,
+                },
+            ],
+            idempotency_key=idempotency_key,
+        )
+
+    def test_calcular_saldo_sin_movimientos_devuelve_cero(self):
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('0.0000'))
+
+    def test_calcular_saldo_con_creditos_y_debitos(self):
+        self.crear_movimiento_balanceado(
+            wallet_direction=DirectionLedger.CREDIT,
+            casa_direction=DirectionLedger.DEBIT,
+            amount=Decimal('100.0000'),
+            idempotency_key='balance-credit-1',
+        )
+        self.crear_movimiento_balanceado(
+            wallet_direction=DirectionLedger.DEBIT,
+            casa_direction=DirectionLedger.CREDIT,
+            amount=Decimal('30.0000'),
+            idempotency_key='balance-debit-1',
+        )
+        self.crear_movimiento_balanceado(
+            wallet_direction=DirectionLedger.CREDIT,
+            casa_direction=DirectionLedger.DEBIT,
+            amount=Decimal('20.0000'),
+            idempotency_key='balance-credit-2',
+        )
+
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('90.0000'))
+
+    def test_calcular_saldo_usuario_usa_wallet(self):
+        self.crear_movimiento_balanceado(
+            wallet_direction=DirectionLedger.CREDIT,
+            casa_direction=DirectionLedger.DEBIT,
+            amount=Decimal('50.0000'),
+            idempotency_key='balance-user-1',
+        )
+
+        self.assertEqual(calcular_saldo_usuario(self.usuario), Decimal('50.0000'))
+
+    def test_calcular_saldo_usuario_falla_si_no_tiene_wallet(self):
+        with self.assertRaises(CuentaNoEncontradaError):
+            calcular_saldo_usuario(self.otro_usuario)
+
+    def test_validar_saldo_suficiente_ok(self):
+        self.crear_movimiento_balanceado(
+            wallet_direction=DirectionLedger.CREDIT,
+            casa_direction=DirectionLedger.DEBIT,
+            amount=Decimal('80.0000'),
+            idempotency_key='balance-suficiente-1',
+        )
+
+        self.assertTrue(validar_saldo_suficiente(self.wallet, Decimal('60.0000')))
+
+    def test_validar_saldo_suficiente_falla(self):
+        self.crear_movimiento_balanceado(
+            wallet_direction=DirectionLedger.CREDIT,
+            casa_direction=DirectionLedger.DEBIT,
+            amount=Decimal('40.0000'),
+            idempotency_key='balance-insuficiente-1',
+        )
+
+        with self.assertRaises(SaldoInsuficienteError):
+            validar_saldo_suficiente(self.wallet, Decimal('60.0000'))
+
+    def test_validar_saldo_suficiente_rechaza_monto_cero(self):
+        with self.assertRaises(MontoInvalidoError):
+            validar_saldo_suficiente(self.wallet, Decimal('0.0000'))
+
+    def test_validar_saldo_suficiente_rechaza_monto_negativo(self):
+        with self.assertRaises(MontoInvalidoError):
+            validar_saldo_suficiente(self.wallet, Decimal('-1.0000'))

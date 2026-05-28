@@ -7,16 +7,16 @@ from billetera.models import LedgerEntry, TransaccionLedger
 from core.choices import DirectionLedger, EstadoCuentaContable, EstadoTransaccionLedger
 
 
-def _normalizar_amount(amount):
+def _normalizar_monto(monto):
     try:
-        amount = Decimal(str(amount))
+        monto = Decimal(str(monto))
     except (InvalidOperation, TypeError, ValueError) as exc:
         raise MontoInvalidoError('El monto debe ser un Decimal valido.') from exc
 
-    if amount <= 0:
+    if monto <= 0:
         raise MontoInvalidoError('El monto debe ser mayor que cero.')
 
-    return amount
+    return monto
 
 # Valida y normaliza los movimientos contables de una transacción antes de registrarla.
 def validar_entries(entries):
@@ -32,7 +32,7 @@ def validar_entries(entries):
     for entry in entries:
         cuenta = entry.get('cuenta')
         direction = entry.get('direction')
-        amount = _normalizar_amount(entry.get('amount'))
+        amount = _normalizar_monto(entry.get('amount'))
 
         if cuenta is None:
             raise TransaccionNoBalanceadaError('Cada movimiento debe tener una cuenta.')
