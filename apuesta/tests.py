@@ -1,6 +1,7 @@
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
@@ -65,3 +66,62 @@ class CrearApuestaSimpleTests(TestCase):
         self.assertEqual(detalle.seleccion, self.seleccion)
         self.assertEqual(detalle.odds_snapshot, Decimal('2.5000'))
         self.assertEqual(detalle.version_odds, 1)
+
+    def test_no_crea_apuesta_si_mercado_no_esta_abierto(self):
+        self.mercado.estado_mercado = EstadoMercado.CERRADO
+        self.mercado.save(update_fields=['estado_mercado'])
+
+        with self.assertRaises(ValidationError):
+            crear_apuesta_simple(
+                usuario=self.usuario,
+                seleccion_id=self.seleccion.id_seleccion,
+                stake=Decimal('10.0000'),
+            )
+
+        self.assertEqual(Apuesta.objects.count(), 0)
+
+    def test_no_crea_apuesta_si_seleccion_no_esta_activa(self):
+        self.seleccion.estado_seleccion = EstadoSeleccion.SUSPENDIDA
+        self.seleccion.save(update_fields=['estado_seleccion'])
+
+        with self.assertRaises(ValidationError):
+            crear_apuesta_simple(
+                usuario=self.usuario,
+                seleccion_id=self.seleccion.id_seleccion,
+                stake=Decimal('10.0000'),
+            )
+
+        self.assertEqual(Apuesta.objects.count(), 0)
+
+    def test_no_crea_apuesta_si_no_existe_odds_activa(self):
+        self.odds.activa = False
+        self.odds.save(update_fields=['activa'])
+
+        with self.assertRaises(ValidationError):
+            crear_apuesta_simple(
+                usuario=self.usuario,
+                seleccion_id=self.seleccion.id_seleccion,
+                stake=Decimal('10.0000'),
+            )
+
+        self.assertEqual(Apuesta.objects.count(), 0)
+
+    def test_no_crea_apuesta_si_stake_es_menor_al_minimo(self):
+        with self.assertRaises(ValidationError):
+            crear_apuesta_simple(
+                usuario=self.usuario,
+                seleccion_id=self.seleccion.id_seleccion,
+                stake=Decimal('4.0000'),
+            )
+
+        self.assertEqual(Apuesta.objects.count(), 0)
+
+    def test_no_crea_apuesta_si_stake_es_mayor_al_maximo(self):
+        with self.assertRaises(ValidationError):
+            crear_apuesta_simple(
+                usuario=self.usuario,
+                seleccion_id=self.seleccion.id_seleccion,
+                stake=Decimal('101.0000'),
+            )
+
+        self.assertEqual(Apuesta.objects.count(), 0)
