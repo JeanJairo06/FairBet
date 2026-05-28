@@ -9,7 +9,21 @@ from rest_framework.test import APIClient
 
 from apuesta.models import Apuesta, DetalleApuesta, LiquidacionApuesta
 from apuesta.servicios import crear_apuesta_simple, liquidar_apuesta
-from core.choices import EstadoApuesta, EstadoCuentaJugador, EstadoEvento, EstadoMercado, EstadoSeleccion, ResultadoLiquidacion, TipoMercado
+from billetera.exceptions import SaldoInsuficienteError
+from billetera.services.account_service import crear_cuenta_wallet_usuario, obtener_o_crear_cuenta_sistema
+from billetera.services.balance_service import calcular_saldo
+from billetera.services.wallet_service import recargar_fichas
+from core.choices import (
+    EstadoApuesta,
+    EstadoCuentaJugador,
+    EstadoEvento,
+    EstadoMercado,
+    EstadoSeleccion,
+    TipoCuentaContable,
+    TipoTransaccionLedger,
+    ResultadoLiquidacion,
+    TipoMercado,
+)
 from cuentas.models import PerfilJugador
 from deporte.models import EventoDeportivo, HistorialOdds, Mercado, SeleccionMercado
 
@@ -57,6 +71,10 @@ class CrearApuestaSimpleTests(TestCase):
             activa=True,
             valido_desde=timezone.now(),
         )
+        self.wallet = crear_cuenta_wallet_usuario(self.usuario)
+        self.casa = obtener_o_crear_cuenta_sistema(TipoCuentaContable.CASA)
+        self.apuestas_pendientes = obtener_o_crear_cuenta_sistema(TipoCuentaContable.APUESTAS_PENDIENTES)
+        recargar_fichas(self.usuario, Decimal('200.0000'), idempotency_key='setup-apuesta-simple')
 
     def test_crea_apuesta_simple_con_detalle_y_payout(self):
         apuesta = crear_apuesta_simple(
@@ -72,6 +90,11 @@ class CrearApuestaSimpleTests(TestCase):
         self.assertEqual(apuesta.estado_apuesta, EstadoApuesta.ACCEPTED)
         self.assertEqual(apuesta.odds_total, Decimal('2.5000'))
         self.assertEqual(apuesta.payout_potencial, Decimal('25.0000'))
+        self.assertEqual(apuesta.transaction_bloqueo.tipo_transaccion, TipoTransaccionLedger.BLOQUEO_APUESTA)
+        self.assertEqual(apuesta.transaction_bloqueo.tipo_referencia, 'apuesta')
+        self.assertEqual(apuesta.transaction_bloqueo.id_referencia, str(apuesta.id_apuesta))
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('190.0000'))
+        self.assertEqual(calcular_saldo(self.apuestas_pendientes), Decimal('10.0000'))
 
         detalle = apuesta.detalles.get()
         self.assertEqual(detalle.seleccion, self.seleccion)
@@ -207,6 +230,32 @@ class CrearApuestaSimpleTests(TestCase):
         self.assertEqual(primera_apuesta, segunda_apuesta)
         self.assertEqual(Apuesta.objects.count(), 1)
 
+    def test_no_crea_apuesta_si_no_tiene_saldo_suficiente(self):
+        usuario_sin_saldo = get_user_model().objects.create_user(
+            username='sin_saldo',
+            email='sin_saldo@test.com',
+            password='test12345',
+        )
+        PerfilJugador.objects.create(
+            usuario=usuario_sin_saldo,
+            nombres='Sin',
+            apellidos='Saldo',
+            dni='52345678',
+            fecha_nacimiento='2000-01-01',
+            estado_cuenta=EstadoCuentaJugador.VERIFICADO,
+        )
+        crear_cuenta_wallet_usuario(usuario_sin_saldo)
+
+        with self.assertRaises(SaldoInsuficienteError):
+            crear_apuesta_simple(
+                usuario=usuario_sin_saldo,
+                seleccion_id=self.seleccion.id_seleccion,
+                stake=Decimal('10.0000'),
+                idempotency_key='apuesta-sin-saldo',
+            )
+
+        self.assertFalse(Apuesta.objects.filter(usuario=usuario_sin_saldo).exists())
+
 
 class ApuestaApiTests(TestCase):
     def setUp(self):
@@ -267,6 +316,12 @@ class ApuestaApiTests(TestCase):
             activa=True,
             valido_desde=timezone.now(),
         )
+        crear_cuenta_wallet_usuario(self.usuario)
+        crear_cuenta_wallet_usuario(self.otro_usuario)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.CASA)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.APUESTAS_PENDIENTES)
+        recargar_fichas(self.usuario, Decimal('200.0000'), idempotency_key='setup-api-usuario')
+        recargar_fichas(self.otro_usuario, Decimal('200.0000'), idempotency_key='setup-api-otro')
 
     def test_api_crea_apuesta_simple(self):
         response = self.client.post(
@@ -354,6 +409,10 @@ class LiquidarApuestaTests(TestCase):
             activa=True,
             valido_desde=timezone.now(),
         )
+        crear_cuenta_wallet_usuario(self.usuario)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.CASA)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.APUESTAS_PENDIENTES)
+        recargar_fichas(self.usuario, Decimal('200.0000'), idempotency_key='setup-liquidacion')
 
     def crear_apuesta_aceptada(self, idempotency_key):
         return crear_apuesta_simple(

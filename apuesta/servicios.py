@@ -6,6 +6,7 @@ from django.utils import timezone
 
 from apuesta.models import Apuesta, DetalleApuesta, LiquidacionApuesta
 from billetera.models import TransaccionLedger
+from billetera.services.wallet_service import bloquear_stake
 from core.choices import (
     EstadoApuesta,
     EstadoCuentaJugador,
@@ -74,14 +75,6 @@ def crear_apuesta_simple(usuario, seleccion_id, stake, idempotency_key=None):
     odds_total = odds_activa.odds
     payout_potencial = stake * odds_total
 
-    transaccion_bloqueo = TransaccionLedger.objects.create(
-        usuario=usuario,
-        tipo_transaccion=TipoTransaccionLedger.BLOQUEO_APUESTA,
-        idempotency_key=f'bloqueo-{idempotency_key}' if idempotency_key else None,
-        tipo_referencia='apuesta',
-        estado=EstadoTransaccionLedger.COMPLETED,
-    )
-
     apuesta = Apuesta.objects.create(
         usuario=usuario,
         tipo_apuesta=TipoApuesta.SIMPLE,
@@ -90,11 +83,6 @@ def crear_apuesta_simple(usuario, seleccion_id, stake, idempotency_key=None):
         payout_potencial=payout_potencial,
         idempotency_key=idempotency_key,
     )
-    apuesta.aceptar(transaccion_bloqueo)
-    apuesta.save(update_fields=['estado_apuesta', 'transaction_bloqueo', 'aceptada_en'])
-
-    transaccion_bloqueo.id_referencia = str(apuesta.id_apuesta)
-    transaccion_bloqueo.save(update_fields=['id_referencia'])
 
     DetalleApuesta.objects.create(
         apuesta=apuesta,
@@ -102,6 +90,15 @@ def crear_apuesta_simple(usuario, seleccion_id, stake, idempotency_key=None):
         odds_snapshot=odds_activa.odds,
         version_odds=odds_activa.numero_version,
     )
+
+    transaccion_bloqueo = bloquear_stake(
+        usuario=usuario,
+        apuesta_id=apuesta.id_apuesta,
+        monto=stake,
+        idempotency_key=idempotency_key or f'apuesta-{apuesta.id_apuesta}',
+    )
+    apuesta.aceptar(transaccion_bloqueo)
+    apuesta.save(update_fields=['estado_apuesta', 'transaction_bloqueo', 'aceptada_en'])
 
     return apuesta
 

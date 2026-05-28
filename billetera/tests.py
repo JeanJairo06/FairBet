@@ -21,7 +21,7 @@ from billetera.services.account_service import (
     obtener_o_crear_cuenta_sistema,
 )
 from billetera.services.ledger_service import crear_transaccion_ledger, validar_transaccion_balanceada
-from billetera.services.wallet_service import recargar_fichas, retirar_fichas
+from billetera.services.wallet_service import bloquear_stake, recargar_fichas, retirar_fichas
 from core.choices import (
     DirectionLedger,
     EstadoCuentaContable,
@@ -523,6 +523,7 @@ class WalletServiceTests(TestCase):
         )
         self.wallet = crear_cuenta_wallet_usuario(self.usuario)
         self.casa = obtener_o_crear_cuenta_sistema(TipoCuentaContable.CASA)
+        self.apuestas_pendientes = obtener_o_crear_cuenta_sistema(TipoCuentaContable.APUESTAS_PENDIENTES)
 
     def test_recargar_fichas_aumenta_saldo(self):
         transaccion = recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='recarga-wallet-1')
@@ -601,5 +602,52 @@ class WalletServiceTests(TestCase):
     def test_retirar_fichas_rechaza_monto_cero(self):
         with self.assertRaises(MontoInvalidoError):
             retirar_fichas(self.usuario, Decimal('0.0000'), idempotency_key='retiro-cero')
+
+        self.assertEqual(TransaccionLedger.objects.count(), 0)
+
+    def test_bloquear_stake_mueve_fondos_a_apuestas_pendientes(self):
+        recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='bloqueo-base-1')
+
+        transaccion = bloquear_stake(self.usuario, apuesta_id=10, monto=Decimal('25.0000'), idempotency_key='bloqueo-1')
+
+        self.assertEqual(transaccion.tipo_transaccion, TipoTransaccionLedger.BLOQUEO_APUESTA)
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('75.0000'))
+        self.assertEqual(calcular_saldo(self.apuestas_pendientes), Decimal('25.0000'))
+
+    def test_bloquear_stake_crea_entries_correctos(self):
+        recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='bloqueo-base-entries')
+
+        transaccion = bloquear_stake(self.usuario, apuesta_id=11, monto=Decimal('30.0000'), idempotency_key='bloqueo-entries')
+        wallet_entry = transaccion.entries.get(cuenta=self.wallet)
+        pendientes_entry = transaccion.entries.get(cuenta=self.apuestas_pendientes)
+
+        self.assertEqual(wallet_entry.direction, DirectionLedger.DEBIT)
+        self.assertEqual(wallet_entry.amount, Decimal('30.0000'))
+        self.assertEqual(pendientes_entry.direction, DirectionLedger.CREDIT)
+        self.assertEqual(pendientes_entry.amount, Decimal('30.0000'))
+        self.assertEqual(transaccion.tipo_referencia, 'apuesta')
+        self.assertEqual(transaccion.id_referencia, '11')
+        self.assertEqual(transaccion.idempotency_key, 'bloqueo-apuesta-bloqueo-entries')
+        self.assertEqual(transaccion.metadata_json, {'operacion': 'bloqueo_apuesta', 'apuesta_id': '11', 'monto': '30.0000'})
+
+    def test_bloquear_stake_falla_sin_saldo(self):
+        with self.assertRaises(SaldoInsuficienteError):
+            bloquear_stake(self.usuario, apuesta_id=12, monto=Decimal('10.0000'), idempotency_key='bloqueo-sin-saldo')
+
+        self.assertEqual(TransaccionLedger.objects.count(), 0)
+
+    def test_bloquear_stake_es_idempotente(self):
+        recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='bloqueo-idempotente-base')
+
+        primera = bloquear_stake(self.usuario, apuesta_id=13, monto=Decimal('80.0000'), idempotency_key='bloqueo-idempotente')
+        segunda = bloquear_stake(self.usuario, apuesta_id=13, monto=Decimal('80.0000'), idempotency_key='bloqueo-idempotente')
+
+        self.assertEqual(primera, segunda)
+        self.assertEqual(TransaccionLedger.objects.count(), 2)
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('20.0000'))
+
+    def test_bloquear_stake_rechaza_monto_cero(self):
+        with self.assertRaises(MontoInvalidoError):
+            bloquear_stake(self.usuario, apuesta_id=14, monto=Decimal('0.0000'), idempotency_key='bloqueo-cero')
 
         self.assertEqual(TransaccionLedger.objects.count(), 0)
