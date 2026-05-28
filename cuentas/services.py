@@ -22,7 +22,6 @@ class LocalKYCValidator:
     """
 
     DNI_LENGTH = 8
-    CHECKSUM_WEIGHTS = (3, 2, 7, 6, 5, 4, 3)
 
     def validate(self, dni, fecha_nacimiento):
         if not self._has_valid_dni_format(dni):
@@ -30,20 +29,6 @@ class LocalKYCValidator:
                 is_valid=False,
                 estado_cuenta=EstadoCuentaJugador.PENDIENTE_VERIFICACION,
                 message='El DNI debe contener exactamente 8 digitos numericos.',
-            )
-
-        if self._is_repeated_sequence(dni):
-            return KYCResult(
-                is_valid=False,
-                estado_cuenta=EstadoCuentaJugador.PENDIENTE_VERIFICACION,
-                message='El DNI no puede estar formado por un unico digito repetido.',
-            )
-
-        if not self._has_valid_local_checksum(dni):
-            return KYCResult(
-                is_valid=False,
-                estado_cuenta=EstadoCuentaJugador.PENDIENTE_VERIFICACION,
-                message='El DNI no supera el digito verificador local simulado.',
             )
 
         if not self._is_adult(fecha_nacimiento):
@@ -62,23 +47,8 @@ class LocalKYCValidator:
     def _has_valid_dni_format(self, dni):
         return bool(dni and dni.isdigit() and len(dni) == self.DNI_LENGTH)
 
-    def _is_repeated_sequence(self, dni):
-        return len(set(dni)) == 1
-
-    def _has_valid_local_checksum(self, dni):
-        digits = [int(value) for value in dni]
-        weighted_sum = sum(
-            digit * weight
-            for digit, weight in zip(digits[:7], self.CHECKSUM_WEIGHTS)
-        )
-        return weighted_sum % 10 == digits[-1]
-
     def _is_adult(self, fecha_nacimiento):
-        today = date.today()
-        age = today.year - fecha_nacimiento.year - (
-            (today.month, today.day) < (fecha_nacimiento.month, fecha_nacimiento.day)
-        )
-        return age >= 18
+        return fecha_nacimiento <= get_adult_date_limit()
 
 
 def resolve_kyc_status(dni, fecha_nacimiento, validator=None):
@@ -90,3 +60,11 @@ def mark_profile_verified(profile):
     profile.estado_cuenta = EstadoCuentaJugador.VERIFICADO
     profile.kyc_verificado_en = timezone.now()
     return profile
+
+
+def get_adult_date_limit(today=None, minimum_age=18):
+    today = today or date.today()
+    try:
+        return today.replace(year=today.year - minimum_age)
+    except ValueError:
+        return today.replace(month=2, day=28, year=today.year - minimum_age)
