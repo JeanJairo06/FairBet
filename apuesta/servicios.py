@@ -2,13 +2,16 @@ from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
+from django.utils import timezone
 
-from apuesta.models import Apuesta, DetalleApuesta
+from apuesta.models import Apuesta, DetalleApuesta, LiquidacionApuesta
 from billetera.models import TransaccionLedger
 from core.choices import (
+    EstadoApuesta,
     EstadoMercado,
     EstadoSeleccion,
     EstadoTransaccionLedger,
+    ResultadoLiquidacion,
     TipoApuesta,
     TipoTransaccionLedger,
 )
@@ -76,3 +79,46 @@ def crear_apuesta_simple(usuario, seleccion_id, stake, idempotency_key=None):
     )
 
     return apuesta
+
+
+@transaction.atomic
+def liquidar_apuesta(apuesta, resultado, liquidado_por=None, observacion=''):
+    if apuesta.estado_apuesta != EstadoApuesta.ACCEPTED:
+        raise ValidationError('Solo se pueden liquidar apuestas aceptadas.')
+
+    if resultado == ResultadoLiquidacion.WON:
+        estado_apuesta = EstadoApuesta.WON
+        payout = apuesta.stake * apuesta.odds_total
+    elif resultado == ResultadoLiquidacion.LOST:
+        estado_apuesta = EstadoApuesta.LOST
+        payout = apuesta.stake * 0
+    elif resultado == ResultadoLiquidacion.VOID:
+        estado_apuesta = EstadoApuesta.VOID
+        payout = apuesta.stake
+    else:
+        raise ValidationError('Resultado de liquidacion no soportado.')
+
+    transaccion_liquidacion = TransaccionLedger.objects.create(
+        usuario=apuesta.usuario,
+        tipo_transaccion=TipoTransaccionLedger.LIQUIDACION,
+        tipo_referencia='apuesta',
+        id_referencia=str(apuesta.id_apuesta),
+        estado=EstadoTransaccionLedger.COMPLETED,
+    )
+
+    liquidado_en = timezone.now()
+    liquidacion = LiquidacionApuesta.objects.create(
+        apuesta=apuesta,
+        resultado_liquidacion=resultado,
+        payout=payout,
+        transaction_liquidacion=transaccion_liquidacion,
+        liquidado_por=liquidado_por,
+        liquidado_en=liquidado_en,
+        observacion=observacion,
+    )
+
+    apuesta.estado_apuesta = estado_apuesta
+    apuesta.liquidada_en = liquidado_en
+    apuesta.save(update_fields=['estado_apuesta', 'liquidada_en'])
+
+    return liquidacion
