@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from billetera.models import Cuenta, LedgerEntry, TransaccionLedger
+from core.choices import EstadoTransaccionLedger
 
 
 @admin.register(Cuenta)
@@ -24,6 +25,8 @@ class LedgerEntryInline(admin.TabularInline):
     def has_add_permission(self, request, obj=None):
         return False
 
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 @admin.register(TransaccionLedger)
 class TransaccionLedgerAdmin(admin.ModelAdmin):
@@ -35,6 +38,13 @@ class TransaccionLedgerAdmin(admin.ModelAdmin):
     inlines = (LedgerEntryInline,)
     ordering = ('-created_at',)
 
+    def get_readonly_fields(self, request, obj=None):
+        if obj and obj.estado in {EstadoTransaccionLedger.COMPLETED, EstadoTransaccionLedger.REVERSED}:
+            return tuple(field.name for field in self.model._meta.fields)
+        return super().get_readonly_fields(request, obj)
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 @admin.register(LedgerEntry)
 class LedgerEntryAdmin(admin.ModelAdmin):
@@ -42,5 +52,11 @@ class LedgerEntryAdmin(admin.ModelAdmin):
     list_filter = ('direction', 'created_at')
     search_fields = ('transaccion__transaction_id', 'cuenta__codigo', 'cuenta__nombre')
     autocomplete_fields = ('transaccion', 'cuenta')
-    readonly_fields = ('created_at',)
+    readonly_fields = ('id_ledger_entry', 'transaccion', 'cuenta', 'direction', 'amount', 'created_at')
     ordering = ('-created_at',)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False

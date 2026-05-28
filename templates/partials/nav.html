@@ -9,6 +9,7 @@
         {% if request.user.is_authenticated and request.user.rol == 'PLAYER'%}
             <a href="{% url 'juego_responsable:panel' %}"><i class="bi bi-shield-check"></i> Juego Responsable</a>
         {% endif %}
+        <a href="{% url 'deporte:eventos_lista' %}"><i class="bi bi-trophy"></i> Deportes</a>
     </div>
 
     <div class="site-nav__auth">
