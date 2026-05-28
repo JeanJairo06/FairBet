@@ -59,6 +59,11 @@ def validar_apuesta_simple(seleccion, odds_activa, stake):
 
 @transaction.atomic
 def crear_apuesta_simple(usuario, seleccion_id, stake, idempotency_key=None):
+    if idempotency_key:
+        apuesta_existente = Apuesta.objects.filter(idempotency_key=idempotency_key).first()
+        if apuesta_existente:
+            return apuesta_existente
+
     stake = Decimal(stake)
     seleccion = SeleccionMercado.objects.select_related('mercado__evento').get(pk=seleccion_id)
     odds_activa = obtener_odds_activa(seleccion)
