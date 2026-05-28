@@ -1,7 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, Q
-from django.db.models.deletion import ProtectedError
 from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
 from django.views import View
@@ -10,6 +9,7 @@ from django.views.generic import TemplateView
 from core.choices import EstadoCuentaJugador, RolUsuario
 from cuentas.forms import (
     CuentaAdminUpdateForm,
+    CuentaPermisosForm,
     CuentaSearchForm,
     PerfilJugadorSelfForm,
     UsuarioRegistroForm,
@@ -195,32 +195,28 @@ class EditarCuentaView(AdminAccountRequiredMixin, TemplateView):
                 'apellidos': perfil.apellidos if perfil else usuario.last_name,
                 'rol': usuario.rol,
                 'is_active': usuario.is_active,
+                'is_staff': usuario.is_staff,
+                'is_superuser': usuario.is_superuser,
                 'estado_cuenta': perfil.estado_cuenta if perfil else '',
             },
         )
 
 
-class EliminarCuentaView(AdminAccountRequiredMixin, View):
+class ActualizarPermisosCuentaView(AdminAccountRequiredMixin, View):
     def post(self, request, *args, **kwargs):
         target_user = get_object_or_404(Usuario, pk=kwargs['pk'])
+        form = CuentaPermisosForm(
+            request.POST,
+            current_user=request.user,
+            target_user=target_user,
+        )
 
-        if target_user.pk == request.user.pk:
-            messages.error(request, 'No puedes eliminar tu propia cuenta desde este modulo.')
+        if form.is_valid():
+            form.apply()
+            messages.success(request, f'Permisos de {target_user.username} actualizados correctamente.')
             return redirect('cuentas:cuentas')
 
-        username = target_user.username
-        try:
-            target_user.delete()
-        except ProtectedError:
-            target_user.is_active = False
-            target_user.save(update_fields=['is_active'])
-            messages.warning(
-                request,
-                f'La cuenta {username} tiene registros protegidos; se desactivo en lugar de eliminarse.',
-            )
-            return redirect('cuentas:cuentas')
-
-        messages.success(request, f'Cuenta {username} eliminada correctamente.')
+        messages.error(request, 'No se pudieron actualizar los permisos de la cuenta.')
         return redirect('cuentas:cuentas')
 
 

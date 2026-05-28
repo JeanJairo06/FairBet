@@ -57,10 +57,47 @@
                         <input type="hidden" name="estado_cuenta" value="">
                     {% endif %}
                 </div>
-                <label class="account-toggle">
-                    {{ form.is_active }}
-                    <span>Cuenta activa</span>
+            </fieldset>
+
+            <fieldset class="account-form__section account-permissions-section">
+                <legend>Permisos y estado</legend>
+                <label class="account-permission-card">
+                    <span class="account-switch">
+                        {{ form.is_active }}
+                        <span class="account-switch__control"></span>
+                        <strong>Activo</strong>
+                    </span>
+                    <small>Indica si la cuenta esta habilitada para usar el sistema.</small>
+                    {{ form.is_active.errors }}
                 </label>
+
+                {% if usuario.rol == 'ADMIN' %}
+                    <label class="account-permission-card">
+                        <span class="account-switch">
+                            {{ form.is_staff }}
+                            <span class="account-switch__control"></span>
+                            <strong>Es staff</strong>
+                        </span>
+                        <small>Indica si el usuario puede entrar al panel administrativo o areas internas de administracion.</small>
+                        {{ form.is_staff.errors }}
+                    </label>
+
+                    <label class="account-permission-card">
+                        <span class="account-switch">
+                            {{ form.is_superuser }}
+                            <span class="account-switch__control"></span>
+                            <strong>Estado de superusuario</strong>
+                        </span>
+                        <small>Indica que este usuario tiene todos los permisos sin necesidad de asignarlos manualmente.</small>
+                        {{ form.is_superuser.errors }}
+                    </label>
+
+                    {% if not request.user.is_superuser %}
+                        <p class="permissions-note">
+                            Solo un superusuario puede modificar Es staff o Estado de superusuario.
+                        </p>
+                    {% endif %}
+                {% endif %}
             </fieldset>
 
             <div class="account-form-actions">

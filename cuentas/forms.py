@@ -161,6 +161,8 @@ class CuentaAdminUpdateForm(forms.Form):
     apellidos = forms.CharField(max_length=150, required=False)
     rol = forms.ChoiceField(choices=())
     is_active = forms.BooleanField(required=False)
+    is_staff = forms.BooleanField(required=False)
+    is_superuser = forms.BooleanField(required=False)
     estado_cuenta = forms.ChoiceField(choices=EstadoCuentaJugador.choices, required=False)
 
     def __init__(self, *args, current_user=None, target_user=None, **kwargs):
@@ -168,11 +170,14 @@ class CuentaAdminUpdateForm(forms.Form):
         self.target_user = target_user
         super().__init__(*args, **kwargs)
         self.fields['rol'].choices = get_admin_assignable_roles(current_user)
+        if current_user and not current_user.is_superuser:
+            self.fields['is_staff'].widget.attrs['disabled'] = 'disabled'
+            self.fields['is_superuser'].widget.attrs['disabled'] = 'disabled'
         _decorate_fields(
             {
                 name: field
                 for name, field in self.fields.items()
-                if name != 'is_active'
+                if name not in {'is_active', 'is_staff', 'is_superuser'}
             }
         )
 
@@ -200,6 +205,27 @@ class CuentaAdminUpdateForm(forms.Form):
             raise forms.ValidationError('No tienes permisos para asignar ese rol.')
         return rol
 
+    def clean(self):
+        cleaned_data = super().clean()
+        if not self.target_user:
+            return cleaned_data
+
+        if self.target_user.pk == self.current_user.pk and not cleaned_data.get('is_active'):
+            self.add_error('is_active', 'No puedes desactivar tu propia cuenta.')
+
+        if not self.current_user.is_superuser:
+            cleaned_data['is_staff'] = self.target_user.is_staff
+            cleaned_data['is_superuser'] = self.target_user.is_superuser
+
+        if cleaned_data.get('rol') != RolUsuario.ADMIN:
+            cleaned_data['is_staff'] = False
+            cleaned_data['is_superuser'] = False
+
+        if self.target_user.pk == self.current_user.pk and not cleaned_data.get('is_superuser'):
+            cleaned_data['is_superuser'] = self.target_user.is_superuser
+
+        return cleaned_data
+
     def apply(self):
         user = self.target_user
         user.username = self.cleaned_data['username']
@@ -208,7 +234,20 @@ class CuentaAdminUpdateForm(forms.Form):
         user.last_name = self.cleaned_data.get('apellidos', '')
         user.rol = self.cleaned_data['rol']
         user.is_active = self.cleaned_data['is_active']
-        user.save(update_fields=['username', 'email', 'first_name', 'last_name', 'rol', 'is_active'])
+        user.is_staff = self.cleaned_data['is_staff']
+        user.is_superuser = self.cleaned_data['is_superuser']
+        user.save(
+            update_fields=[
+                'username',
+                'email',
+                'first_name',
+                'last_name',
+                'rol',
+                'is_active',
+                'is_staff',
+                'is_superuser',
+            ]
+        )
 
         perfil = getattr(user, 'perfil_jugador', None)
         if perfil:
@@ -218,6 +257,45 @@ class CuentaAdminUpdateForm(forms.Form):
                 perfil.estado_cuenta = self.cleaned_data['estado_cuenta']
             perfil.save(update_fields=['nombres', 'apellidos', 'estado_cuenta', 'updated_at'])
 
+        return user
+
+
+class CuentaPermisosForm(forms.Form):
+    is_active = forms.BooleanField(required=False)
+    is_staff = forms.BooleanField(required=False)
+    is_superuser = forms.BooleanField(required=False)
+
+    def __init__(self, *args, current_user=None, target_user=None, **kwargs):
+        self.current_user = current_user
+        self.target_user = target_user
+        super().__init__(*args, **kwargs)
+
+    def clean(self):
+        cleaned_data = super().clean()
+
+        if self.target_user.pk == self.current_user.pk and not cleaned_data.get('is_active'):
+            self.add_error('is_active', 'No puedes desactivar tu propia cuenta.')
+
+        if self.target_user.rol != RolUsuario.ADMIN:
+            cleaned_data['is_staff'] = False
+            cleaned_data['is_superuser'] = False
+            return cleaned_data
+
+        if not self.current_user.is_superuser:
+            cleaned_data['is_staff'] = self.target_user.is_staff
+            cleaned_data['is_superuser'] = self.target_user.is_superuser
+
+        if self.target_user.pk == self.current_user.pk and not cleaned_data.get('is_superuser'):
+            cleaned_data['is_superuser'] = self.target_user.is_superuser
+
+        return cleaned_data
+
+    def apply(self):
+        user = self.target_user
+        user.is_active = self.cleaned_data['is_active']
+        user.is_staff = self.cleaned_data['is_staff']
+        user.is_superuser = self.cleaned_data['is_superuser']
+        user.save(update_fields=['is_active', 'is_staff', 'is_superuser'])
         return user
 
 

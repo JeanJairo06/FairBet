@@ -25,7 +25,7 @@
                     <th>Cuenta</th>
                     <th>Rol</th>
                     <th>KYC / Perfil</th>
-                    <th>Acceso</th>
+                    <th>Permisos / Estado</th>
                     <th>Acciones</th>
                 </tr>
             </thead>
@@ -71,11 +71,34 @@
                             {% endif %}
                         </td>
                         <td>
-                            {% if usuario.is_active %}
-                                <span class="access-badge access-badge--active">Activo</span>
-                            {% else %}
-                                <span class="access-badge access-badge--inactive">Inactivo</span>
-                            {% endif %}
+                            <form method="post" action="{% url 'cuentas:actualizar_permisos' usuario.pk %}" class="account-permissions-form">
+                                {% csrf_token %}
+                                <label class="account-switch">
+                                    <input type="checkbox" name="is_active" {% if usuario.is_active %}checked{% endif %}>
+                                    <span class="account-switch__control"></span>
+                                    <span>Activo</span>
+                                </label>
+
+                                {% if usuario.rol == 'ADMIN' %}
+                                    <label class="account-switch">
+                                        <input type="checkbox" name="is_staff" {% if usuario.is_staff %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                                        <span class="account-switch__control"></span>
+                                        <span>Es staff</span>
+                                    </label>
+                                    <label class="account-switch">
+                                        <input type="checkbox" name="is_superuser" {% if usuario.is_superuser %}checked{% endif %} {% if not request.user.is_superuser %}disabled{% endif %}>
+                                        <span class="account-switch__control"></span>
+                                        <span>Superusuario</span>
+                                    </label>
+                                    {% if not request.user.is_superuser %}
+                                        <small class="permissions-note">Solo un superusuario puede cambiar staff o superusuario.</small>
+                                    {% endif %}
+                                {% endif %}
+
+                                <button type="submit" class="account-action account-action--save account-action--compact">
+                                    Guardar
+                                </button>
+                            </form>
                         </td>
                         <td>
                             <div class="account-table-actions">
@@ -83,15 +106,7 @@
                                     <i class="bi bi-pencil-square"></i>
                                     Editar
                                 </a>
-                                {% if usuario.pk != request.user.pk %}
-                                    <form method="post" action="{% url 'cuentas:eliminar_cuenta' usuario.pk %}" class="account-delete-form">
-                                        {% csrf_token %}
-                                        <button type="submit" class="account-action account-action--danger" onclick="return confirm('Eliminar esta cuenta puede afectar registros relacionados. Continuar?')">
-                                            <i class="bi bi-trash3"></i>
-                                            Eliminar
-                                        </button>
-                                    </form>
-                                {% else %}
+                                {% if usuario.pk == request.user.pk %}
                                     <span class="account-current">Cuenta actual</span>
                                 {% endif %}
                             </div>
