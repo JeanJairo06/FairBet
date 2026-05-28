@@ -8,6 +8,7 @@ from apuesta.models import Apuesta, DetalleApuesta, LiquidacionApuesta
 from billetera.models import TransaccionLedger
 from core.choices import (
     EstadoApuesta,
+    EstadoEvento,
     EstadoMercado,
     EstadoSeleccion,
     EstadoTransaccionLedger,
@@ -24,6 +25,13 @@ def obtener_odds_activa(seleccion):
 
 def validar_apuesta_simple(seleccion, odds_activa, stake):
     mercado = seleccion.mercado
+    evento = mercado.evento
+
+    if evento.estado_evento != EstadoEvento.PROGRAMADO:
+        raise ValidationError('El evento no esta disponible para nuevas apuestas.')
+
+    if evento.inicia_en <= timezone.now():
+        raise ValidationError('No se puede apostar sobre un evento que ya inicio.')
 
     if seleccion.estado_seleccion != EstadoSeleccion.ACTIVA:
         raise ValidationError('La seleccion no esta activa para apostar.')
@@ -41,7 +49,7 @@ def validar_apuesta_simple(seleccion, odds_activa, stake):
 @transaction.atomic
 def crear_apuesta_simple(usuario, seleccion_id, stake, idempotency_key=None):
     stake = Decimal(stake)
-    seleccion = SeleccionMercado.objects.select_related('mercado').get(pk=seleccion_id)
+    seleccion = SeleccionMercado.objects.select_related('mercado__evento').get(pk=seleccion_id)
     odds_activa = obtener_odds_activa(seleccion)
 
     validar_apuesta_simple(seleccion, odds_activa, stake)
