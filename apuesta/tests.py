@@ -9,7 +9,7 @@ from rest_framework.test import APIClient
 
 from apuesta.models import Apuesta, DetalleApuesta, LiquidacionApuesta
 from apuesta.servicios import crear_apuesta_simple, liquidar_apuesta
-from core.choices import EstadoApuesta, EstadoMercado, EstadoSeleccion, ResultadoLiquidacion, TipoMercado
+from core.choices import EstadoApuesta, EstadoEvento, EstadoMercado, EstadoSeleccion, ResultadoLiquidacion, TipoMercado
 from deporte.models import EventoDeportivo, HistorialOdds, Mercado, SeleccionMercado
 
 
@@ -124,6 +124,32 @@ class CrearApuestaSimpleTests(TestCase):
                 usuario=self.usuario,
                 seleccion_id=self.seleccion.id_seleccion,
                 stake=Decimal('101.0000'),
+            )
+
+        self.assertEqual(Apuesta.objects.count(), 0)
+
+    def test_no_crea_apuesta_si_evento_ya_inicio(self):
+        self.evento.inicia_en = timezone.now() - timezone.timedelta(minutes=1)
+        self.evento.save(update_fields=['inicia_en'])
+
+        with self.assertRaises(ValidationError):
+            crear_apuesta_simple(
+                usuario=self.usuario,
+                seleccion_id=self.seleccion.id_seleccion,
+                stake=Decimal('10.0000'),
+            )
+
+        self.assertEqual(Apuesta.objects.count(), 0)
+
+    def test_no_crea_apuesta_si_evento_no_esta_programado(self):
+        self.evento.estado_evento = EstadoEvento.SUSPENDIDO
+        self.evento.save(update_fields=['estado_evento'])
+
+        with self.assertRaises(ValidationError):
+            crear_apuesta_simple(
+                usuario=self.usuario,
+                seleccion_id=self.seleccion.id_seleccion,
+                stake=Decimal('10.0000'),
             )
 
         self.assertEqual(Apuesta.objects.count(), 0)
