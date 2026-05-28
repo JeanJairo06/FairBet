@@ -1,5 +1,7 @@
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models import Q
+from django.utils import timezone
 
 from core.choices import EstadoEvento, EstadoMercado, EstadoSeleccion, TipoMercado
 from core.models import TimeStampedModel
@@ -27,6 +29,32 @@ class EventoDeportivo(TimeStampedModel):
         constraints = [
             models.CheckConstraint(check=~Q(equipo_local=models.F('equipo_visitante')), name='ck_evento_equipos_distintos'),
         ]
+
+    def clean(self):
+        super().clean()
+        errores = {}
+
+        if self.deporte and self.deporte.strip().lower() != 'futbol':
+            errores['deporte'] = 'FairBet solo permite eventos de Futbol.'
+
+        if self.equipo_local and self.equipo_visitante:
+            if self.equipo_local.strip().lower() == self.equipo_visitante.strip().lower():
+                errores['equipo_visitante'] = 'El equipo visitante debe ser distinto al equipo local.'
+
+        if self.inicia_en and self.estado_evento == EstadoEvento.PROGRAMADO and self.inicia_en < timezone.now():
+            errores['inicia_en'] = 'No se puede programar un evento en una fecha pasada.'
+
+        if self.estado_evento in {EstadoEvento.PROGRAMADO, EstadoEvento.EN_VIVO} and self.resultado_confirmado:
+            errores['resultado_confirmado'] = 'Solo un evento finalizado puede tener resultado confirmado.'
+
+        if self.estado_evento == EstadoEvento.FINALIZADO and not self.resultado_confirmado:
+            errores['resultado_confirmado'] = 'Un evento finalizado debe tener resultado confirmado.'
+
+        if self.estado_evento == EstadoEvento.ANULADO and self.resultado_confirmado:
+            errores['resultado_confirmado'] = 'Un evento anulado no debe tener resultado confirmado.'
+
+        if errores:
+            raise ValidationError(errores)
 
     def __str__(self):
         return f'{self.equipo_local} vs {self.equipo_visitante}'
@@ -62,6 +90,44 @@ class Mercado(models.Model):
             models.CheckConstraint(check=Q(margen_operador__gte=0), name='ck_mercado_margen_no_negativo'),
         ]
 
+    def clean(self):
+        super().clean()
+        errores = {}
+
+        if self.stake_minimo is not None and self.stake_minimo <= 0:
+            errores['stake_minimo'] = 'El stake minimo debe ser mayor que cero.'
+
+        if (
+            self.stake_minimo is not None
+            and self.stake_maximo is not None
+            and self.stake_maximo < self.stake_minimo
+        ):
+            errores['stake_maximo'] = 'El stake maximo debe ser mayor o igual al stake minimo.'
+
+        if self.margen_operador is not None and self.margen_operador < 0:
+            errores['margen_operador'] = 'El margen del operador no puede ser negativo.'
+
+        if self.evento_id:
+            evento = self.evento
+            if self.estado_mercado == EstadoMercado.ABIERTO:
+                if evento.estado_evento not in {EstadoEvento.PROGRAMADO, EstadoEvento.EN_VIVO}:
+                    errores['estado_mercado'] = 'Solo eventos programados o en vivo pueden tener mercados abiertos.'
+                elif evento.estado_evento == EstadoEvento.EN_VIVO and not self.permite_in_play:
+                    errores['permite_in_play'] = 'Un mercado abierto en vivo debe permitir in-play.'
+
+            if self.estado_mercado in {EstadoMercado.LIQUIDADO, EstadoMercado.ANULADO}:
+                if evento.estado_evento not in {EstadoEvento.FINALIZADO, EstadoEvento.ANULADO}:
+                    errores['estado_mercado'] = 'Un mercado liquidado o anulado requiere un evento finalizado o anulado.'
+
+        if self.suspendido_hasta and self.estado_mercado != EstadoMercado.SUSPENDIDO:
+            errores['suspendido_hasta'] = 'La fecha de suspension solo aplica a mercados suspendidos.'
+
+        if self.suspendido_hasta and self.suspendido_hasta <= timezone.now():
+            errores['suspendido_hasta'] = 'La suspension temporal debe terminar en una fecha futura.'
+
+        if errores:
+            raise ValidationError(errores)
+
     def __str__(self):
         return f'{self.evento} - {self.nombre}'
 
@@ -88,6 +154,31 @@ class SeleccionMercado(models.Model):
         constraints = [
             models.UniqueConstraint(fields=['mercado', 'codigo_seleccion'], name='uq_seleccion_codigo_por_mercado'),
         ]
+
+    def clean(self):
+        super().clean()
+        errores = {}
+
+        if self.codigo_seleccion:
+            self.codigo_seleccion = self.codigo_seleccion.strip().upper()
+
+        if self.mercado_id:
+            mercado = self.mercado
+            if self.estado_seleccion == EstadoSeleccion.ACTIVA:
+                if mercado.estado_mercado != EstadoMercado.ABIERTO:
+                    errores['estado_seleccion'] = 'Solo mercados abiertos pueden tener selecciones activas.'
+                elif mercado.evento.estado_evento not in {EstadoEvento.PROGRAMADO, EstadoEvento.EN_VIVO}:
+                    errores['estado_seleccion'] = 'Solo eventos programados o en vivo pueden tener selecciones activas.'
+
+            if self.estado_seleccion in {EstadoSeleccion.GANADORA, EstadoSeleccion.PERDEDORA}:
+                if mercado.evento.estado_evento != EstadoEvento.FINALIZADO or not mercado.evento.resultado_confirmado:
+                    errores['estado_seleccion'] = 'Una seleccion ganadora o perdedora requiere un evento finalizado y confirmado.'
+
+            if self.estado_seleccion == EstadoSeleccion.ANULADA and mercado.estado_mercado != EstadoMercado.ANULADO:
+                errores['estado_seleccion'] = 'Una seleccion anulada requiere que el mercado este anulado.'
+
+        if errores:
+            raise ValidationError(errores)
 
     def __str__(self):
         return f'{self.mercado} - {self.nombre}'
@@ -127,6 +218,36 @@ class HistorialOdds(models.Model):
                 name='uq_odds_activa_por_seleccion',
             ),
         ]
+
+    def clean(self):
+        super().clean()
+        errores = {}
+
+        if self.odds is not None and self.odds <= 1:
+            errores['odds'] = 'La odds debe ser mayor que 1.'
+
+        if self.valido_desde and self.valido_hasta and self.valido_hasta <= self.valido_desde:
+            errores['valido_hasta'] = 'La fecha de fin debe ser posterior al inicio de vigencia.'
+
+        if self.activa and self.valido_hasta:
+            errores['valido_hasta'] = 'Una odds activa no debe tener fecha de fin.'
+
+        if not self.activa and not self.valido_hasta:
+            errores['valido_hasta'] = 'Una odds historica debe tener fecha de fin.'
+
+        if self.seleccion_id and self.activa:
+            seleccion = self.seleccion
+            mercado = seleccion.mercado
+            evento = mercado.evento
+            if seleccion.estado_seleccion != EstadoSeleccion.ACTIVA:
+                errores['seleccion'] = 'Solo selecciones activas pueden tener odds vigente.'
+            elif mercado.estado_mercado != EstadoMercado.ABIERTO:
+                errores['seleccion'] = 'Solo mercados abiertos pueden tener odds vigente.'
+            elif evento.estado_evento not in {EstadoEvento.PROGRAMADO, EstadoEvento.EN_VIVO}:
+                errores['seleccion'] = 'Solo eventos programados o en vivo pueden tener odds vigente.'
+
+        if errores:
+            raise ValidationError(errores)
 
     def __str__(self):
         return f'{self.seleccion} @ {self.odds}'

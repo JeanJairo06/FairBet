@@ -2,6 +2,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from django.contrib.auth import get_user_model
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
@@ -96,6 +97,13 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertEqual(self.mercado.estado_mercado, EstadoMercado.CERRADO)
 
     def test_marcar_seleccion_ganadora_liquida_mercado_y_pierde_las_demas(self):
+        confirmar_resultado_evento(
+            self.evento,
+            {
+                'marcador_local': 2,
+                'marcador_visitante': 1,
+            },
+        )
         marcar_seleccion_ganadora(self.local)
         self.local.refresh_from_db()
         self.empate.refresh_from_db()
@@ -146,3 +154,55 @@ class CatalogoDeportivoServiceTests(TestCase):
                 deporte='Futbol',
             ).exists()
         )
+
+    def test_crear_evento_valida_equipos_distintos(self):
+        with self.assertRaises(ValidationError):
+            crear_evento(
+                {
+                    'competicion': 'Liga 1',
+                    'equipo_local': 'Mismo Equipo',
+                    'equipo_visitante': 'mismo equipo',
+                    'inicia_en': timezone.now() + timedelta(days=1),
+                }
+            )
+
+    def test_crear_evento_no_permite_programar_fecha_pasada(self):
+        with self.assertRaisesMessage(ValidationError, 'No se puede programar un evento en una fecha pasada.'):
+            crear_evento(
+                {
+                    'competicion': 'Liga 1',
+                    'equipo_local': 'Sporting Cristal',
+                    'equipo_visitante': 'Melgar',
+                    'inicia_en': timezone.now() - timedelta(days=1),
+                    'estado_evento': EstadoEvento.PROGRAMADO,
+                }
+            )
+
+    def test_crear_mercado_no_permite_abierto_en_evento_finalizado(self):
+        confirmar_resultado_evento(
+            self.evento,
+            {
+                'marcador_local': 1,
+                'marcador_visitante': 0,
+            },
+        )
+        self.evento.refresh_from_db()
+
+        with self.assertRaises(ValidationError):
+            crear_mercado(
+                self.evento,
+                {
+                    'tipo_mercado': TipoMercado.UNO_X_DOS,
+                    'nombre': 'Resultado final extra',
+                    'estado_mercado': EstadoMercado.ABIERTO,
+                    'stake_minimo': Decimal('1.0000'),
+                    'stake_maximo': Decimal('100.0000'),
+                },
+            )
+
+    def test_actualizar_odds_requiere_seleccion_activa_apostable(self):
+        self.local.estado_seleccion = EstadoSeleccion.SUSPENDIDA
+        self.local.save(update_fields=['estado_seleccion'])
+
+        with self.assertRaises(ValidationError):
+            actualizar_odds(self.local, Decimal('2.1000'))

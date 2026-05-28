@@ -11,6 +11,10 @@ class BaseStyledModelForm(forms.ModelForm):
 
 
 class EventoDeportivoForm(BaseStyledModelForm):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.instance.deporte = 'Futbol'
+
     class Meta:
         model = EventoDeportivo
         fields = [
