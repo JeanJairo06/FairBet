@@ -198,6 +198,13 @@ class CuentaAdminUpdateForm(forms.Form):
         self.target_user = target_user
         super().__init__(*args, **kwargs)
         self.fields['rol'].choices = get_admin_assignable_roles(current_user)
+        _decorate_fields(
+            {
+                name: field
+                for name, field in self.fields.items()
+                if name != 'is_active'
+            }
+        )
 
     def clean_username(self):
         username = self.cleaned_data['username'].strip()

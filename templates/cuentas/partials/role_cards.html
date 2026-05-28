@@ -1,0 +1,17 @@
+<section class="role-launcher" aria-label="Creacion de roles">
+    <a class="role-card role-card--player" href="{% url 'cuentas:crear_jugador' %}">
+        <i class="bi bi-person-plus"></i>
+        <span>Crear Jugador</span>
+        <small>Usuario de acceso, perfil y KYC local.</small>
+    </a>
+    <a class="role-card role-card--operator" href="{% url 'cuentas:crear_operador' %}">
+        <i class="bi bi-headset"></i>
+        <span>Crear Operador</span>
+        <small>Cuenta interna para operacion del sistema.</small>
+    </a>
+    <a class="role-card role-card--admin" href="{% url 'cuentas:crear_admin' %}">
+        <i class="bi bi-person-gear"></i>
+        <span>Crear Administrador</span>
+        <small>Administrador interno sin privilegios de superusuario.</small>
+    </a>
+</section>

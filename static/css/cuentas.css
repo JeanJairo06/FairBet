@@ -57,6 +57,26 @@
     border-radius: 999px;
 }
 
+.accounts-back {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 42px;
+    padding: 0 14px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.06);
+    text-decoration: none;
+    font-weight: 800;
+}
+
+.accounts-back:hover {
+    border-color: rgba(34, 197, 94, 0.42);
+    color: var(--accent);
+}
+
 .account-stats {
     display: grid;
     grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -283,7 +303,8 @@
     text-align: center;
 }
 
-.account-row-actions {
+.account-row-actions,
+.account-table-actions {
     display: flex;
     align-items: flex-start;
     gap: 10px;
@@ -398,11 +419,23 @@
 .account-action {
     border: 0;
     cursor: pointer;
+    text-decoration: none;
 }
 
 .account-action--save {
     color: #052e16;
     background: var(--accent);
+}
+
+.account-action--ghost {
+    color: var(--text);
+    border: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.account-action--ghost:hover {
+    border-color: rgba(34, 197, 94, 0.42);
+    color: var(--accent);
 }
 
 .account-action--danger {
@@ -476,6 +509,11 @@
     align-items: start;
 }
 
+.account-form-shell {
+    width: min(920px, 100%);
+    margin: 0 auto;
+}
+
 .account-form {
     display: grid;
     gap: 16px;
@@ -526,6 +564,22 @@
     font-weight: 800;
 }
 
+.account-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    width: max-content;
+    color: var(--muted);
+    font-size: 0.9rem;
+    font-weight: 800;
+}
+
+.account-toggle input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+}
+
 .account-form__errors,
 .errorlist {
     border: 1px solid rgba(248, 113, 113, 0.28);
@@ -549,6 +603,12 @@
 
 .button--full {
     width: 100%;
+}
+
+.account-form-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
 }
 
 .accounts-readonly {
@@ -607,6 +667,8 @@
     }
 
     .account-row-actions,
+    .account-table-actions,
+    .account-form-actions,
     .account-admin-form__actions {
         align-items: stretch;
         flex-direction: column;

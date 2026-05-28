@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Crear operador | FairBet Lab{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/cuentas.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="accounts-page">
+    <div class="accounts-heading">
+        <div>
+            <p class="eyebrow">Cuentas / Operador</p>
+            <h2>Crear operador</h2>
+            <p>Genera una cuenta interna para operacion del sistema sin perfil KYC.</p>
+        </div>
+        <a href="{% url 'cuentas:cuentas' %}" class="accounts-back">
+            <i class="bi bi-arrow-left"></i>
+            Volver a cuentas
+        </a>
+    </div>
+
+    <article class="accounts-panel account-form-shell">
+        <div class="accounts-panel__header accounts-panel__header--stack">
+            <span class="section-chip"><i class="bi bi-headset"></i> Operador</span>
+            <h3>Datos de alta</h3>
+            <p>El operador tendra acceso como usuario interno, sin permisos de superusuario.</p>
+        </div>
+
+        <form method="post" class="account-form" novalidate>
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="account-form__errors">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <div class="account-form__split">
+                {% include 'cuentas/partials/form_field.html' with field=form.nombres label='Nombres' %}
+                {% include 'cuentas/partials/form_field.html' with field=form.apellidos label='Apellidos' %}
+            </div>
+            {% include 'cuentas/partials/form_field.html' with field=form.username label='Usuario' %}
+            {% include 'cuentas/partials/form_field.html' with field=form.email label='Correo' %}
+            <div class="account-form__split">
+                {% include 'cuentas/partials/form_field.html' with field=form.password1 label='Contrasena' %}
+                {% include 'cuentas/partials/form_field.html' with field=form.password2 label='Confirmar' %}
+            </div>
+
+            <div class="account-form-actions">
+                <a href="{% url 'cuentas:cuentas' %}" class="account-action account-action--ghost">Cancelar</a>
+                <button type="submit" class="button button--primary">
+                    <i class="bi bi-person-workspace"></i>
+                    Crear operador
+                </button>
+            </div>
+        </form>
+    </article>
+</section>
+{% endblock %}

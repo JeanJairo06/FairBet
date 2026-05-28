@@ -1,0 +1,71 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Crear jugador | FairBet Lab{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/cuentas.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="accounts-page">
+    <div class="accounts-heading">
+        <div>
+            <p class="eyebrow">Cuentas / Jugador</p>
+            <h2>Crear jugador</h2>
+            <p>Registra usuario de acceso, datos personales y perfil KYC con validaciones locales basicas.</p>
+        </div>
+        <a href="{% url 'cuentas:cuentas' %}" class="accounts-back">
+            <i class="bi bi-arrow-left"></i>
+            Volver a cuentas
+        </a>
+    </div>
+
+    <article class="accounts-panel account-form-shell">
+        <div class="accounts-panel__header accounts-panel__header--stack">
+            <span class="section-chip"><i class="bi bi-person-badge"></i> Jugador</span>
+            <h3>Datos de alta</h3>
+            <p>El calendario limita la fecha maxima para permitir solo usuarios mayores de edad.</p>
+        </div>
+
+        <form method="post" class="account-form" novalidate>
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="account-form__errors">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <fieldset class="account-form__section">
+                <legend>Datos personales</legend>
+                <div class="account-form__split">
+                    {% include 'cuentas/partials/form_field.html' with field=form.nombres label='Nombres' %}
+                    {% include 'cuentas/partials/form_field.html' with field=form.apellidos label='Apellidos' %}
+                </div>
+                <div class="account-form__split">
+                    {% include 'cuentas/partials/form_field.html' with field=form.dni label='DNI' %}
+                    {% include 'cuentas/partials/form_field.html' with field=form.fecha_nacimiento label='Nacimiento' %}
+                </div>
+                {% include 'cuentas/partials/form_field.html' with field=form.telefono label='Telefono' %}
+            </fieldset>
+
+            <fieldset class="account-form__section">
+                <legend>Acceso</legend>
+                {% include 'cuentas/partials/form_field.html' with field=form.username label='Usuario' %}
+                {% include 'cuentas/partials/form_field.html' with field=form.email label='Correo' %}
+                <div class="account-form__split">
+                    {% include 'cuentas/partials/form_field.html' with field=form.password1 label='Contrasena' %}
+                    {% include 'cuentas/partials/form_field.html' with field=form.password2 label='Confirmar' %}
+                </div>
+            </fieldset>
+
+            <div class="account-form-actions">
+                <a href="{% url 'cuentas:cuentas' %}" class="account-action account-action--ghost">Cancelar</a>
+                <button type="submit" class="button button--primary">
+                    <i class="bi bi-person-plus"></i>
+                    Crear jugador
+                </button>
+            </div>
+        </form>
+    </article>
+</section>
+{% endblock %}
