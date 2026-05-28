@@ -27,4 +27,7 @@ urlpatterns = [
     path('accounts/logout/', LogoutView.as_view(), name='logout'),
     path('deporte/', include('deporte.urls')),
     path('api/v1/', include('api.urls')),
+
+
+    path('juego-responsable/', include('juego_responsable.urls')),
 ]
