@@ -189,6 +189,24 @@ class CrearApuestaSimpleTests(TestCase):
 
         self.assertEqual(Apuesta.objects.count(), 0)
 
+    def test_reutiliza_apuesta_si_idempotency_key_ya_existe(self):
+        primera_apuesta = crear_apuesta_simple(
+            usuario=self.usuario,
+            seleccion_id=self.seleccion.id_seleccion,
+            stake=Decimal('10.0000'),
+            idempotency_key='misma-apuesta',
+        )
+
+        segunda_apuesta = crear_apuesta_simple(
+            usuario=self.usuario,
+            seleccion_id=self.seleccion.id_seleccion,
+            stake=Decimal('10.0000'),
+            idempotency_key='misma-apuesta',
+        )
+
+        self.assertEqual(primera_apuesta, segunda_apuesta)
+        self.assertEqual(Apuesta.objects.count(), 1)
+
 
 class ApuestaApiTests(TestCase):
     def setUp(self):
