@@ -5,7 +5,15 @@ from django.db import IntegrityError, transaction
 from django.test import TestCase
 
 from billetera.models import Cuenta, LedgerEntry, TransaccionLedger
-from core.choices import DirectionLedger, TipoCuentaContable, TipoTransaccionLedger
+from billetera.exceptions import CuentaBloqueadaError, MontoInvalidoError, TransaccionNoBalanceadaError
+from billetera.services.ledger_service import crear_transaccion_ledger, validar_transaccion_balanceada
+from core.choices import (
+    DirectionLedger,
+    EstadoCuentaContable,
+    EstadoTransaccionLedger,
+    TipoCuentaContable,
+    TipoTransaccionLedger,
+)
 
 
 class BilleteraModelTests(TestCase):
@@ -143,3 +151,163 @@ class BilleteraModelTests(TestCase):
         )
 
         self.assertEqual(TransaccionLedger.objects.count(), 2)
+
+
+class LedgerServiceTests(TestCase):
+    def setUp(self):
+        self.usuario = get_user_model().objects.create_user(
+            username='ledger_service_user',
+            email='ledger_service_user@test.com',
+            password='test12345',
+        )
+        self.wallet = Cuenta.objects.create(
+            usuario=self.usuario,
+            tipo_cuenta=TipoCuentaContable.WALLET_USUARIO,
+            codigo='WALLET-SERVICE-1',
+            nombre='Wallet service 1',
+        )
+        self.casa = Cuenta.objects.create(
+            tipo_cuenta=TipoCuentaContable.CASA,
+            codigo='CASA-SERVICE-1',
+            nombre='Casa service 1',
+        )
+
+    def entries_balanceados(self):
+        return [
+            {
+                'cuenta': self.wallet,
+                'direction': DirectionLedger.CREDIT,
+                'amount': Decimal('100.0000'),
+            },
+            {
+                'cuenta': self.casa,
+                'direction': DirectionLedger.DEBIT,
+                'amount': Decimal('100.0000'),
+            },
+        ]
+
+    def test_crea_transaccion_balanceada_completada(self):
+        transaccion_ledger = crear_transaccion_ledger(
+            usuario=self.usuario,
+            tipo_transaccion=TipoTransaccionLedger.RECARGA,
+            entries=self.entries_balanceados(),
+            idempotency_key='service-recarga-1',
+        )
+
+        self.assertEqual(transaccion_ledger.estado, EstadoTransaccionLedger.COMPLETED)
+        self.assertEqual(transaccion_ledger.entries.count(), 2)
+        self.assertTrue(validar_transaccion_balanceada(transaccion_ledger))
+
+    def test_rechaza_transaccion_sin_entries(self):
+        with self.assertRaises(TransaccionNoBalanceadaError):
+            crear_transaccion_ledger(
+                usuario=self.usuario,
+                tipo_transaccion=TipoTransaccionLedger.RECARGA,
+                entries=[],
+            )
+
+        self.assertEqual(TransaccionLedger.objects.count(), 0)
+
+    def test_rechaza_transaccion_con_un_solo_entry(self):
+        with self.assertRaises(TransaccionNoBalanceadaError):
+            crear_transaccion_ledger(
+                usuario=self.usuario,
+                tipo_transaccion=TipoTransaccionLedger.RECARGA,
+                entries=self.entries_balanceados()[:1],
+            )
+
+        self.assertEqual(TransaccionLedger.objects.count(), 0)
+
+    def test_rechaza_monto_cero(self):
+        entries = self.entries_balanceados()
+        entries[0]['amount'] = Decimal('0.0000')
+
+        with self.assertRaises(MontoInvalidoError):
+            crear_transaccion_ledger(
+                usuario=self.usuario,
+                tipo_transaccion=TipoTransaccionLedger.RECARGA,
+                entries=entries,
+            )
+
+        self.assertEqual(TransaccionLedger.objects.count(), 0)
+
+    def test_rechaza_monto_negativo(self):
+        entries = self.entries_balanceados()
+        entries[0]['amount'] = Decimal('-10.0000')
+
+        with self.assertRaises(MontoInvalidoError):
+            crear_transaccion_ledger(
+                usuario=self.usuario,
+                tipo_transaccion=TipoTransaccionLedger.RECARGA,
+                entries=entries,
+            )
+
+        self.assertEqual(TransaccionLedger.objects.count(), 0)
+
+    def test_rechaza_transaccion_desbalanceada(self):
+        entries = self.entries_balanceados()
+        entries[1]['amount'] = Decimal('90.0000')
+
+        with self.assertRaises(TransaccionNoBalanceadaError):
+            crear_transaccion_ledger(
+                usuario=self.usuario,
+                tipo_transaccion=TipoTransaccionLedger.RECARGA,
+                entries=entries,
+            )
+
+        self.assertEqual(TransaccionLedger.objects.count(), 0)
+
+    def test_rechaza_cuenta_no_activa(self):
+        self.wallet.estado = EstadoCuentaContable.BLOQUEADA
+        self.wallet.save(update_fields=['estado'])
+
+        with self.assertRaises(CuentaBloqueadaError):
+            crear_transaccion_ledger(
+                usuario=self.usuario,
+                tipo_transaccion=TipoTransaccionLedger.RECARGA,
+                entries=self.entries_balanceados(),
+            )
+
+        self.assertEqual(TransaccionLedger.objects.count(), 0)
+
+    def test_reutiliza_transaccion_por_idempotency_key(self):
+        primera = crear_transaccion_ledger(
+            usuario=self.usuario,
+            tipo_transaccion=TipoTransaccionLedger.RECARGA,
+            entries=self.entries_balanceados(),
+            idempotency_key='service-idempotente-1',
+        )
+        segunda = crear_transaccion_ledger(
+            usuario=self.usuario,
+            tipo_transaccion=TipoTransaccionLedger.RECARGA,
+            entries=self.entries_balanceados(),
+            idempotency_key='service-idempotente-1',
+        )
+
+        self.assertEqual(primera, segunda)
+        self.assertEqual(TransaccionLedger.objects.count(), 1)
+        self.assertEqual(LedgerEntry.objects.count(), 2)
+
+    def test_crea_transaccion_con_metadata_y_referencia(self):
+        transaccion_ledger = crear_transaccion_ledger(
+            usuario=self.usuario,
+            tipo_transaccion=TipoTransaccionLedger.BLOQUEO_APUESTA,
+            entries=self.entries_balanceados(),
+            idempotency_key='service-metadata-1',
+            tipo_referencia='apuesta',
+            id_referencia=123,
+            metadata={'origen': 'test'},
+        )
+
+        self.assertEqual(transaccion_ledger.tipo_referencia, 'apuesta')
+        self.assertEqual(transaccion_ledger.id_referencia, '123')
+        self.assertEqual(transaccion_ledger.metadata_json, {'origen': 'test'})
+
+    def test_validar_transaccion_balanceada_existente_falla_si_no_tiene_entries(self):
+        transaccion_ledger = TransaccionLedger.objects.create(
+            usuario=self.usuario,
+            tipo_transaccion=TipoTransaccionLedger.RECARGA,
+        )
+
+        with self.assertRaises(TransaccionNoBalanceadaError):
+            validar_transaccion_balanceada(transaccion_ledger)
