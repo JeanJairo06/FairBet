@@ -31,10 +31,15 @@
                         <div style="padding: 1rem; background: rgba(0,0,0,0.02); border: 1px solid var(--border-color); border-radius: 6px;">
                             <div style="display: flex; justify-content: space-between; align-items: center;">
                                 <strong style="text-transform: uppercase; font-size: 0.85rem; color: #4f46e5;">
-                                    {{ limite.get_periodo_display }}
+                                    {{ limite.periodo_display }}
                                 </strong>
-                                <span style="font-family: monospace; font-weight: 700; font-size: 1.1rem;">
+                                <span style="font-family: monospace; font-weight: 700; font-size: 1.1rem; text-align: right;">
                                     {{ limite.limite_actual }} fichas
+                                    {% if limite.es_default %}
+                                        <small style="font-size: 0.7rem; color: var(--text-muted); display: block; font-weight: normal; font-family: sans-serif;">
+                                            (Por defecto)
+                                        </small>
+                                    {% endif %}
                                 </span>
                             </div>
                             
@@ -48,28 +53,46 @@
                         </div>
                     {% endfor %}
                 </div>
-            {% else %}
-                <p style="font-size: 0.9rem; color: var(--text-muted); font-style: italic; margin-bottom: 1.5rem;">
-                    No tienes límites configurados todavía. Tu cuenta opera con los máximos por defecto.
-                </p>
             {% endif %}
 
             <form method="post" class="auth-form">
                 {% csrf_token %}
                 <input type="hidden" name="accion" value="cambiar_limite">
 
-                <label for="id_periodo">Periodo del Límite</label>
-                <select name="periodo" id="id_periodo" class="auth-form" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--bg-main); color: var(--text-main); margin-bottom: 1rem; color-scheme: dark;">
-                    {% for value, text in choices_periodo %}
-                        <option value="{{ value }}" style="background-color: #1e293b; color: #ffffff;">{{ text }}</option>
-                    {% endfor %}
-                </select>
+                <p style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.5; margin-bottom: 1.5rem; padding: 0.85rem; background: rgba(79, 70, 229, 0.04); border-left: 3px solid #4f46e5; border-radius: 4px; text-align: left; font-family: sans-serif;">
+                    Como parte de nuestro compromiso con el Juego Responsable, tu cuenta tiene unos límites de depósito establecidos. 
+                    Si quieres modificarlos, solicita los nuevos límites a continuación:
+                </p>
 
-                <label for="id_monto">Nuevo Monto Máximo (Fichas)</label>
-                <input type="number" name="monto" id="id_monto" step="0.01" min="0" required placeholder="0.00">
+                <div style="margin-bottom: 1.25rem;">
+                    <label for="id_monto_diario" style="display: block; margin-bottom: 0.4rem; font-weight: 600; font-size: 0.85rem; color: var(--text-main);">
+                        <i class="bi bi-calendar-event" style="color: #4f46e5; margin-right: 4px;"></i> Nuevo Límite Diario (Fichas)
+                    </label>
+                    <input type="number" step="0.01" name="monto_diario" id="id_monto_diario" class="auth-form" 
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--bg-main); color: var(--text-main);" 
+                        placeholder="Dejar vacío para mantener el actual">
+                </div>
 
-                <button type="submit" class="button button--primary button--full" style="margin-top: 1rem;">
-                    <i class="bi bi-check-circle"></i> Guardar Límite
+                <div style="margin-bottom: 1.25rem;">
+                    <label for="id_monto_semanal" style="display: block; margin-bottom: 0.4rem; font-weight: 600; font-size: 0.85rem; color: var(--text-main);">
+                        <i class="bi bi-calendar-week" style="color: #4f46e5; margin-right: 4px;"></i> Nuevo Límite Semanal (Fichas)
+                    </label>
+                    <input type="number" step="0.01" name="monto_semanal" id="id_monto_semanal" class="auth-form" 
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--bg-main); color: var(--text-main);" 
+                        placeholder="Dejar vacío para mantener el actual">
+                </div>
+
+                <div style="margin-bottom: 1.5rem;">
+                    <label for="id_monto_mensual" style="display: block; margin-bottom: 0.4rem; font-weight: 600; font-size: 0.85rem; color: var(--text-main);">
+                        <i class="bi bi-calendar-month" style="color: #4f46e5; margin-right: 4px;"></i> Nuevo Límite Mensual (Fichas)
+                    </label>
+                    <input type="number" step="0.01" name="monto_mensual" id="id_monto_mensual" class="auth-form" 
+                        style="width: 100%; padding: 0.75rem; border: 1px solid var(--border-color); border-radius: 6px; background-color: var(--bg-main); color: var(--text-main);" 
+                        placeholder="Dejar vacío para mantener el actual">
+                </div>
+
+                <button type="submit" class="button button--primary button--full" style="margin-top: 0.25rem;">
+                    <i class="bi bi-check-all"></i> Aplicar Cambios Globales
                 </button>
             </form>
         </div>

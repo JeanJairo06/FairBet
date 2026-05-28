@@ -5,51 +5,82 @@ from django.utils import timezone
 from core.choices import PeriodoLimite, TipoAutoexclusion
 from core.decorators import verified_player_required
 from juego_responsable.models import LimiteJuegoResponsable, Autoexclusion
+from django.conf import settings
+from decimal import Decimal, InvalidOperation
 
 @verified_player_required
 def panel_juego_responsable_view(request):
     usuario = request.user
     
-    limites_usuario = LimiteJuegoResponsable.objects.filter(usuario=usuario)
-    for limite in limites_usuario:
-        limite.actualizar_limites_si_procede()
+    limites_pantalla = []
+    periodos_evaluar = [PeriodoLimite.DIARIO, PeriodoLimite.SEMANAL, PeriodoLimite.MENSUAL]
+    for per in periodos_evaluar:
+        limite_obj = LimiteJuegoResponsable.objects.filter(usuario=usuario, periodo=per).first()
+        
+        if limite_obj:
+            limite_obj.actualizar_limites_si_procede()
+            limites_pantalla.append({
+                'periodo_upper': per.upper(),
+                'periodo_display': limite_obj.get_periodo_display(),
+                'monto_actual': limite_obj.limite_actual(),  
+                'limite_actual': limite_obj.limite_actual(), 
+                'limite_pendiente': limite_obj.limite_pendiente,
+                'pendiente_aplicar_en': limite_obj.pendiente_aplicar_en,
+                'es_default': False
+            })
+        else:
+            monto_defecto = settings.JUEGO_RESPONSABLE_LIMITES_DEFAULT.get(per.upper(), 0.00)
+            limites_pantalla.append({
+                'periodo_upper': per.upper(),
+                'periodo_display': per.capitalize(),
+                'monto_actual': Decimal(str(monto_defecto)),
+                'limite_actual': Decimal(str(monto_defecto)),
+                'limite_pendiente': None,
+                'pendiente_aplicar_en': None,
+                'es_default': True
+            })
 
     if request.method == 'POST':
         accion = request.POST.get('accion')
         
         if accion == 'cambiar_limite':
-            periodo = request.POST.get('periodo')
-            monto_str = request.POST.get('monto')
+            periodos_formulario = [PeriodoLimite.DIARIO, PeriodoLimite.SEMANAL, PeriodoLimite.MENSUAL]
+            errores_detectados = False
+            campos_modificados = 0
+            for per in periodos_formulario:
+                monto_str = request.POST.get(f'monto_{per.lower()}')
+                if not monto_str or monto_str.strip() == "":
+                    continue
+                try:
+                    monto = Decimal(monto_str)
+                    if monto < 0:
+                        raise ValueError("El monto no puede ser negativo.")
+                    campos_modificados += 1
+                    limite_obj, created = LimiteJuegoResponsable.objects.get_or_create(
+                        usuario=usuario,
+                        periodo=per,
+                        defaults={'limite_actual': monto}
+                    )
+
+                    if not created:
+                        if monto < limite_obj.limite_actual:
+                            limite_obj.limite_actual = monto
+                            limite_obj.limite_pendiente = None
+                            limite_obj.pendiente_aplicar_en = None
+                            limite_obj.save()
+                        elif monto > limite_obj.limite_actual:
+                            limite_obj.limite_pendiente = monto
+                            limite_obj.pendiente_aplicar_en = timezone.now() + timezone.timedelta(hours=24)
+                            limite_obj.save()
+                        
+                except (ValueError, TypeError) as e:
+                    errores_detectados = True
+                    messages.error(request, f"Error en el límite {per.lower()}: {str(e)}")
             
-            try:
-                monto = float(monto_str)
-                if monto < 0:
-                    raise ValueError("El monto no puede ser negativo.")
-
-                limite_obj, created = LimiteJuegoResponsable.objects.get_or_create(
-                    usuario=usuario,
-                    periodo=periodo,
-                    defaults={'limite_actual': monto}
-                )
-
-                if not created:
-                    if monto < limite_obj.limite_actual:
-                        limite_obj.limite_actual = monto
-                        limite_obj.limite_pendiente = None
-                        limite_obj.pendiente_aplicar_en = None
-                        messages.success(request, f"Su límite {periodo} se ha reducido exitosamente.")
-                    else:
-                        limite_obj.limite_pendiente = monto
-                        limite_obj.pendiente_aplicar_en = timezone.now() + timezone.timedelta(hours=24)
-                        messages.warning(request, f"Al tratarse de un aumento, se aplicará automáticamente después del período de espera de 24 horas.")
-                    
-                    limite_obj.save()
-                    
-            except (ValueError, TypeError):
-                messages.error(request, "Por favor, ingrese un monto numérico válido.")
-            except ValidationError as e:
-                messages.error(request, f"Error de validación: {e.message}")
-                
+            if campos_modificados == 0 and not errores_detectados:
+                messages.warning(request, "No has ingresado ningún monto para modificar en el formulario.")
+            elif not errores_detectados:
+                messages.success(request, f"Solicitud de actualización de límites procesada exitosamente (los aumentos requieren 24 horas de cooldown).")
             return redirect('juego_responsable:panel')
 
         elif accion == 'autoexcluirse':
@@ -79,7 +110,7 @@ def panel_juego_responsable_view(request):
             return redirect('juego_responsable:panel')
 
     context = {
-        'limites': limites_usuario,
+        'limites': limites_pantalla,
         'choices_periodo': PeriodoLimite.choices,
         'choices_autoexclusion': TipoAutoexclusion.choices,
     }
