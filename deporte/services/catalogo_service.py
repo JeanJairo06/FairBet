@@ -136,6 +136,8 @@ def pasar_evento_en_vivo(evento):
         raise ResultadoEventoError('No se puede pasar a en vivo un evento con resultado confirmado.')
     if evento.estado_evento != EstadoEvento.PROGRAMADO:
         raise ResultadoEventoError('Solo un evento programado puede pasar a en vivo.')
+    if evento.inicia_en > timezone.now():
+        raise ResultadoEventoError('No se puede pasar a en vivo un evento que aun no inicia.')
 
     evento.estado_evento = EstadoEvento.EN_VIVO
     evento.full_clean()
@@ -153,6 +155,25 @@ def suspender_evento(evento):
     evento.full_clean()
     evento.save(update_fields=['estado_evento', 'updated_at'])
     evento.mercados.filter(estado_mercado=EstadoMercado.ABIERTO).update(estado_mercado=EstadoMercado.SUSPENDIDO)
+    return evento
+
+
+@transaction.atomic
+def reactivar_evento(evento):
+    evento = EventoDeportivo.objects.select_for_update().get(pk=_resolver_evento(evento).pk)
+    if evento.estado_evento != EstadoEvento.SUSPENDIDO:
+        raise ResultadoEventoError('Solo un evento suspendido puede reactivarse.')
+    if evento.resultado_confirmado:
+        raise ResultadoEventoError('No se puede reactivar un evento con resultado confirmado.')
+
+    evento.estado_evento = EstadoEvento.EN_VIVO if evento.ha_iniciado else EstadoEvento.PROGRAMADO
+    evento.full_clean()
+    evento.save(update_fields=['estado_evento', 'updated_at'])
+    mercados_suspendidos = evento.mercados.filter(estado_mercado=EstadoMercado.SUSPENDIDO)
+    if evento.estado_evento == EstadoEvento.EN_VIVO:
+        mercados_suspendidos.filter(permite_in_play=True).update(estado_mercado=EstadoMercado.ABIERTO)
+    else:
+        mercados_suspendidos.update(estado_mercado=EstadoMercado.ABIERTO)
     return evento
 
 
@@ -184,6 +205,10 @@ def confirmar_resultado_evento(evento, resultado):
     evento = EventoDeportivo.objects.select_for_update().get(pk=_resolver_evento(evento).pk)
     if evento.resultado_confirmado:
         raise ResultadoEventoError('El resultado del evento ya fue confirmado.')
+    if evento.estado_evento not in {EstadoEvento.PROGRAMADO, EstadoEvento.EN_VIVO}:
+        raise ResultadoEventoError('Solo un evento programado o en vivo puede finalizarse.')
+    if evento.inicia_en > timezone.now():
+        raise ResultadoEventoError('No se puede finalizar un evento que aun no inicia.')
 
     marcador_local = resultado.get('marcador_local')
     marcador_visitante = resultado.get('marcador_visitante')

@@ -8,6 +8,7 @@ from .catalogo_service import (
     marcar_seleccion_ganadora,
     obtener_odds_vigente,
     pasar_evento_en_vivo,
+    reactivar_evento,
     suspender_evento,
     validar_seleccion_apostable,
 )
@@ -22,6 +23,7 @@ __all__ = [
     'marcar_seleccion_ganadora',
     'obtener_odds_vigente',
     'pasar_evento_en_vivo',
+    'reactivar_evento',
     'suspender_evento',
     'validar_seleccion_apostable',
 ]

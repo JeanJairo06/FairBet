@@ -9,6 +9,7 @@ urlpatterns = [
     path('eventos/nuevo/', views.EventoCreateView.as_view(), name='evento_crear'),
     path('eventos/<int:pk>/editar/', views.EventoUpdateView.as_view(), name='evento_editar'),
     path('eventos/<int:pk>/en-vivo/', views.EventoEstadoActionView.as_view(accion='en_vivo'), name='evento_en_vivo'),
+    path('eventos/<int:pk>/reactivar/', views.EventoEstadoActionView.as_view(accion='reactivar'), name='evento_reactivar'),
     path('eventos/<int:pk>/suspender/', views.EventoEstadoActionView.as_view(accion='suspender'), name='evento_suspender'),
     path('eventos/<int:pk>/anular/', views.EventoEstadoActionView.as_view(accion='anular'), name='evento_anular'),
     path('eventos/<int:pk>/confirmar-resultado/', views.EventoConfirmarResultadoView.as_view(), name='evento_confirmar_resultado'),

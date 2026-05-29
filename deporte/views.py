@@ -22,6 +22,7 @@ from deporte.services import (
     confirmar_resultado_evento,
     marcar_seleccion_ganadora,
     pasar_evento_en_vivo,
+    reactivar_evento,
     suspender_evento,
 )
 
@@ -249,6 +250,7 @@ class EventoEstadoActionView(DeporteLoginRequiredMixin, View):
     def post(self, request, pk):
         acciones = {
             'en_vivo': (pasar_evento_en_vivo, 'Evento marcado como en vivo.'),
+            'reactivar': (reactivar_evento, 'Evento reactivado correctamente.'),
             'suspender': (suspender_evento, 'Evento suspendido correctamente.'),
             'anular': (anular_evento, 'Evento anulado correctamente.'),
         }
