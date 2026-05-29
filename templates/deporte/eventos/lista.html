@@ -31,6 +31,7 @@
                     <th>Competicion</th>
                     <th>Inicio</th>
                     <th>Estado</th>
+                    <th>Flujo</th>
                     <th>Marcador</th>
                     <th></th>
                 </tr>
@@ -40,21 +41,67 @@
                     <tr>
                         <td>
                             <strong>{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}</strong>
-                            <span>{{ evento.mercados.count }} mercado(s)</span>
                         </td>
                         <td>{{ evento.competicion }}</td>
                         <td>{{ evento.inicia_en|date:'d/m/Y H:i' }}</td>
                         <td><span class="status-pill">{{ evento.get_estado_evento_display }}</span></td>
+                        <td>
+                            {% if evento.mercados_total and evento.selecciones_total and evento.odds_vigentes_total >= evento.selecciones_total %}
+                                <span class="status-pill status-pill--ok">Listo para apostar</span>
+                            {% elif evento.mercados_total == 0 %}
+                                <span class="status-pill status-pill--warn">Faltan mercados</span>
+                            {% elif evento.selecciones_total == 0 %}
+                                <span class="status-pill status-pill--warn">Faltan selecciones</span>
+                            {% else %}
+                                <span class="status-pill status-pill--warn">Faltan odds</span>
+                            {% endif %}
+                            <span>{{ evento.mercados_total }} mercado(s), {{ evento.selecciones_total }} seleccion(es), {{ evento.odds_vigentes_total }} odds vigente(s)</span>
+                        </td>
                         <td>{{ evento.marcador_local }} - {{ evento.marcador_visitante }}</td>
-                        <td class="table-actions">
-                            <a href="{% url 'deporte:evento_editar' evento.pk %}" title="Editar evento">
+                        <td>
+                            <div class="row-actions">
+                                <a href="{% url 'deporte:evento_editar' evento.pk %}" title="Editar evento">
                                 <i class="bi bi-pencil-square"></i>
-                            </a>
+                                </a>
+                                <a href="{% url 'deporte:mercados_lista' %}?evento={{ evento.pk }}" title="Ver mercados">
+                                    <i class="bi bi-diagram-3"></i>
+                                </a>
+                                <a href="{% url 'deporte:mercado_crear' %}?evento={{ evento.pk }}" title="Crear mercado">
+                                    <i class="bi bi-plus-circle"></i>
+                                </a>
+                            </div>
+                            <div class="state-actions">
+                                {% if evento.estado_evento == 'programado' %}
+                                    <form method="post" action="{% url 'deporte:evento_en_vivo' evento.pk %}">
+                                        {% csrf_token %}
+                                        <button type="submit">En vivo</button>
+                                    </form>
+                                    <form method="post" action="{% url 'deporte:evento_suspender' evento.pk %}">
+                                        {% csrf_token %}
+                                        <button type="submit">Suspender</button>
+                                    </form>
+                                    <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">
+                                        {% csrf_token %}
+                                        <button type="submit">Anular</button>
+                                    </form>
+                                {% elif evento.estado_evento == 'en_vivo' %}
+                                    <form method="post" action="{% url 'deporte:evento_suspender' evento.pk %}">
+                                        {% csrf_token %}
+                                        <button type="submit">Suspender</button>
+                                    </form>
+                                    <a href="{% url 'deporte:evento_confirmar_resultado' evento.pk %}">Confirmar</a>
+                                {% elif evento.estado_evento == 'suspendido' %}
+                                    <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">
+                                        {% csrf_token %}
+                                        <button type="submit">Anular</button>
+                                    </form>
+                                {% endif %}
+                            </div>
                         </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="6" class="empty-state">Aun no hay eventos deportivos registrados.</td>
+                        <td colspan="7" class="empty-state">Aun no hay eventos deportivos registrados.</td>
                     </tr>
                 {% endfor %}
             </tbody>

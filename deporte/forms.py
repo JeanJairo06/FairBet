@@ -38,10 +38,8 @@ class EventoDeportivoForm(BaseStyledModelForm):
             'equipo_local',
             'equipo_visitante',
             'inicia_en',
-            'estado_evento',
             'marcador_local',
             'marcador_visitante',
-            'resultado_confirmado',
         ]
         widgets = {
             'inicia_en': forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}),
@@ -84,6 +82,8 @@ class MercadoForm(BaseStyledModelForm):
 
 
 class SeleccionMercadoForm(BaseStyledModelForm):
+    mercado = forms.ModelChoiceField(queryset=Mercado.objects.select_related('evento').order_by('-created_at'))
+
     class Meta:
         model = SeleccionMercado
         fields = [
@@ -92,6 +92,16 @@ class SeleccionMercadoForm(BaseStyledModelForm):
             'nombre',
             'estado_seleccion',
         ]
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['mercado'].label_from_instance = self._label_mercado
+
+    @staticmethod
+    def _label_mercado(obj):
+        evento = obj.evento
+        inicia_en = timezone.localtime(evento.inicia_en).strftime('%d/%m/%Y %H:%M')
+        return f'{obj.nombre} - {evento} - {inicia_en}'
 
 
 class ActualizarOddsForm(forms.Form):
@@ -105,6 +115,22 @@ class ActualizarOddsForm(forms.Form):
             mercado__estado_mercado=EstadoMercado.ABIERTO,
             mercado__evento__estado_evento__in=[EstadoEvento.PROGRAMADO, EstadoEvento.EN_VIVO],
             mercado__evento__resultado_confirmado=False,
+        )
+        for field in self.fields.values():
+            field.widget.attrs.setdefault('class', 'app-field')
+
+
+class ConfirmarResultadoEventoForm(forms.Form):
+    marcador_local = forms.IntegerField(min_value=0)
+    marcador_visitante = forms.IntegerField(min_value=0)
+    seleccion_ganadora = SeleccionChoiceField(queryset=SeleccionMercado.objects.none(), required=False)
+
+    def __init__(self, *args, **kwargs):
+        self.evento = kwargs.pop('evento')
+        super().__init__(*args, **kwargs)
+        self.fields['seleccion_ganadora'].queryset = SeleccionMercado.objects.select_related('mercado__evento').filter(
+            mercado__evento=self.evento,
+            estado_seleccion__in=[EstadoSeleccion.ACTIVA, EstadoSeleccion.SUSPENDIDA],
         )
         for field in self.fields.values():
             field.widget.attrs.setdefault('class', 'app-field')

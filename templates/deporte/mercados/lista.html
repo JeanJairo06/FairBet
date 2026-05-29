@@ -43,15 +43,29 @@
                             <strong>{{ mercado.nombre }}</strong>
                             <span>{{ mercado.selecciones.count }} seleccion(es)</span>
                         </td>
-                        <td>{{ mercado.evento.equipo_local }} vs {{ mercado.evento.equipo_visitante }}</td>
+                        <td>
+                            {{ mercado.evento.equipo_local }} vs {{ mercado.evento.equipo_visitante }}
+                            <span>{{ mercado.evento.inicia_en|date:'d/m/Y H:i' }}</span>
+                        </td>
                         <td>{{ mercado.get_tipo_mercado_display }}</td>
                         <td><span class="status-pill">{{ mercado.get_estado_mercado_display }}</span></td>
                         <td>{{ mercado.stake_minimo|floatformat:"2" }} - {{ mercado.stake_maximo|floatformat:"2" }}</td>
                         <td>{% if mercado.permite_in_play %}Si{% else %}No{% endif %}</td>
-                        <td class="table-actions">
-                            <a href="{% url 'deporte:mercado_editar' mercado.pk %}" title="Editar mercado">
-                                <i class="bi bi-pencil-square"></i>
-                            </a>
+                        <td>
+                            <div class="row-actions">
+                                <a href="{% url 'deporte:mercado_editar' mercado.pk %}" title="Editar mercado">
+                                    <i class="bi bi-pencil-square"></i>
+                                </a>
+                                <a href="{% url 'deporte:selecciones_lista' %}?mercado={{ mercado.pk }}" title="Ver selecciones">
+                                    <i class="bi bi-check2-square"></i>
+                                </a>
+                                <a href="{% url 'deporte:seleccion_crear' %}?mercado={{ mercado.pk }}" title="Crear seleccion">
+                                    <i class="bi bi-plus-circle"></i>
+                                </a>
+                            </div>
+                            {% if mercado.selecciones.count == 0 %}
+                                <span class="row-hint">Este mercado aun no tiene selecciones.</span>
+                            {% endif %}
                         </td>
                     </tr>
                 {% empty %}

@@ -130,6 +130,56 @@ def validar_seleccion_apostable(seleccion):
 
 
 @transaction.atomic
+def pasar_evento_en_vivo(evento):
+    evento = EventoDeportivo.objects.select_for_update().get(pk=_resolver_evento(evento).pk)
+    if evento.resultado_confirmado:
+        raise ResultadoEventoError('No se puede pasar a en vivo un evento con resultado confirmado.')
+    if evento.estado_evento != EstadoEvento.PROGRAMADO:
+        raise ResultadoEventoError('Solo un evento programado puede pasar a en vivo.')
+
+    evento.estado_evento = EstadoEvento.EN_VIVO
+    evento.full_clean()
+    evento.save(update_fields=['estado_evento', 'updated_at'])
+    return evento
+
+
+@transaction.atomic
+def suspender_evento(evento):
+    evento = EventoDeportivo.objects.select_for_update().get(pk=_resolver_evento(evento).pk)
+    if evento.estado_evento not in {EstadoEvento.PROGRAMADO, EstadoEvento.EN_VIVO}:
+        raise ResultadoEventoError('Solo un evento programado o en vivo puede suspenderse.')
+
+    evento.estado_evento = EstadoEvento.SUSPENDIDO
+    evento.full_clean()
+    evento.save(update_fields=['estado_evento', 'updated_at'])
+    evento.mercados.filter(estado_mercado=EstadoMercado.ABIERTO).update(estado_mercado=EstadoMercado.SUSPENDIDO)
+    return evento
+
+
+@transaction.atomic
+def anular_evento(evento):
+    evento = EventoDeportivo.objects.select_for_update().get(pk=_resolver_evento(evento).pk)
+    if evento.resultado_confirmado:
+        raise ResultadoEventoError('No se puede anular un evento con resultado confirmado.')
+    if evento.estado_evento == EstadoEvento.FINALIZADO:
+        raise ResultadoEventoError('No se puede anular un evento finalizado.')
+
+    evento.estado_evento = EstadoEvento.ANULADO
+    evento.resultado_confirmado = False
+    evento.full_clean()
+    evento.save(update_fields=['estado_evento', 'resultado_confirmado', 'updated_at'])
+    evento.mercados.exclude(estado_mercado=EstadoMercado.LIQUIDADO).update(estado_mercado=EstadoMercado.ANULADO)
+    SeleccionMercado.objects.filter(mercado__evento=evento).exclude(
+        estado_seleccion__in=[EstadoSeleccion.GANADORA, EstadoSeleccion.PERDEDORA]
+    ).update(estado_seleccion=EstadoSeleccion.ANULADA)
+    HistorialOdds.objects.filter(seleccion__mercado__evento=evento, activa=True).update(
+        activa=False,
+        valido_hasta=timezone.now(),
+    )
+    return evento
+
+
+@transaction.atomic
 def confirmar_resultado_evento(evento, resultado):
     evento = EventoDeportivo.objects.select_for_update().get(pk=_resolver_evento(evento).pk)
     if evento.resultado_confirmado:
