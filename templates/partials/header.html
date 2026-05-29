@@ -4,9 +4,19 @@
             <p class="eyebrow">FairBet Lab</p>
             <h1>Simulador educativo de apuestas deportivas</h1>
         </div>
-        <div class="site-header__badge">
-            <i class="bi bi-shield-check"></i>
-            Moneda virtual
+        <div class="site-header__status">
+            {% if request.user.is_authenticated %}
+                {% if header_wallet_available %}
+                    <span class="site-header__status-label">
+                    <strong><i class="bi bi-coin"></i> {{ header_wallet_balance_display|floatformat:2 }}</strong>
+                {% elif header_wallet_label %}
+                    <span class="site-header__status-label">Sesion</span>
+                    <strong><i class="bi bi-person-badge"></i> {{ header_wallet_label }}</strong>
+                {% endif %}
+            {% else %}
+                <span class="site-header__status-label">Modo demo</span>
+                <strong><i class="bi bi-shield-check"></i> Moneda virtual</strong>
+            {% endif %}
         </div>
     </div>
 </header>
