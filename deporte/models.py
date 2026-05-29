@@ -44,6 +44,14 @@ class EventoDeportivo(TimeStampedModel):
         if self.inicia_en and self.estado_evento == EstadoEvento.PROGRAMADO and self.inicia_en < timezone.now():
             errores['inicia_en'] = 'No se puede programar un evento en una fecha pasada.'
 
+        if self.inicia_en and self.inicia_en > timezone.now():
+            if self.estado_evento in {EstadoEvento.EN_VIVO, EstadoEvento.FINALIZADO}:
+                errores['estado_evento'] = 'No se puede iniciar o finalizar un evento antes de su fecha de inicio.'
+
+        if self.estado_evento == EstadoEvento.PROGRAMADO:
+            if self.marcador_local != 0 or self.marcador_visitante != 0:
+                errores['marcador_local'] = 'Un evento programado debe mantener marcador 0 - 0.'
+
         if self.equipo_local and self.equipo_visitante and self.inicia_en:
             fecha_evento = timezone.localtime(self.inicia_en).date() if timezone.is_aware(self.inicia_en) else self.inicia_en.date()
             partido_duplicado = EventoDeportivo.objects.filter(
@@ -70,6 +78,10 @@ class EventoDeportivo(TimeStampedModel):
 
     def __str__(self):
         return f'{self.equipo_local} vs {self.equipo_visitante}'
+
+    @property
+    def ha_iniciado(self):
+        return self.inicia_en <= timezone.now()
 
 
 class Mercado(models.Model):

@@ -38,8 +38,6 @@ class EventoDeportivoForm(BaseStyledModelForm):
             'equipo_local',
             'equipo_visitante',
             'inicia_en',
-            'marcador_local',
-            'marcador_visitante',
         ]
         widgets = {
             'inicia_en': forms.DateTimeInput(format='%Y-%m-%dT%H:%M', attrs={'type': 'datetime-local'}),

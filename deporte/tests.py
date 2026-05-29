@@ -8,8 +8,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from core.choices import EstadoEvento, EstadoMercado, EstadoSeleccion, TipoMercado
-from deporte.forms import ActualizarOddsForm, MercadoForm
-from deporte.exceptions import SeleccionNoApostableError
+from deporte.forms import ActualizarOddsForm, EventoDeportivoForm, MercadoForm
+from deporte.exceptions import ResultadoEventoError, SeleccionNoApostableError
 from deporte.models import HistorialOdds
 from deporte.services import (
     actualizar_odds,
@@ -19,6 +19,9 @@ from deporte.services import (
     crear_seleccion,
     marcar_seleccion_ganadora,
     obtener_odds_vigente,
+    pasar_evento_en_vivo,
+    reactivar_evento,
+    suspender_evento,
     validar_seleccion_apostable,
 )
 
@@ -84,6 +87,9 @@ class CatalogoDeportivoServiceTests(TestCase):
             validar_seleccion_apostable(self.local)
 
     def test_confirmar_resultado_cierra_evento_y_mercado(self):
+        self.evento.inicia_en = timezone.now() - timedelta(hours=2)
+        self.evento.save(update_fields=['inicia_en'])
+
         evento = confirmar_resultado_evento(
             self.evento,
             {
@@ -98,6 +104,9 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertEqual(self.mercado.estado_mercado, EstadoMercado.CERRADO)
 
     def test_marcar_seleccion_ganadora_liquida_mercado_y_pierde_las_demas(self):
+        self.evento.inicia_en = timezone.now() - timedelta(hours=2)
+        self.evento.save(update_fields=['inicia_en'])
+
         confirmar_resultado_evento(
             self.evento,
             {
@@ -139,6 +148,12 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertIn('Alianza Lima vs Universitario', label)
         self.assertIn(fecha, label)
 
+    def test_formulario_evento_no_expone_marcador(self):
+        form = EventoDeportivoForm()
+
+        self.assertNotIn('marcador_local', form.fields)
+        self.assertNotIn('marcador_visitante', form.fields)
+
     def test_editar_evento_mantiene_fecha_en_input(self):
         get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
         self.client.login(username='operador', password='test12345')
@@ -160,9 +175,6 @@ class CatalogoDeportivoServiceTests(TestCase):
                 'equipo_local': 'Equipo A',
                 'equipo_visitante': 'Equipo B',
                 'inicia_en': (timezone.now() + timedelta(days=2)).strftime('%Y-%m-%dT%H:%M'),
-                'estado_evento': EstadoEvento.PROGRAMADO,
-                'marcador_local': 0,
-                'marcador_visitante': 0,
             },
         )
 
@@ -210,6 +222,9 @@ class CatalogoDeportivoServiceTests(TestCase):
             )
 
     def test_crear_mercado_no_permite_abierto_en_evento_finalizado(self):
+        self.evento.inicia_en = timezone.now() - timedelta(hours=2)
+        self.evento.save(update_fields=['inicia_en'])
+
         confirmar_resultado_evento(
             self.evento,
             {
@@ -237,6 +252,106 @@ class CatalogoDeportivoServiceTests(TestCase):
 
         with self.assertRaises(ValidationError):
             actualizar_odds(self.local, Decimal('2.1000'))
+
+    def test_evento_programado_mantiene_marcador_cero(self):
+        with self.assertRaisesMessage(ValidationError, 'Un evento programado debe mantener marcador 0 - 0.'):
+            crear_evento(
+                {
+                    'competicion': 'Liga 1',
+                    'equipo_local': 'Equipo Marcador A',
+                    'equipo_visitante': 'Equipo Marcador B',
+                    'inicia_en': timezone.now() + timedelta(days=1),
+                    'estado_evento': EstadoEvento.PROGRAMADO,
+                    'marcador_local': 2,
+                    'marcador_visitante': 1,
+                }
+            )
+
+    def test_no_permite_finalizar_evento_futuro(self):
+        with self.assertRaisesMessage(ResultadoEventoError, 'No se puede finalizar un evento que aun no inicia.'):
+            confirmar_resultado_evento(
+                self.evento,
+                {
+                    'marcador_local': 1,
+                    'marcador_visitante': 0,
+                },
+            )
+
+    def test_no_permite_pasar_a_en_vivo_evento_futuro(self):
+        with self.assertRaisesMessage(ResultadoEventoError, 'No se puede pasar a en vivo un evento que aun no inicia.'):
+            pasar_evento_en_vivo(self.evento)
+
+    def test_no_permite_finalizar_evento_suspendido(self):
+        suspender_evento(self.evento)
+
+        with self.assertRaisesMessage(ResultadoEventoError, 'Solo un evento programado o en vivo puede finalizarse.'):
+            confirmar_resultado_evento(
+                self.evento,
+                {
+                    'marcador_local': 1,
+                    'marcador_visitante': 0,
+                },
+            )
+
+    def test_reactivar_evento_suspendido_futuro_vuelve_a_programado(self):
+        suspender_evento(self.evento)
+
+        evento = reactivar_evento(self.evento)
+        self.mercado.refresh_from_db()
+
+        self.assertEqual(evento.estado_evento, EstadoEvento.PROGRAMADO)
+        self.assertEqual(self.mercado.estado_mercado, EstadoMercado.ABIERTO)
+
+    def test_reactivar_evento_suspendido_iniciado_vuelve_a_en_vivo(self):
+        self.evento.inicia_en = timezone.now() - timedelta(hours=1)
+        self.evento.save(update_fields=['inicia_en'])
+        suspender_evento(self.evento)
+
+        evento = reactivar_evento(self.evento)
+        self.mercado.refresh_from_db()
+
+        self.assertEqual(evento.estado_evento, EstadoEvento.EN_VIVO)
+        self.assertEqual(self.mercado.estado_mercado, EstadoMercado.SUSPENDIDO)
+
+    def test_evento_futuro_muestra_acciones_de_inicio_o_finalizacion_deshabilitadas(self):
+        get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
+        self.client.login(username='operador', password='test12345')
+        self.evento.__class__.objects.filter(pk=self.evento.pk).update(marcador_local=5, marcador_visitante=5)
+
+        response = self.client.get(reverse('deporte:eventos_lista'))
+
+        self.assertContains(response, 'En vivo')
+        self.assertContains(response, 'Finalizar')
+        self.assertContains(response, 'disabled title="Disponible cuando inicie el evento"', count=2)
+        self.assertContains(response, 'Suspender')
+        self.assertContains(response, 'Anular')
+        self.assertContains(response, '0 - 0')
+        self.assertNotContains(response, '5 - 5')
+
+    def test_evento_suspendido_muestra_editar_reactivar_y_anular(self):
+        get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
+        self.client.login(username='operador', password='test12345')
+        suspender_evento(self.evento)
+
+        response = self.client.get(reverse('deporte:eventos_lista'))
+
+        self.assertContains(response, reverse('deporte:evento_editar', args=[self.evento.pk]))
+        self.assertContains(response, 'Reactivar')
+        self.assertContains(response, 'Anular')
+        self.assertNotContains(response, 'Finalizar')
+
+    def test_evento_en_vivo_muestra_suspender_anular_y_finalizar(self):
+        get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
+        self.client.login(username='operador', password='test12345')
+        self.evento.inicia_en = timezone.now() - timedelta(hours=1)
+        self.evento.save(update_fields=['inicia_en'])
+        pasar_evento_en_vivo(self.evento)
+
+        response = self.client.get(reverse('deporte:eventos_lista'))
+
+        self.assertContains(response, 'Suspender')
+        self.assertContains(response, 'Anular')
+        self.assertContains(response, 'Finalizar')
 
     def test_formulario_odds_solo_muestra_selecciones_apostables(self):
         self.evento.estado_evento = EstadoEvento.ANULADO
