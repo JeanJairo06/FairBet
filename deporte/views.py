@@ -1,5 +1,6 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
+from django.core.exceptions import ValidationError
 from django.db.models import Prefetch, Q
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, FormView, ListView, UpdateView
@@ -167,10 +168,21 @@ class OddsUpdateView(DeporteLoginRequiredMixin, FormView):
     success_url = reverse_lazy('deporte:odds_lista')
 
     def form_valid(self, form):
-        actualizar_odds(
-            seleccion=form.cleaned_data['seleccion'],
-            odds=form.cleaned_data['odds'],
-            cambiado_por=self.request.user if self.request.user.is_authenticated else None,
-        )
+        try:
+            actualizar_odds(
+                seleccion=form.cleaned_data['seleccion'],
+                odds=form.cleaned_data['odds'],
+                cambiado_por=self.request.user if self.request.user.is_authenticated else None,
+            )
+        except ValidationError as exc:
+            if hasattr(exc, 'message_dict'):
+                for field_name, errors in exc.message_dict.items():
+                    target_field = field_name if field_name in form.fields else None
+                    for error in errors:
+                        form.add_error(target_field, error)
+            else:
+                form.add_error(None, exc)
+            return self.form_invalid(form)
+
         messages.success(self.request, 'Odds actualizada y version anterior cerrada correctamente.')
         return super().form_valid(form)

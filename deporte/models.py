@@ -44,6 +44,18 @@ class EventoDeportivo(TimeStampedModel):
         if self.inicia_en and self.estado_evento == EstadoEvento.PROGRAMADO and self.inicia_en < timezone.now():
             errores['inicia_en'] = 'No se puede programar un evento en una fecha pasada.'
 
+        if self.equipo_local and self.equipo_visitante and self.inicia_en:
+            fecha_evento = timezone.localtime(self.inicia_en).date() if timezone.is_aware(self.inicia_en) else self.inicia_en.date()
+            partido_duplicado = EventoDeportivo.objects.filter(
+                equipo_local__iexact=self.equipo_local.strip(),
+                equipo_visitante__iexact=self.equipo_visitante.strip(),
+                inicia_en__date=fecha_evento,
+            )
+            if self.pk:
+                partido_duplicado = partido_duplicado.exclude(pk=self.pk)
+            if partido_duplicado.exists():
+                errores['inicia_en'] = 'No puede existir el mismo partido en la misma fecha.'
+
         if self.estado_evento in {EstadoEvento.PROGRAMADO, EstadoEvento.EN_VIVO} and self.resultado_confirmado:
             errores['resultado_confirmado'] = 'Solo un evento finalizado puede tener resultado confirmado.'
 
