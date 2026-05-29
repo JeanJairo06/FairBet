@@ -1,12 +1,11 @@
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from django.core.exceptions import ValidationError
 from django.utils import timezone
 from core.choices import PeriodoLimite, TipoAutoexclusion
 from core.decorators import verified_player_required
 from juego_responsable.models import LimiteJuegoResponsable, Autoexclusion
 from django.conf import settings
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 @verified_player_required
 def panel_juego_responsable_view(request):
@@ -22,8 +21,8 @@ def panel_juego_responsable_view(request):
             limites_pantalla.append({
                 'periodo_upper': per.upper(),
                 'periodo_display': limite_obj.get_periodo_display(),
-                'monto_actual': limite_obj.limite_actual(),  
-                'limite_actual': limite_obj.limite_actual(), 
+                'monto_actual': limite_obj.limite_actual,  
+                'limite_actual': limite_obj.limite_actual, 
                 'limite_pendiente': limite_obj.limite_pendiente,
                 'pendiente_aplicar_en': limite_obj.pendiente_aplicar_en,
                 'es_default': False

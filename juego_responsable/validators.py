@@ -1,7 +1,6 @@
 from datetime import datetime, time
 from django.utils import timezone
 from core.choices import PeriodoLimite
-from django.db.models import Sum
 from django.core.exceptions import ValidationError
 from juego_responsable.models import LimiteJuegoResponsable
 from django.conf import settings
@@ -32,6 +31,7 @@ def obtener_fecha_inicio_periodo(periodo):
     return ahora
 
 def validar_limite_recarga(usuario, monto_a_recargar):
+    monto_a_recargar = Decimal(str(monto_a_recargar))
 
     periodos_obligatorios = [PeriodoLimite.DIARIO, PeriodoLimite.SEMANAL, PeriodoLimite.MENSUAL]
     
@@ -45,16 +45,20 @@ def validar_limite_recarga(usuario, monto_a_recargar):
             limite_maximo = Decimal(str(val_default))
 
         fecha_inicio = obtener_fecha_inicio_periodo(per)
-        total_recargado = TransaccionLedger.objects.filter(
+        transacciones = TransaccionLedger.objects.filter(
             usuario=usuario,
             tipo_transaccion=TipoTransaccionLedger.RECARGA,
             estado=EstadoTransaccionLedger.COMPLETED,
             created_at__gte=fecha_inicio
-        ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
+        )
+        total_recargado = sum(
+            Decimal(str(transaccion.metadata_json.get('monto', '0')))
+            for transaccion in transacciones
+        )
         
         monto_proyectado = total_recargado + monto_a_recargar
 
-        if monto_proyectado > limite.limite_actual:
+        if monto_proyectado > limite_maximo:
             raise ValidationError(
                 f"Operación rechazada por Juego Responsable. Su límite {per.lower()} es de {limite_maximo} fichas."
             )

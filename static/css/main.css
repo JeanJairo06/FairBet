@@ -61,15 +61,31 @@ a {
     text-transform: uppercase;
 }
 
-.site-header__badge {
-    display: inline-flex;
+.site-header__status {
+    display: grid;
+    gap: 6px;
+    min-width: 220px;
+    padding: 14px 16px;
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.12), rgba(255, 255, 255, 0.045));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.site-header__status-label {
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.site-header__status strong {
+    display: flex;
     align-items: center;
     gap: 8px;
-    padding: 10px 14px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
     color: var(--accent);
-    background: rgba(34, 197, 94, 0.08);
+    font-size: 1.05rem;
     white-space: nowrap;
 }
 
