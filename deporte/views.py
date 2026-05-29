@@ -1,12 +1,29 @@
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Prefetch, Q
+from django.core.exceptions import ValidationError
+from django.db.models import Count, Prefetch, Q
+from django.http import HttpResponseRedirect
 from django.urls import reverse_lazy
+from django.views import View
 from django.views.generic import CreateView, FormView, ListView, UpdateView
 
-from deporte.forms import ActualizarOddsForm, EventoDeportivoForm, MercadoForm, SeleccionMercadoForm
+from deporte.forms import (
+    ActualizarOddsForm,
+    ConfirmarResultadoEventoForm,
+    EventoDeportivoForm,
+    MercadoForm,
+    SeleccionMercadoForm,
+)
+from deporte.exceptions import ResultadoEventoError
 from deporte.models import EventoDeportivo, HistorialOdds, Mercado, SeleccionMercado
-from deporte.services import actualizar_odds
+from deporte.services import (
+    actualizar_odds,
+    anular_evento,
+    confirmar_resultado_evento,
+    marcar_seleccion_ganadora,
+    pasar_evento_en_vivo,
+    suspender_evento,
+)
 
 
 class DeporteLoginRequiredMixin(LoginRequiredMixin):
@@ -22,6 +39,14 @@ class EventoListView(DeporteLoginRequiredMixin, ListView):
     def get_queryset(self):
         queryset = EventoDeportivo.objects.prefetch_related(
             Prefetch('mercados', queryset=Mercado.objects.order_by('nombre'))
+        ).annotate(
+            mercados_total=Count('mercados', distinct=True),
+            selecciones_total=Count('mercados__selecciones', distinct=True),
+            odds_vigentes_total=Count(
+                'mercados__selecciones__historial_odds',
+                filter=Q(mercados__selecciones__historial_odds__activa=True),
+                distinct=True,
+            ),
         ).order_by('-inicia_en')
         q = self.request.GET.get('q')
         if q:
@@ -63,6 +88,9 @@ class MercadoListView(DeporteLoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = Mercado.objects.select_related('evento').prefetch_related('selecciones').order_by('-created_at')
+        evento_id = self.request.GET.get('evento')
+        if evento_id:
+            queryset = queryset.filter(evento_id=evento_id)
         q = self.request.GET.get('q')
         if q:
             queryset = queryset.filter(
@@ -79,6 +107,13 @@ class MercadoCreateView(DeporteLoginRequiredMixin, CreateView):
     form_class = MercadoForm
     template_name = 'deporte/mercados/formulario.html'
     success_url = reverse_lazy('deporte:mercados_lista')
+
+    def get_initial(self):
+        initial = super().get_initial()
+        evento_id = self.request.GET.get('evento')
+        if evento_id:
+            initial['evento'] = evento_id
+        return initial
 
     def form_valid(self, form):
         messages.success(self.request, 'Mercado creado correctamente.')
@@ -104,6 +139,9 @@ class SeleccionListView(DeporteLoginRequiredMixin, ListView):
 
     def get_queryset(self):
         queryset = SeleccionMercado.objects.select_related('mercado__evento').order_by('-created_at')
+        mercado_id = self.request.GET.get('mercado')
+        if mercado_id:
+            queryset = queryset.filter(mercado_id=mercado_id)
         q = self.request.GET.get('q')
         if q:
             queryset = queryset.filter(
@@ -121,6 +159,13 @@ class SeleccionCreateView(DeporteLoginRequiredMixin, CreateView):
     form_class = SeleccionMercadoForm
     template_name = 'deporte/selecciones/formulario.html'
     success_url = reverse_lazy('deporte:selecciones_lista')
+
+    def get_initial(self):
+        initial = super().get_initial()
+        mercado_id = self.request.GET.get('mercado')
+        if mercado_id:
+            initial['mercado'] = mercado_id
+        return initial
 
     def form_valid(self, form):
         messages.success(self.request, 'Seleccion creada correctamente.')
@@ -149,6 +194,9 @@ class OddsListView(DeporteLoginRequiredMixin, ListView):
             'seleccion__mercado__evento',
             'cambiado_por',
         ).order_by('-activa', '-created_at')
+        seleccion_id = self.request.GET.get('seleccion')
+        if seleccion_id:
+            queryset = queryset.filter(seleccion_id=seleccion_id)
         q = self.request.GET.get('q')
         if q:
             queryset = queryset.filter(
@@ -166,11 +214,92 @@ class OddsUpdateView(DeporteLoginRequiredMixin, FormView):
     template_name = 'deporte/odds/formulario.html'
     success_url = reverse_lazy('deporte:odds_lista')
 
+    def get_initial(self):
+        initial = super().get_initial()
+        seleccion_id = self.request.GET.get('seleccion')
+        if seleccion_id:
+            initial['seleccion'] = seleccion_id
+        return initial
+
     def form_valid(self, form):
-        actualizar_odds(
-            seleccion=form.cleaned_data['seleccion'],
-            odds=form.cleaned_data['odds'],
-            cambiado_por=self.request.user if self.request.user.is_authenticated else None,
-        )
+        try:
+            actualizar_odds(
+                seleccion=form.cleaned_data['seleccion'],
+                odds=form.cleaned_data['odds'],
+                cambiado_por=self.request.user if self.request.user.is_authenticated else None,
+            )
+        except ValidationError as exc:
+            if hasattr(exc, 'message_dict'):
+                for field_name, errors in exc.message_dict.items():
+                    target_field = field_name if field_name in form.fields else None
+                    for error in errors:
+                        form.add_error(target_field, error)
+            else:
+                form.add_error(None, exc)
+            return self.form_invalid(form)
+
         messages.success(self.request, 'Odds actualizada y version anterior cerrada correctamente.')
+        return super().form_valid(form)
+
+
+class EventoEstadoActionView(DeporteLoginRequiredMixin, View):
+    accion = None
+    success_url = reverse_lazy('deporte:eventos_lista')
+
+    def post(self, request, pk):
+        acciones = {
+            'en_vivo': (pasar_evento_en_vivo, 'Evento marcado como en vivo.'),
+            'suspender': (suspender_evento, 'Evento suspendido correctamente.'),
+            'anular': (anular_evento, 'Evento anulado correctamente.'),
+        }
+        servicio, mensaje = acciones[self.accion]
+        try:
+            servicio(pk)
+        except (ResultadoEventoError, ValidationError) as exc:
+            messages.error(request, self._format_error(exc))
+        else:
+            messages.success(request, mensaje)
+        return HttpResponseRedirect(self.success_url)
+
+    @staticmethod
+    def _format_error(exc):
+        if hasattr(exc, 'message_dict'):
+            return ' '.join(error for errors in exc.message_dict.values() for error in errors)
+        return str(exc)
+
+class EventoConfirmarResultadoView(DeporteLoginRequiredMixin, FormView):
+    form_class = ConfirmarResultadoEventoForm
+    template_name = 'deporte/eventos/confirmar_resultado.html'
+    success_url = reverse_lazy('deporte:eventos_lista')
+
+    def dispatch(self, request, *args, **kwargs):
+        self.evento = EventoDeportivo.objects.get(pk=kwargs['pk'])
+        return super().dispatch(request, *args, **kwargs)
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs['evento'] = self.evento
+        return kwargs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['evento'] = self.evento
+        return context
+
+    def form_valid(self, form):
+        try:
+            confirmar_resultado_evento(
+                self.evento,
+                {
+                    'marcador_local': form.cleaned_data['marcador_local'],
+                    'marcador_visitante': form.cleaned_data['marcador_visitante'],
+                },
+            )
+            if form.cleaned_data['seleccion_ganadora']:
+                marcar_seleccion_ganadora(form.cleaned_data['seleccion_ganadora'])
+        except (ResultadoEventoError, ValidationError) as exc:
+            form.add_error(None, exc)
+            return self.form_invalid(form)
+
+        messages.success(self.request, 'Resultado confirmado correctamente.')
         return super().form_valid(form)

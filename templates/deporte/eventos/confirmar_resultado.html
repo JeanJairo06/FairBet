@@ -1,0 +1,33 @@
+{% extends 'base.html' %}
+
+{% block title %}Confirmar resultado | FairBet Lab{% endblock %}
+
+{% block content %}
+<section class="module-header">
+    <div>
+        <p class="eyebrow">Resultado deportivo</p>
+        <h2>Confirmar resultado</h2>
+        <p>{{ evento.equipo_local }} vs {{ evento.equipo_visitante }} - {{ evento.inicia_en|date:'d/m/Y H:i' }}</p>
+    </div>
+    <a href="{% url 'deporte:eventos_lista' %}" class="button button--secondary">
+        <i class="bi bi-arrow-left"></i> Volver
+    </a>
+</section>
+
+{% include 'deporte/_tabs.html' with active_tab='eventos' %}
+
+<form class="app-form" method="post">
+    {% csrf_token %}
+    {{ form.non_field_errors }}
+    {% for field in form %}
+        <label class="form-row">
+            <span>{{ field.label }}</span>
+            {{ field }}
+            {% if field.errors %}<small>{{ field.errors|striptags }}</small>{% endif %}
+        </label>
+    {% endfor %}
+    <div class="form-actions">
+        <button type="submit" class="button button--primary"><i class="bi bi-check-circle"></i> Confirmar resultado</button>
+    </div>
+</form>
+{% endblock %}

@@ -402,25 +402,63 @@ a {
     background: rgba(34, 197, 94, 0.08);
 }
 
-.table-actions {
-    width: 44px;
-    text-align: right;
+.status-pill--warn {
+    color: #facc15;
+    border-color: rgba(250, 204, 21, 0.35);
+    background: rgba(250, 204, 21, 0.08);
 }
 
-.table-actions a {
+.row-actions,
+.state-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.row-actions a,
+.state-actions a,
+.state-actions button {
     display: grid;
     place-items: center;
-    width: 34px;
+    min-width: 34px;
     height: 34px;
+    padding: 0 10px;
     border: 1px solid var(--line);
     border-radius: 10px;
     color: var(--muted);
+    background: rgba(255, 255, 255, 0.04);
+    font: inherit;
+    cursor: pointer;
 }
 
-.table-actions a:hover {
+.row-actions a {
+    width: 34px;
+    padding: 0;
+}
+
+.row-actions a:hover,
+.state-actions a:hover,
+.state-actions button:hover {
     color: #052e16;
     border-color: var(--accent);
     background: var(--accent);
+}
+
+.state-actions {
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.state-actions form {
+    margin: 0;
+}
+
+.row-hint {
+    display: block;
+    margin-top: 8px;
+    color: #facc15;
+    font-size: 0.88rem;
 }
 
 .empty-state {
