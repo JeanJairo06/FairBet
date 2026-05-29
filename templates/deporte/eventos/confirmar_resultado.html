@@ -1,12 +1,12 @@
 {% extends 'base.html' %}
 
-{% block title %}Confirmar resultado | FairBet Lab{% endblock %}
+{% block title %}Finalizar evento | FairBet Lab{% endblock %}
 
 {% block content %}
 <section class="module-header">
     <div>
         <p class="eyebrow">Resultado deportivo</p>
-        <h2>Confirmar resultado</h2>
+        <h2>Finalizar evento</h2>
         <p>{{ evento.equipo_local }} vs {{ evento.equipo_visitante }} - {{ evento.inicia_en|date:'d/m/Y H:i' }}</p>
     </div>
     <a href="{% url 'deporte:eventos_lista' %}" class="button button--secondary">
@@ -27,7 +27,7 @@
         </label>
     {% endfor %}
     <div class="form-actions">
-        <button type="submit" class="button button--primary"><i class="bi bi-check-circle"></i> Confirmar resultado</button>
+        <button type="submit" class="button button--primary"><i class="bi bi-check-circle"></i> Finalizar evento</button>
     </div>
 </form>
 {% endblock %}
