@@ -10,12 +10,27 @@
                 <i class="bi bi-person-plus"></i>
                 Crear usuario
             </a>
-            <form method="get" class="accounts-search">
-                <i class="bi bi-search"></i>
-                {{ search_form.q }}
-                <button type="submit" class="accounts-search__button">Buscar</button>
-            </form>
         </div>
+    </div>
+
+    <div class="accounts-filterbar">
+        <nav class="account-role-filters" aria-label="Filtros por rol">
+            {% for filter in role_filters %}
+                <a href="{{ filter.url }}" class="account-role-filter{% if filter.active %} account-role-filter--active{% endif %}">
+                    <i class="bi {{ filter.icon }}"></i>
+                    <span>{{ filter.label }}</span>
+                </a>
+            {% endfor %}
+        </nav>
+
+        <form method="get" class="accounts-search">
+            <i class="bi bi-search"></i>
+            {{ search_form.q }}
+            <input type="hidden" name="rol" value="{{ selected_role }}">
+            <button type="submit" class="accounts-search__button" title="Buscar" aria-label="Buscar">
+                <i class="bi bi-search"></i>
+            </button>
+        </form>
     </div>
 
     <div class="accounts-table-wrap">
@@ -26,7 +41,6 @@
                     <th>Rol</th>
                     <th>KYC / Perfil</th>
                     <th>Estado</th>
-                    <th>Acciones</th>
                 </tr>
             </thead>
             <tbody>
@@ -45,6 +59,21 @@
                                             {{ usuario.first_name }} {{ usuario.last_name }}
                                         {% endif %}
                                     </small>
+                                </div>
+                                <div class="account-user__quick-actions">
+                                    {% if usuario.is_superuser and not request.user.is_superuser %}
+                                        <span class="account-icon-button account-icon-button--locked" title="Cuenta protegida" aria-label="Cuenta protegida">
+                                            <i class="bi bi-shield-lock"></i>
+                                        </span>
+                                    {% else %}
+                                        <a href="{% url 'cuentas:editar_cuenta' usuario.pk %}" class="account-icon-button" title="Editar cuenta" aria-label="Editar cuenta">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    {% endif %}
+
+                                    {% if usuario.pk == request.user.pk %}
+                                        <span class="account-current account-current--compact">Actual</span>
+                                    {% endif %}
                                 </div>
                             </div>
                         </td>
@@ -77,26 +106,10 @@
                                 <span class="status-badge status-badge--inactive">Inactivo</span>
                             {% endif %}
                         </td>
-                        <td>
-                            <div class="account-table-actions">
-                                {% if usuario.is_superuser and not request.user.is_superuser %}
-                                    <span class="account-current">Cuenta protegida</span>
-                                {% else %}
-                                    <a href="{% url 'cuentas:editar_cuenta' usuario.pk %}" class="account-action account-action--save">
-                                        <i class="bi bi-pencil-square"></i>
-                                        Editar
-                                    </a>
-                                {% endif %}
-
-                                {% if usuario.pk == request.user.pk %}
-                                    <span class="account-current">Cuenta actual</span>
-                                {% endif %}
-                            </div>
-                        </td>
                     </tr>
                 {% empty %}
                     <tr>
-                        <td colspan="5" class="accounts-empty">
+                        <td colspan="4" class="accounts-empty">
                             No se encontraron cuentas con los filtros actuales.
                         </td>
                     </tr>

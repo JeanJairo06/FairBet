@@ -29,12 +29,22 @@ def get_admin_assignable_roles(user):
 
 class CuentaSearchForm(forms.Form):
     q = forms.CharField(required=False, max_length=120)
+    rol = forms.ChoiceField(
+        required=False,
+        choices=(
+            ('', 'Todos'),
+            (RolUsuario.ADMIN, RolUsuario.ADMIN.label),
+            (RolUsuario.OPERATOR, RolUsuario.OPERATOR.label),
+            (RolUsuario.PLAYER, RolUsuario.PLAYER.label),
+        ),
+        widget=forms.HiddenInput,
+    )
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.fields['q'].widget.attrs.update(
             {
-                'placeholder': 'Buscar usuario, correo, DNI o rol',
+                'placeholder': 'Buscar usuario, correo o DNI',
                 'class': 'accounts-search__input',
             }
         )
@@ -94,6 +104,9 @@ class UsuarioRegistroForm(UserCreationForm):
         return rol
 
     def clean_dni(self):
+        if self.data.get(self.add_prefix('rol')) != RolUsuario.PLAYER:
+            return ''
+
         dni = self.cleaned_data.get('dni', '').strip()
         if dni and PerfilJugador.objects.filter(dni=dni).exists():
             raise forms.ValidationError('Ya existe un perfil registrado con este DNI.')
@@ -118,6 +131,10 @@ class UsuarioRegistroForm(UserCreationForm):
                 cleaned_data['kyc_result'] = kyc_result
                 if not kyc_result.is_valid:
                     raise forms.ValidationError(kyc_result.message)
+        else:
+            cleaned_data['dni'] = ''
+            cleaned_data['fecha_nacimiento'] = None
+            cleaned_data['telefono'] = ''
 
         return cleaned_data
 

@@ -1,3 +1,5 @@
+from urllib.parse import urlencode
+
 from django.contrib import messages
 from django.contrib.auth import update_session_auth_hash
 from django.contrib.auth.mixins import LoginRequiredMixin
@@ -52,6 +54,8 @@ class CuentasView(LoginRequiredMixin, TemplateView):
                 'self_user': self.request.user,
                 'self_can_edit': self.request.user.is_authenticated,
                 'stats': self._build_stats() if self.can_admin_accounts else None,
+                'selected_role': self._get_selected_role(search_form),
+                'role_filters': self._build_role_filters(search_form),
             }
         )
         return context
@@ -75,8 +79,45 @@ class CuentasView(LoginRequiredMixin, TemplateView):
                     | Q(perfil_jugador__nombres__icontains=q)
                     | Q(perfil_jugador__apellidos__icontains=q)
                 )
+            rol = search_form.cleaned_data.get('rol')
+            if rol:
+                usuarios = usuarios.filter(rol=rol)
 
         return usuarios
+
+    def _get_selected_role(self, search_form):
+        if search_form.is_valid():
+            return search_form.cleaned_data.get('rol', '')
+        return ''
+
+    def _build_role_filters(self, search_form):
+        selected_role = self._get_selected_role(search_form)
+        query = search_form.cleaned_data.get('q', '').strip() if search_form.is_valid() else ''
+        filters = (
+            ('', 'Todos', 'bi-grid-3x3-gap'),
+            (RolUsuario.ADMIN, 'Administradores', 'bi-shield-lock'),
+            (RolUsuario.OPERATOR, 'Operadores', 'bi-headset'),
+            (RolUsuario.PLAYER, 'Jugadores', 'bi-person'),
+        )
+
+        role_filters = []
+        for value, label, icon in filters:
+            params = {}
+            if query:
+                params['q'] = query
+            if value:
+                params['rol'] = value
+
+            role_filters.append(
+                {
+                    'label': label,
+                    'icon': icon,
+                    'url': f'?{urlencode(params)}' if params else '?',
+                    'active': selected_role == value,
+                }
+            )
+
+        return role_filters
 
     def _build_stats(self):
         usuarios = Usuario.objects.select_related('perfil_jugador')

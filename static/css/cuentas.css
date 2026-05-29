@@ -151,12 +151,12 @@
 
 .accounts-search {
     display: grid;
-    grid-template-columns: auto minmax(180px, 1fr) auto;
+    grid-template-columns: auto minmax(180px, 1fr) 34px;
     align-items: center;
     gap: 10px;
-    width: min(440px, 100%);
+    width: min(380px, 100%);
     min-height: 44px;
-    padding: 0 8px 0 12px;
+    padding: 0 6px 0 12px;
     border: 1px solid var(--line);
     border-radius: 14px;
     color: var(--muted);
@@ -175,13 +175,15 @@
 }
 
 .accounts-search__button {
-    min-height: 32px;
-    padding: 0 12px;
+    display: inline-grid;
+    place-items: center;
+    width: 34px;
+    height: 32px;
     border: 0;
     border-radius: 10px;
     color: #052e16;
     background: var(--accent);
-    font-weight: 800;
+    font-size: 1rem;
     cursor: pointer;
 }
 
@@ -191,6 +193,46 @@
     justify-content: flex-end;
     gap: 12px;
     width: min(620px, 100%);
+}
+
+.accounts-filterbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 16px 22px;
+    border-bottom: 1px solid var(--line);
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.account-role-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.account-role-filter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.045);
+    text-decoration: none;
+    font-size: 0.84rem;
+    font-weight: 850;
+    transition: border-color 0.18s ease, color 0.18s ease, background 0.18s ease;
+}
+
+.account-role-filter:hover,
+.account-role-filter--active {
+    border-color: rgba(34, 197, 94, 0.42);
+    color: var(--accent);
+    background: rgba(34, 197, 94, 0.1);
 }
 
 .account-create-button {
@@ -218,7 +260,7 @@
 
 .accounts-table {
     width: 100%;
-    min-width: 920px;
+    min-width: 820px;
     border-collapse: collapse;
 }
 
@@ -249,6 +291,7 @@
     display: flex;
     align-items: flex-start;
     gap: 12px;
+    min-width: 0;
 }
 
 .account-user__avatar {
@@ -270,6 +313,42 @@
     margin-top: 4px;
     color: var(--muted);
     overflow-wrap: anywhere;
+}
+
+.account-user > div:not(.account-user__quick-actions) {
+    min-width: 0;
+}
+
+.account-user__quick-actions {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.account-icon-button {
+    display: inline-grid;
+    place-items: center;
+    flex: 0 0 auto;
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 10px;
+    color: #052e16;
+    background: var(--accent);
+    text-decoration: none;
+    transition: transform 0.18s ease, filter 0.18s ease;
+}
+
+.account-icon-button:hover {
+    filter: brightness(1.04);
+    transform: translateY(-1px);
+}
+
+.account-icon-button--locked {
+    color: #cbd5e1;
+    background: rgba(148, 163, 184, 0.1);
+    border-color: rgba(148, 163, 184, 0.2);
 }
 
 .account-pill,
@@ -487,6 +566,13 @@
     color: var(--muted);
     border: 1px solid var(--line);
     background: rgba(255, 255, 255, 0.035);
+}
+
+.account-current--compact {
+    min-height: 28px;
+    padding: 0 9px;
+    border-radius: 999px;
+    font-size: 0.76rem;
 }
 
 .account-permissions-section {
@@ -808,7 +894,8 @@
 
 @media (max-width: 1080px) {
     .accounts-heading,
-    .accounts-panel__header {
+    .accounts-panel__header,
+    .accounts-filterbar {
         align-items: flex-start;
         flex-direction: column;
     }
@@ -837,7 +924,7 @@
     }
 
     .accounts-search__button {
-        grid-column: 1 / -1;
+        width: 34px;
     }
 
     .account-row-actions,
