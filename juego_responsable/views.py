@@ -1,12 +1,11 @@
 from django.shortcuts import render, redirect
 from django.contrib import messages
-from django.core.exceptions import ValidationError
 from django.utils import timezone
 from core.choices import PeriodoLimite, TipoAutoexclusion
 from core.decorators import verified_player_required
 from juego_responsable.models import LimiteJuegoResponsable, Autoexclusion
 from django.conf import settings
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 
 @verified_player_required
 def panel_juego_responsable_view(request):
