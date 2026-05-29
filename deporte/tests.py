@@ -7,7 +7,21 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from core.choices import EstadoEvento, EstadoMercado, EstadoSeleccion, TipoMercado
+from apuesta.models import LiquidacionApuesta
+from apuesta.servicios import crear_apuesta_simple
+from billetera.services.account_service import crear_cuenta_wallet_usuario, obtener_o_crear_cuenta_sistema
+from billetera.services.balance_service import calcular_saldo
+from billetera.services.wallet_service import recargar_fichas
+from core.choices import (
+    EstadoApuesta,
+    EstadoCuentaJugador,
+    EstadoEvento,
+    EstadoMercado,
+    EstadoSeleccion,
+    TipoCuentaContable,
+    TipoMercado,
+)
+from cuentas.models import PerfilJugador
 from deporte.forms import ActualizarOddsForm, EventoDeportivoForm, MercadoForm
 from deporte.exceptions import ResultadoEventoError, SeleccionNoApostableError
 from deporte.models import HistorialOdds
@@ -16,6 +30,7 @@ from deporte.services import (
     confirmar_resultado_evento,
     crear_evento,
     crear_mercado,
+    crear_mercado_rapido,
     crear_seleccion,
     marcar_seleccion_ganadora,
     obtener_odds_vigente,
@@ -123,6 +138,55 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertEqual(self.empate.estado_seleccion, EstadoSeleccion.PERDEDORA)
         self.assertEqual(self.mercado.estado_mercado, EstadoMercado.LIQUIDADO)
 
+    def test_vista_confirmar_resultado_liquida_apuestas_del_evento(self):
+        jugador = get_user_model().objects.create_user(
+            username='jugador_resultado',
+            email='jugador_resultado@test.com',
+            password='test12345',
+        )
+        PerfilJugador.objects.create(
+            usuario=jugador,
+            nombres='Jugador',
+            apellidos='Resultado',
+            dni='56781234',
+            fecha_nacimiento='2000-01-01',
+            estado_cuenta=EstadoCuentaJugador.VERIFICADO,
+        )
+        operador = get_user_model().objects.create_user(
+            username='operador_resultado',
+            email='operador_resultado@test.com',
+            password='test12345',
+        )
+        wallet = crear_cuenta_wallet_usuario(jugador)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.CASA)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.APUESTAS_PENDIENTES)
+        recargar_fichas(jugador, Decimal('100.0000'), idempotency_key='vista-confirmar-resultado')
+        actualizar_odds(self.local, Decimal('2.5000'))
+        apuesta = crear_apuesta_simple(
+            usuario=jugador,
+            seleccion_id=self.local.id_seleccion,
+            stake=Decimal('10.0000'),
+            idempotency_key='vista-confirmar-resultado-apuesta',
+        )
+        self.evento.inicia_en = timezone.now() - timedelta(hours=2)
+        self.evento.save(update_fields=['inicia_en'])
+        self.client.login(username='operador_resultado', password='test12345')
+
+        response = self.client.post(
+            reverse('deporte:evento_confirmar_resultado', args=[self.evento.pk]),
+            {
+                'marcador_local': 2,
+                'marcador_visitante': 1,
+                'seleccion_ganadora': self.local.pk,
+            },
+        )
+
+        apuesta.refresh_from_db()
+        self.assertRedirects(response, reverse('deporte:evento_detalle', args=[self.evento.pk]))
+        self.assertEqual(apuesta.estado_apuesta, EstadoApuesta.WON)
+        self.assertEqual(LiquidacionApuesta.objects.count(), 1)
+        self.assertEqual(calcular_saldo(wallet), Decimal('115.0000'))
+
     def test_paginas_visuales_deporte_renderizan(self):
         get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
         self.client.login(username='operador', password='test12345')
@@ -139,6 +203,101 @@ class CatalogoDeportivoServiceTests(TestCase):
             with self.subTest(url=url):
                 response = self.client.get(url)
                 self.assertEqual(response.status_code, 200)
+
+    def test_detalle_partido_muestra_workspace_de_configuracion(self):
+        get_user_model().objects.create_user(username='operador_detalle', email='op_detalle@test.com', password='test12345')
+        self.client.login(username='operador_detalle', password='test12345')
+        actualizar_odds(self.local, Decimal('2.1000'))
+        actualizar_odds(self.empate, Decimal('3.2000'))
+
+        response = self.client.get(reverse('deporte:evento_detalle', args=[self.evento.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Configurar partido')
+        self.assertContains(response, 'Resultado final')
+        self.assertContains(response, 'Guardar odds')
+
+    def test_crear_mercado_rapido_resultado_final_crea_selecciones_base(self):
+        mercado = crear_mercado_rapido(self.evento, 'resultado_final')
+
+        self.assertEqual(mercado.tipo_mercado, TipoMercado.UNO_X_DOS)
+        self.assertEqual(set(mercado.selecciones.values_list('codigo_seleccion', flat=True)), {'HOME', 'DRAW', 'AWAY'})
+
+    def test_crear_mercado_rapido_resultado_final_configura_stake_y_odds(self):
+        mercado = crear_mercado_rapido(
+            self.evento,
+            'resultado_final',
+            stake_minimo=Decimal('5.0000'),
+            stake_maximo=Decimal('250.0000'),
+            odds_iniciales={
+                'HOME': Decimal('2.0000'),
+                'DRAW': Decimal('3.5000'),
+                'AWAY': Decimal('3.0000'),
+            },
+        )
+
+        self.assertEqual(mercado.stake_minimo, Decimal('5.0000'))
+        self.assertEqual(mercado.stake_maximo, Decimal('250.0000'))
+        self.assertEqual(obtener_odds_vigente(mercado.selecciones.get(codigo_seleccion='HOME')).odds, Decimal('2.0000'))
+        self.assertEqual(obtener_odds_vigente(mercado.selecciones.get(codigo_seleccion='DRAW')).odds, Decimal('3.5000'))
+        self.assertEqual(obtener_odds_vigente(mercado.selecciones.get(codigo_seleccion='AWAY')).odds, Decimal('3.0000'))
+
+    def test_crear_mercado_rapido_ambos_anotan_crea_si_no(self):
+        mercado = crear_mercado_rapido(self.evento, 'ambos_anotan')
+
+        self.assertEqual(mercado.tipo_mercado, TipoMercado.BTTS)
+        self.assertEqual(set(mercado.selecciones.values_list('codigo_seleccion', flat=True)), {'YES', 'NO'})
+
+    def test_crear_mercado_rapido_total_goles_crea_over_under(self):
+        mercado = crear_mercado_rapido(self.evento, 'total_goles', linea=Decimal('2.5'))
+
+        self.assertEqual(mercado.tipo_mercado, TipoMercado.OVER_UNDER)
+        self.assertEqual(set(mercado.selecciones.values_list('codigo_seleccion', flat=True)), {'OVER_2_5', 'UNDER_2_5'})
+
+    def test_crear_mercado_rapido_handicap_crea_local_visitante(self):
+        mercado = crear_mercado_rapido(self.evento, 'handicap', linea=Decimal('0'))
+
+        self.assertEqual(mercado.tipo_mercado, TipoMercado.HANDICAP)
+        self.assertEqual(set(mercado.selecciones.values_list('codigo_seleccion', flat=True)), {'HOME_0', 'AWAY_0'})
+
+    def test_vista_actualiza_odds_inline_desde_detalle(self):
+        get_user_model().objects.create_user(username='operador_odds_inline', email='op_odds_inline@test.com', password='test12345')
+        self.client.login(username='operador_odds_inline', password='test12345')
+
+        response = self.client.post(
+            reverse('deporte:evento_odds_actualizar', args=[self.evento.pk]),
+            {
+                f'odds_{self.local.pk}': '2.4000',
+                f'odds_{self.empate.pk}': '3.1000',
+            },
+        )
+
+        self.assertRedirects(response, reverse('deporte:evento_detalle', args=[self.evento.pk]))
+        self.assertEqual(obtener_odds_vigente(self.local).odds, Decimal('2.4000'))
+        self.assertEqual(obtener_odds_vigente(self.empate).odds, Decimal('3.1000'))
+
+    def test_vista_crea_mercado_total_goles_con_stake_y_odds_iniciales(self):
+        get_user_model().objects.create_user(username='operador_builder', email='op_builder@test.com', password='test12345')
+        self.client.login(username='operador_builder', password='test12345')
+
+        response = self.client.post(
+            reverse('deporte:evento_mercado_rapido', args=[self.evento.pk]),
+            {
+                'plantilla': 'total_goles',
+                'linea': '2.5',
+                'stake_minimo': '3.0000',
+                'stake_maximo': '150.0000',
+                'odds_OVER': '1.9000',
+                'odds_UNDER': '1.9500',
+            },
+        )
+
+        mercado = self.evento.mercados.get(nombre='Total de goles 2.5')
+        self.assertRedirects(response, reverse('deporte:evento_detalle', args=[self.evento.pk]))
+        self.assertEqual(mercado.stake_minimo, Decimal('3.0000'))
+        self.assertEqual(mercado.stake_maximo, Decimal('150.0000'))
+        self.assertEqual(obtener_odds_vigente(mercado.selecciones.get(codigo_seleccion='OVER_2_5')).odds, Decimal('1.9000'))
+        self.assertEqual(obtener_odds_vigente(mercado.selecciones.get(codigo_seleccion='UNDER_2_5')).odds, Decimal('1.9500'))
 
     def test_selector_evento_en_mercado_muestra_fecha(self):
         form = MercadoForm()
@@ -178,7 +337,8 @@ class CatalogoDeportivoServiceTests(TestCase):
             },
         )
 
-        self.assertRedirects(response, reverse('deporte:eventos_lista'))
+        evento_creado = self.evento.__class__.objects.get(competicion='Copa Peru')
+        self.assertRedirects(response, reverse('deporte:evento_detalle', args=[evento_creado.pk]))
         self.assertTrue(
             self.evento.__class__.objects.filter(
                 competicion='Copa Peru',

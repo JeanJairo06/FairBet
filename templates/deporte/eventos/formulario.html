@@ -1,20 +1,23 @@
 {% extends 'base.html' %}
+{% load static %}
 
-{% block title %}Evento deportivo | FairBet Lab{% endblock %}
+{% block title %}Partido | FairBet Lab{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'deporte/css/workspace.css' %}">
+{% endblock %}
 
 {% block content %}
 <section class="module-header">
     <div>
         <p class="eyebrow">Catalogo deportivo</p>
-        <h2>{% if object %}Editar evento{% else %}Nuevo evento{% endif %}</h2>
-        <p>Registra la informacion base del evento deportivo.</p>
+        <h2>{% if object %}Editar partido{% else %}Nuevo partido{% endif %}</h2>
+        <p>Registra solo los datos base. El deporte, marcador y estado se asignan automaticamente.</p>
     </div>
     <a href="{% url 'deporte:eventos_lista' %}" class="button button--secondary">
         <i class="bi bi-arrow-left"></i> Volver
     </a>
 </section>
-
-{% include 'deporte/_tabs.html' with active_tab='eventos' %}
 
 <form class="app-form" method="post">
     {% csrf_token %}

@@ -7,6 +7,10 @@ app_name = 'deporte'
 urlpatterns = [
     path('', views.EventoListView.as_view(), name='eventos_lista'),
     path('eventos/nuevo/', views.EventoCreateView.as_view(), name='evento_crear'),
+    path('partidos/<int:pk>/', views.EventoDetailView.as_view(), name='evento_detalle'),
+    path('partidos/<int:pk>/mercados/rapido/', views.EventoMercadoRapidoView.as_view(), name='evento_mercado_rapido'),
+    path('partidos/<int:pk>/mercados/personalizado/', views.EventoMercadoPersonalizadoView.as_view(), name='evento_mercado_personalizado'),
+    path('partidos/<int:pk>/odds/actualizar/', views.EventoOddsActualizarView.as_view(), name='evento_odds_actualizar'),
     path('eventos/<int:pk>/editar/', views.EventoUpdateView.as_view(), name='evento_editar'),
     path('eventos/<int:pk>/en-vivo/', views.EventoEstadoActionView.as_view(accion='en_vivo'), name='evento_en_vivo'),
     path('eventos/<int:pk>/reactivar/', views.EventoEstadoActionView.as_view(accion='reactivar'), name='evento_reactivar'),
@@ -15,6 +19,7 @@ urlpatterns = [
     path('eventos/<int:pk>/confirmar-resultado/', views.EventoConfirmarResultadoView.as_view(), name='evento_confirmar_resultado'),
     path('mercados/', views.MercadoListView.as_view(), name='mercados_lista'),
     path('mercados/nuevo/', views.MercadoCreateView.as_view(), name='mercado_crear'),
+    path('mercados/<int:pk>/selecciones/agregar/', views.MercadoSeleccionCrearView.as_view(), name='mercado_seleccion_crear'),
     path('mercados/<int:pk>/editar/', views.MercadoUpdateView.as_view(), name='mercado_editar'),
     path('selecciones/', views.SeleccionListView.as_view(), name='selecciones_lista'),
     path('selecciones/nueva/', views.SeleccionCreateView.as_view(), name='seleccion_crear'),

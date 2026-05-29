@@ -5,7 +5,7 @@
 {% block content %}
 <section class="module-header">
     <div>
-        <p class="eyebrow">Catalogo deportivo</p>
+        <p class="eyebrow">Administracion avanzada</p>
         <h2>{% if object %}Editar seleccion{% else %}Nueva seleccion{% endif %}</h2>
         <p>Registra una opcion apostable para un mercado.</p>
     </div>
@@ -13,8 +13,6 @@
         <i class="bi bi-arrow-left"></i> Volver
     </a>
 </section>
-
-{% include 'deporte/_tabs.html' with active_tab='selecciones' %}
 
 <form class="app-form" method="post">
     {% csrf_token %}

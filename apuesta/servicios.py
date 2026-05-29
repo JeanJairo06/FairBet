@@ -14,6 +14,7 @@ from billetera.services.wallet_service import (
 from core.choices import (
     EstadoApuesta,
     EstadoCuentaJugador,
+    EstadoDetalleApuesta,
     EstadoEvento,
     EstadoMercado,
     EstadoSeleccion,
@@ -154,3 +155,56 @@ def liquidar_apuesta(apuesta, resultado, liquidado_por=None, observacion=''):
     apuesta.save(update_fields=['estado_apuesta', 'liquidada_en'])
 
     return liquidacion
+
+
+def _resultado_liquidacion_desde_seleccion(seleccion):
+    if seleccion.estado_seleccion == EstadoSeleccion.GANADORA:
+        return ResultadoLiquidacion.WON
+    if seleccion.estado_seleccion == EstadoSeleccion.PERDEDORA:
+        return ResultadoLiquidacion.LOST
+    if seleccion.estado_seleccion == EstadoSeleccion.ANULADA:
+        return ResultadoLiquidacion.VOID
+    raise ValidationError('La seleccion de la apuesta aun no tiene resultado liquidable.')
+
+
+def _estado_detalle_desde_resultado(resultado):
+    if resultado == ResultadoLiquidacion.WON:
+        return EstadoDetalleApuesta.WON
+    if resultado == ResultadoLiquidacion.LOST:
+        return EstadoDetalleApuesta.LOST
+    return EstadoDetalleApuesta.VOID
+
+
+@transaction.atomic
+def liquidar_apuestas_de_evento(evento, liquidado_por=None, observacion='Liquidacion automatica por resultado de evento.'):
+    evento_id = evento.pk if hasattr(evento, 'pk') else evento
+    apuestas = (
+        Apuesta.objects.select_for_update()
+        .filter(
+            estado_apuesta=EstadoApuesta.ACCEPTED,
+            detalles__seleccion__mercado__evento_id=evento_id,
+        )
+        .prefetch_related('detalles__seleccion')
+        .distinct()
+    )
+
+    liquidaciones = []
+    for apuesta in apuestas:
+        detalles = list(apuesta.detalles.all())
+        if len(detalles) != 1:
+            raise ValidationError('La liquidacion automatica solo soporta apuestas simples.')
+
+        detalle = detalles[0]
+        resultado = _resultado_liquidacion_desde_seleccion(detalle.seleccion)
+        liquidacion = liquidar_apuesta(
+            apuesta=apuesta,
+            resultado=resultado,
+            liquidado_por=liquidado_por,
+            observacion=observacion,
+        )
+        detalle.estado_detalle = _estado_detalle_desde_resultado(resultado)
+        detalle.resultada_en = liquidacion.liquidado_en
+        detalle.save(update_fields=['estado_detalle', 'resultada_en'])
+        liquidaciones.append(liquidacion)
+
+    return liquidaciones

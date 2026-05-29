@@ -1,20 +1,23 @@
 {% extends 'base.html' %}
+{% load static %}
 
-{% block title %}Eventos deportivos | FairBet Lab{% endblock %}
+{% block title %}Partidos | FairBet Lab{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'deporte/css/workspace.css' %}">
+{% endblock %}
 
 {% block content %}
 <section class="module-header">
     <div>
         <p class="eyebrow">Catalogo deportivo</p>
-        <h2>Eventos deportivos</h2>
-        <p>Gestiona los partidos disponibles y su estado operativo.</p>
+        <h2>Partidos</h2>
+        <p>Configura partidos, mercados, selecciones y odds desde un solo flujo guiado.</p>
     </div>
     <a href="{% url 'deporte:evento_crear' %}" class="button button--primary">
-        <i class="bi bi-plus-circle"></i> Nuevo evento
+        <i class="bi bi-plus-circle"></i> Nuevo partido
     </a>
 </section>
-
-{% include 'deporte/_tabs.html' with active_tab='eventos' %}
 
 <form class="module-search" method="get">
     <i class="bi bi-search"></i>
@@ -22,110 +25,67 @@
     <button type="submit" class="button button--secondary">Buscar</button>
 </form>
 
-<section class="data-panel">
-    <div class="table-wrap">
-        <table class="app-table">
-            <thead>
-                <tr>
-                    <th>Evento</th>
-                    <th>Competicion</th>
-                    <th>Inicio</th>
-                    <th>Estado</th>
-                    <th>Flujo</th>
-                    <th>Marcador</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for evento in eventos %}
-                    <tr>
-                        <td>
-                            <strong>{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}</strong>
-                        </td>
-                        <td>{{ evento.competicion }}</td>
-                        <td>{{ evento.inicia_en|date:'d/m/Y H:i' }}</td>
-                        <td><span class="status-pill">{{ evento.get_estado_evento_display }}</span></td>
-                        <td>
-                            {% if evento.mercados_total and evento.selecciones_total and evento.odds_vigentes_total >= evento.selecciones_total %}
-                                <span class="status-pill status-pill--ok">Listo para apostar</span>
-                            {% elif evento.mercados_total == 0 %}
-                                <span class="status-pill status-pill--warn">Faltan mercados</span>
-                            {% elif evento.selecciones_total == 0 %}
-                                <span class="status-pill status-pill--warn">Faltan selecciones</span>
-                            {% else %}
-                                <span class="status-pill status-pill--warn">Faltan odds</span>
-                            {% endif %}
-                            <span>{{ evento.mercados_total }} mercado(s), {{ evento.selecciones_total }} seleccion(es), {{ evento.odds_vigentes_total }} odds vigente(s)</span>
-                        </td>
-                        <td>
-                            {% if evento.estado_evento == 'programado' %}
-                                0 - 0
-                            {% else %}
-                                {{ evento.marcador_local }} - {{ evento.marcador_visitante }}
-                            {% endif %}
-                        </td>
-                        <td>
-                            <div class="row-actions">
-                                <a href="{% url 'deporte:evento_editar' evento.pk %}" title="Editar evento">
-                                <i class="bi bi-pencil-square"></i>
-                                </a>
-                                <a href="{% url 'deporte:mercados_lista' %}?evento={{ evento.pk }}" title="Ver mercados">
-                                    <i class="bi bi-diagram-3"></i>
-                                </a>
-                                <a href="{% url 'deporte:mercado_crear' %}?evento={{ evento.pk }}" title="Crear mercado">
-                                    <i class="bi bi-plus-circle"></i>
-                                </a>
-                            </div>
-                            <div class="state-actions">
-                                {% if evento.estado_evento == 'programado' %}
-                                    <form method="post" action="{% url 'deporte:evento_en_vivo' evento.pk %}">
-                                        {% csrf_token %}
-                                        <button type="submit" {% if not evento.ha_iniciado %}disabled title="Disponible cuando inicie el evento"{% endif %}>En vivo</button>
-                                    </form>
-                                    <form method="post" action="{% url 'deporte:evento_suspender' evento.pk %}">
-                                        {% csrf_token %}
-                                        <button type="submit">Suspender</button>
-                                    </form>
-                                    <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">
-                                        {% csrf_token %}
-                                        <button type="submit">Anular</button>
-                                    </form>
-                                    {% if evento.ha_iniciado %}
-                                        <a href="{% url 'deporte:evento_confirmar_resultado' evento.pk %}">Finalizar</a>
-                                    {% else %}
-                                        <button type="button" disabled title="Disponible cuando inicie el evento">Finalizar</button>
-                                    {% endif %}
-                                {% elif evento.estado_evento == 'en_vivo' %}
-                                    <form method="post" action="{% url 'deporte:evento_suspender' evento.pk %}">
-                                        {% csrf_token %}
-                                        <button type="submit">Suspender</button>
-                                    </form>
-                                    <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">
-                                        {% csrf_token %}
-                                        <button type="submit">Anular</button>
-                                    </form>
-                                    <a href="{% url 'deporte:evento_confirmar_resultado' evento.pk %}">Finalizar</a>
-                                {% elif evento.estado_evento == 'suspendido' %}
-                                    <form method="post" action="{% url 'deporte:evento_reactivar' evento.pk %}">
-                                        {% csrf_token %}
-                                        <button type="submit">Reactivar</button>
-                                    </form>
-                                    <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">
-                                        {% csrf_token %}
-                                        <button type="submit">Anular</button>
-                                    </form>
-                                {% endif %}
-                            </div>
-                        </td>
-                    </tr>
-                {% empty %}
-                    <tr>
-                        <td colspan="7" class="empty-state">Aun no hay eventos deportivos registrados.</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+<section class="fb-event-dashboard">
+    {% for evento in eventos %}
+        <article class="fb-event-card">
+            <div class="fb-event-card__status" aria-label="Estados del partido">
+                <span class="fb-badge fb-badge--{{ evento.estado_evento }}">{{ evento.get_estado_evento_display }}</span>
+                {% if evento.mercados_total and evento.selecciones_total and evento.odds_vigentes_total >= evento.selecciones_total %}
+                    <span class="fb-badge fb-badge--current">Listo para apostar</span>
+                {% elif evento.mercados_total == 0 %}
+                    <span class="fb-badge fb-badge--pending">Faltan mercados</span>
+                {% elif evento.selecciones_total == 0 %}
+                    <span class="fb-badge fb-badge--pending">Faltan selecciones</span>
+                {% else %}
+                    <span class="fb-badge fb-badge--pending">Faltan odds</span>
+                {% endif %}
+            </div>
+
+            <div class="fb-event-card__content">
+                <div class="fb-event-card__main">
+                    <p class="fb-event-competition">{{ evento.competicion }}</p>
+                    <h3>{{ evento.equipo_local }} <span>vs</span> {{ evento.equipo_visitante }}</h3>
+                    <div class="fb-event-date"><i class="bi bi-calendar-event"></i> {{ evento.inicia_en|date:'d/m/Y H:i' }}</div>
+                </div>
+                <div class="fb-score-card" aria-label="Marcador del partido">
+                    <span>Marcador</span>
+                    <strong>{% if evento.estado_evento == 'programado' %}0 - 0{% else %}{{ evento.marcador_local }} - {{ evento.marcador_visitante }}{% endif %}</strong>
+                </div>
+            </div>
+
+            <div class="fb-event-card__footer">
+                <div class="fb-event-card__metrics" aria-label="Resumen de configuracion">
+                    <a href="{% url 'deporte:evento_detalle' evento.pk %}#mercados" title="Ver mercados del partido" aria-label="Ver mercados del partido"><i class="bi bi-diagram-3"></i> {{ evento.mercados_total }}</a>
+                    <a href="{% url 'deporte:evento_detalle' evento.pk %}#selecciones" title="Ver selecciones del partido" aria-label="Ver selecciones del partido"><i class="bi bi-check2-square"></i> {{ evento.selecciones_total }}</a>
+                    <a href="{% url 'deporte:evento_detalle' evento.pk %}#historial-odds" title="Ver historial de odds del partido" aria-label="Ver historial de odds del partido"><i class="bi bi-graph-up-arrow"></i> {{ evento.odds_vigentes_total }}</a>
+                </div>
+
+                <div class="fb-card-actions" aria-label="Acciones del partido">
+                    <a href="{% url 'deporte:evento_detalle' evento.pk %}" class="fb-icon-action fb-icon-action--primary" title="Configurar partido" aria-label="Configurar partido">
+                        <i class="bi bi-sliders"></i>
+                    </a>
+                    <a href="{% url 'deporte:evento_editar' evento.pk %}" class="fb-icon-action" title="Editar datos" aria-label="Editar datos">
+                        <i class="bi bi-pencil-square"></i>
+                    </a>
+                {% if evento.estado_evento == 'programado' %}
+                    <form method="post" action="{% url 'deporte:evento_en_vivo' evento.pk %}">{% csrf_token %}<button class="fb-icon-action" type="submit" {% if not evento.ha_iniciado %}disabled title="Disponible cuando inicie el evento"{% else %}title="En vivo"{% endif %} aria-label="En vivo"><i class="bi bi-broadcast"></i></button></form>
+                    <form method="post" action="{% url 'deporte:evento_suspender' evento.pk %}">{% csrf_token %}<button class="fb-icon-action" type="submit" title="Suspender" aria-label="Suspender"><i class="bi bi-pause-circle"></i></button></form>
+                    <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">{% csrf_token %}<button class="fb-icon-action fb-icon-action--danger" type="submit" title="Anular" aria-label="Anular"><i class="bi bi-x-circle"></i></button></form>
+                    {% if evento.ha_iniciado %}<a class="fb-icon-action" href="{% url 'deporte:evento_confirmar_resultado' evento.pk %}" title="Finalizar" aria-label="Finalizar"><i class="bi bi-flag"></i></a>{% else %}<button class="fb-icon-action" type="button" disabled title="Disponible cuando inicie el evento" aria-label="Finalizar"><i class="bi bi-flag"></i></button>{% endif %}
+                {% elif evento.estado_evento == 'en_vivo' %}
+                    <form method="post" action="{% url 'deporte:evento_suspender' evento.pk %}">{% csrf_token %}<button class="fb-icon-action" type="submit" title="Suspender" aria-label="Suspender"><i class="bi bi-pause-circle"></i></button></form>
+                    <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">{% csrf_token %}<button class="fb-icon-action fb-icon-action--danger" type="submit" title="Anular" aria-label="Anular"><i class="bi bi-x-circle"></i></button></form>
+                    <a class="fb-icon-action" href="{% url 'deporte:evento_confirmar_resultado' evento.pk %}" title="Finalizar" aria-label="Finalizar"><i class="bi bi-flag"></i></a>
+                {% elif evento.estado_evento == 'suspendido' %}
+                    <form method="post" action="{% url 'deporte:evento_reactivar' evento.pk %}">{% csrf_token %}<button class="fb-icon-action" type="submit" title="Reactivar" aria-label="Reactivar"><i class="bi bi-play-circle"></i></button></form>
+                    <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">{% csrf_token %}<button class="fb-icon-action fb-icon-action--danger" type="submit" title="Anular" aria-label="Anular"><i class="bi bi-x-circle"></i></button></form>
+                {% endif %}
+                </div>
+            </div>
+        </article>
+    {% empty %}
+        <div class="fb-empty-panel">Aun no hay partidos registrados. Crea el primero para configurar mercados y odds.</div>
+    {% endfor %}
     {% include 'partials/pagination.html' %}
 </section>
 {% endblock %}

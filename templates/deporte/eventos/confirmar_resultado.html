@@ -14,8 +14,6 @@
     </a>
 </section>
 
-{% include 'deporte/_tabs.html' with active_tab='eventos' %}
-
 <form class="app-form" method="post">
     {% csrf_token %}
     {{ form.non_field_errors }}

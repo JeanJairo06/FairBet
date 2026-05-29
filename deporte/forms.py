@@ -102,6 +102,53 @@ class SeleccionMercadoForm(BaseStyledModelForm):
         return f'{obj.nombre} - {evento} - {inicia_en}'
 
 
+class MercadoPersonalizadoEventoForm(BaseStyledModelForm):
+    class Meta:
+        model = Mercado
+        fields = [
+            'tipo_mercado',
+            'nombre',
+            'stake_minimo',
+            'stake_maximo',
+            'permite_in_play',
+        ]
+
+
+class SeleccionInlineForm(BaseStyledModelForm):
+    class Meta:
+        model = SeleccionMercado
+        fields = [
+            'codigo_seleccion',
+            'nombre',
+        ]
+
+
+class MercadoRapidoForm(forms.Form):
+    plantilla = forms.ChoiceField(
+        choices=[
+            ('resultado_final', 'Resultado final 1X2'),
+            ('ambos_anotan', 'Ambos equipos anotan'),
+            ('total_goles', 'Total de goles'),
+            ('handicap', 'Handicap'),
+        ]
+    )
+    linea = forms.DecimalField(max_digits=8, decimal_places=2, required=False)
+    stake_minimo = forms.DecimalField(max_digits=18, decimal_places=4, min_value=0.0001, initial=1)
+    stake_maximo = forms.DecimalField(max_digits=18, decimal_places=4, min_value=0.0001, initial=100)
+
+    def clean(self):
+        cleaned_data = super().clean()
+        plantilla = cleaned_data.get('plantilla')
+        linea = cleaned_data.get('linea')
+        stake_minimo = cleaned_data.get('stake_minimo')
+        stake_maximo = cleaned_data.get('stake_maximo')
+        if plantilla in {'total_goles', 'handicap'} and linea is None:
+            self.add_error('linea', 'Ingresa la linea del mercado.')
+        if stake_minimo is not None and stake_maximo is not None and stake_maximo < stake_minimo:
+            self.add_error('stake_maximo', 'La apuesta maxima debe ser mayor o igual a la minima.')
+        return cleaned_data
+
+
 class ActualizarOddsForm(forms.Form):
     seleccion = SeleccionChoiceField(queryset=SeleccionMercado.objects.none())
     odds = forms.DecimalField(max_digits=18, decimal_places=4, min_value=1.0001)

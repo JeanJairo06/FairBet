@@ -5,16 +5,14 @@
 {% block content %}
 <section class="module-header">
     <div>
-        <p class="eyebrow">Catalogo deportivo</p>
+        <p class="eyebrow">Administracion avanzada</p>
         <h2>Mercados</h2>
-        <p>Administra tipos de apuesta por evento, limites de stake y estado del mercado.</p>
+        <p>Vista tecnica de mercados. Para operar el flujo principal, configura los mercados desde cada partido.</p>
     </div>
     <a href="{% url 'deporte:mercado_crear' %}" class="button button--primary">
         <i class="bi bi-plus-circle"></i> Nuevo mercado
     </a>
 </section>
-
-{% include 'deporte/_tabs.html' with active_tab='mercados' %}
 
 <form class="module-search" method="get">
     <i class="bi bi-search"></i>

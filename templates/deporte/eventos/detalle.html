@@ -1,0 +1,332 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Configurar partido | FairBet Lab{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'deporte/css/workspace.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="fb-event-workspace">
+    <header class="fb-event-header">
+        <div>
+            <p class="eyebrow">{{ evento.competicion }}</p>
+            <h2>{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}</h2>
+            <div class="fb-event-meta">
+                <span><i class="bi bi-calendar-event"></i> {{ evento.inicia_en|date:'d/m/Y H:i' }}</span>
+                <span><i class="bi bi-trophy"></i> Marcador {{ evento.marcador_local }} - {{ evento.marcador_visitante }}</span>
+                <span class="fb-badge fb-badge--{{ evento.estado_evento }}">{{ evento.get_estado_evento_display }}</span>
+            </div>
+        </div>
+        <div class="fb-action-row">
+            <a href="{% url 'deporte:evento_editar' evento.pk %}" class="button button--secondary">
+                <i class="bi bi-pencil-square"></i>
+            </a>
+            <a href="{% url 'deporte:eventos_lista' %}" class="button button--secondary">
+                <i class="bi bi-arrow-left"></i>
+            </a>
+        </div>
+    </header>
+
+    {% if evento.estado_evento == 'en_vivo' %}
+    <section class="fb-result-panel">
+        <div class="fb-panel__header">
+            <div>
+                <h3>Resultado y finalizacion</h3>
+                <p>Confirma el marcador final y la seleccion ganadora. Por ahora la liquidacion guiada se enfoca en
+                    Resultado final 1X2.</p>
+            </div>
+        </div>
+        <form class="fb-result-form" method="post" action="{% url 'deporte:evento_confirmar_resultado' evento.pk %}">
+            {% csrf_token %}
+            <div class="fb-score-grid">
+                <label>{{ evento.equipo_local }} <input class="app-field" type="number" name="marcador_local" min="0"
+                        value="{{ evento.marcador_local }}"></label>
+                <span>-</span>
+                <label>{{ evento.equipo_visitante }} <input class="app-field" type="number" name="marcador_visitante"
+                        min="0" value="{{ evento.marcador_visitante }}"></label>
+            </div>
+            <div class="fb-result-options">
+                {% for mercado in mercados %}
+                {% if mercado.tipo_mercado == '1X2' %}
+                <p>Resultado final</p>
+                {% for seleccion in mercado.selecciones_workspace %}
+                <label class="fb-result-choice"><input type="radio" name="seleccion_ganadora"
+                        value="{{ seleccion.pk }}"> {{ seleccion.nombre }}</label>
+                {% endfor %}
+                {% endif %}
+                {% endfor %}
+            </div>
+            <button class="button button--primary" type="submit">Confirmar resultado y liquidar</button>
+        </form>
+    </section>
+    {% endif %}
+
+
+    <section class="fb-workspace-grid">
+        <article class="fb-panel">
+            <div class="fb-panel__header">
+                <h3>Checklist de configuracion</h3>
+                {% if partido_listo %}
+                <span class="fb-badge fb-badge--current">Listo para apostar</span>
+                {% else %}
+                <span class="fb-badge fb-badge--pending">No listo para apostar</span>
+                {% endif %}
+            </div>
+            <div class="fb-checklist">
+                {% for label, done in checklist %}
+                <div
+                    class="fb-checklist-item {% if done %}fb-checklist-item--done{% else %}fb-checklist-item--pending{% endif %}">
+                    <i class="bi {% if done %}bi-check-circle-fill{% else %}bi-circle{% endif %}"></i>
+                    <span>{{ label }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </article>
+
+        <article class="fb-panel">
+            <div class="fb-panel__header">
+                <h3>Acciones del partido</h3>
+                <span class="fb-muted">Estados operativos y resultado</span>
+            </div>
+            <div class="fb-event-actions">
+                {% if evento.estado_evento == 'programado' %}
+                <form method="post" action="{% url 'deporte:evento_en_vivo' evento.pk %}">{% csrf_token %}<button
+                        class="button button--secondary" type="submit" {% if not evento.ha_iniciado %}disabled
+                        title="Disponible cuando inicie el partido" {% endif %}>Pasar a en vivo</button></form>
+                <form method="post" action="{% url 'deporte:evento_suspender' evento.pk %}">{% csrf_token %}<button
+                        class="button button--secondary" type="submit">Suspender</button></form>
+                <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">{% csrf_token %}<button
+                        class="button button--secondary" type="submit">Anular</button></form>
+                {% elif evento.estado_evento == 'en_vivo' %}
+                <form method="post" action="{% url 'deporte:evento_suspender' evento.pk %}">{% csrf_token %}<button
+                        class="button button--secondary" type="submit">Suspender</button></form>
+                <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">{% csrf_token %}<button
+                        class="button button--secondary" type="submit">Anular</button></form>
+                {% elif evento.estado_evento == 'suspendido' %}
+                <form method="post" action="{% url 'deporte:evento_reactivar' evento.pk %}">{% csrf_token %}<button
+                        class="button button--secondary" type="submit">Reactivar</button></form>
+                <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">{% csrf_token %}<button
+                        class="button button--secondary" type="submit">Anular</button></form>
+                {% endif %}
+            </div>
+        </article>
+    </section>
+
+    <section class="fb-panel fb-market-toolbar">
+        <div class="fb-panel__header">
+            <div>
+                <h3>Mercados a crear</h3>
+                <p>Configura mercado, limites de apuesta y odds iniciales en un solo paso.</p>
+            </div>
+        </div>
+        <div class="fb-market-builder">
+            <details class="fb-market-builder-item" open>
+                <summary><span><i class="bi bi-trophy"></i> Resultado final 1X2</span><small>Local, empate y
+                        visitante</small></summary>
+                <form class="fb-market-builder-body" method="post"
+                    action="{% url 'deporte:evento_mercado_rapido' evento.pk %}">
+                    {% csrf_token %}<input type="hidden" name="plantilla" value="resultado_final">
+                    <div class="fb-market-builder-stakes">
+                        <label>Apuesta minima <input class="app-field" type="number" step="0.0001" min="0.0001"
+                                name="stake_minimo" value="1.0000"></label>
+                        <label>Apuesta maxima <input class="app-field" type="number" step="0.0001" min="0.0001"
+                                name="stake_maximo" value="100.0000"></label>
+                    </div>
+                    <div class="fb-market-builder-odds fb-market-builder-odds--three">
+                        <label>{{ evento.equipo_local }} <input class="app-field" type="number" step="0.0001"
+                                min="1.0001" name="odds_HOME" placeholder="2.00"></label>
+                        <label>Empate <input class="app-field" type="number" step="0.0001" min="1.0001" name="odds_DRAW"
+                                placeholder="3.50"></label>
+                        <label>{{ evento.equipo_visitante }} <input class="app-field" type="number" step="0.0001"
+                                min="1.0001" name="odds_AWAY" placeholder="3.00"></label>
+                    </div>
+                    <button class="button button--primary" type="submit">Crear Resultado final</button>
+                </form>
+            </details>
+
+            <details class="fb-market-builder-item">
+                <summary><span><i class="bi bi-check2-circle"></i> Ambos equipos anotan</span><small>Si / No</small>
+                </summary>
+                <form class="fb-market-builder-body" method="post"
+                    action="{% url 'deporte:evento_mercado_rapido' evento.pk %}">
+                    {% csrf_token %}<input type="hidden" name="plantilla" value="ambos_anotan">
+                    <div class="fb-market-builder-stakes">
+                        <label>Apuesta minima <input class="app-field" type="number" step="0.0001" min="0.0001"
+                                name="stake_minimo" value="1.0000"></label>
+                        <label>Apuesta maxima <input class="app-field" type="number" step="0.0001" min="0.0001"
+                                name="stake_maximo" value="100.0000"></label>
+                    </div>
+                    <div class="fb-market-builder-odds">
+                        <label>Si <input class="app-field" type="number" step="0.0001" min="1.0001" name="odds_YES"
+                                placeholder="1.80"></label>
+                        <label>No <input class="app-field" type="number" step="0.0001" min="1.0001" name="odds_NO"
+                                placeholder="2.00"></label>
+                    </div>
+                    <button class="button button--primary" type="submit">Crear Ambos anotan</button>
+                </form>
+            </details>
+
+            <details class="fb-market-builder-item">
+                <summary><span><i class="bi bi-plus-slash-minus"></i> Total de goles</span><small>Mas / menos de una
+                        linea</small></summary>
+                <form class="fb-market-builder-body" method="post"
+                    action="{% url 'deporte:evento_mercado_rapido' evento.pk %}">
+                    {% csrf_token %}<input type="hidden" name="plantilla" value="total_goles">
+                    <div class="fb-market-builder-grid">
+                        <label>Linea <input class="app-field" type="number" step="0.5" name="linea" value="2.5"></label>
+                        <label>Apuesta minima <input class="app-field" type="number" step="0.0001" min="0.0001"
+                                name="stake_minimo" value="1.0000"></label>
+                        <label>Apuesta maxima <input class="app-field" type="number" step="0.0001" min="0.0001"
+                                name="stake_maximo" value="100.0000"></label>
+                    </div>
+                    <div class="fb-market-builder-odds">
+                        <label>Mas de la linea <input class="app-field" type="number" step="0.0001" min="1.0001"
+                                name="odds_OVER" placeholder="1.90"></label>
+                        <label>Menos de la linea <input class="app-field" type="number" step="0.0001" min="1.0001"
+                                name="odds_UNDER" placeholder="1.95"></label>
+                    </div>
+                    <p class="fb-muted">Las odds se aplican automaticamente a la linea ingresada.</p>
+                    <button class="button button--primary" type="submit">Crear Total de goles</button>
+                </form>
+            </details>
+
+            <details class="fb-market-builder-item">
+                <summary><span><i class="bi bi-arrows-expand"></i> Handicap</span><small>Local / visitante con
+                        linea</small></summary>
+                <form class="fb-market-builder-body" method="post"
+                    action="{% url 'deporte:evento_mercado_rapido' evento.pk %}">
+                    {% csrf_token %}<input type="hidden" name="plantilla" value="handicap">
+                    <div class="fb-market-builder-grid">
+                        <label>Linea <input class="app-field" type="number" step="0.5" name="linea" value="0"></label>
+                        <label>Apuesta minima <input class="app-field" type="number" step="0.0001" min="0.0001"
+                                name="stake_minimo" value="1.0000"></label>
+                        <label>Apuesta maxima <input class="app-field" type="number" step="0.0001" min="0.0001"
+                                name="stake_maximo" value="100.0000"></label>
+                    </div>
+                    <div class="fb-market-builder-odds">
+                        <label>{{ evento.equipo_local }} handicap <input class="app-field" type="number" step="0.0001"
+                                min="1.0001" name="odds_HOME_HANDICAP" placeholder="1.90"></label>
+                        <label>{{ evento.equipo_visitante }} handicap <input class="app-field" type="number"
+                                step="0.0001" min="1.0001" name="odds_AWAY_HANDICAP" placeholder="1.90"></label>
+                    </div>
+                    <p class="fb-muted">Las odds se aplican automaticamente a la linea ingresada.</p>
+                    <button class="button button--primary" type="submit">Crear Handicap</button>
+                </form>
+            </details>
+        </div>
+
+        <!--details class="fb-advanced-box">
+            <summary>Mercado personalizado avanzado</summary>
+            <form class="fb-custom-market-form" method="post" action="{% url 'deporte:evento_mercado_personalizado' evento.pk %}">
+                {% csrf_token %}
+                {% for field in mercado_personalizado_form %}
+                    <label class="form-row"><span>{{ field.label }}</span>{{ field }}{% if field.errors %}<small>{{ field.errors|striptags }}</small>{% endif %}</label>
+                {% endfor %}
+                <button class="button button--secondary" type="submit">Crear mercado personalizado</button>
+            </form>
+        </details-->
+    </section>
+
+    <section id="mercados" class="fb-markets-section">
+        <div class="fb-section-title">
+            <h3>Mercados configurados</h3>
+            <span>{{ mercados_total }} mercado(s), {{ selecciones_total }} seleccion(es), {{ odds_vigentes_total }} odds
+                vigente(s)</span>
+        </div>
+        <div id="selecciones"></div>
+        {% for mercado in mercados %}
+        <article class="fb-market-card">
+            <header class="fb-market-card-header">
+                <div>
+                    <h4>{{ mercado.nombre }}</h4>
+                    <p>{{ mercado.get_tipo_mercado_display }} · Stake {{ mercado.stake_minimo|floatformat:2 }} - {{ mercado.stake_maximo|floatformat:2 }}</p>
+                </div>
+                <div class="fb-action-row">
+                    <span class="fb-badge fb-badge--{{ mercado.estado_mercado }}">{{ mercado.get_estado_mercado_display }}</span>
+                    <a class="button button--secondary" href="{% url 'deporte:mercado_editar' mercado.pk %}">Editar
+                        mercado</a>
+                </div>
+            </header>
+            <div class="fb-market-card-body">
+                <div class="fb-selection-summary">
+                    {% for seleccion in mercado.selecciones_workspace %}
+                    <div class="fb-selection-summary-row">
+                        <div>
+                            <strong>{{ seleccion.nombre }}</strong>
+                            <span>{{ seleccion.codigo_seleccion }} · {{ seleccion.get_estado_seleccion_display }}</span>
+                        </div>
+                        {% if seleccion.odds_vigente %}
+                        <strong class="fb-odds-value">{{ seleccion.odds_vigente.odds|floatformat:2 }}</strong>
+                        {% else %}
+                        <span class="fb-badge fb-badge--pending">Sin odds</span>
+                        {% endif %}
+                    </div>
+                    {% empty %}
+                    <div class="fb-empty-panel">Este mercado aun no tiene selecciones.</div>
+                    {% endfor %}
+                </div>
+
+                {% if mercado.selecciones_workspace %}
+                <details class="fb-advanced-box">
+                    <summary>Editar odds</summary>
+                    <form method="post" action="{% url 'deporte:evento_odds_actualizar' evento.pk %}">
+                        {% csrf_token %}
+                        <div class="fb-selection-table">
+                            <div class="fb-selection-row fb-selection-row--head">
+                                <span>Seleccion</span><span>Codigo</span><span>Estado</span><span>Nueva odds</span>
+                            </div>
+                            {% for seleccion in mercado.selecciones_workspace %}
+                            <div class="fb-selection-row">
+                                <div class="fb-selection-info"><strong>{{ seleccion.nombre }}</strong></div>
+                                <span>{{ seleccion.codigo_seleccion }}</span>
+                                <span class="fb-badge fb-badge--{{ seleccion.estado_seleccion }}">{{ seleccion.get_estado_seleccion_display }}</span>
+                                <input class="fb-odds-input" type="number" step="0.0001" min="1.0001" name="odds_{{ seleccion.pk }}" value="{% if seleccion.odds_vigente %}{{ seleccion.odds_vigente.odds }}{% endif %}" placeholder="Sin odds">
+                            </div>
+                            {% endfor %}
+                        </div>
+                        <div class="fb-action-row fb-action-row--end">
+                            <button class="button button--primary" type="submit">Guardar odds</button>
+                        </div>
+                    </form>
+                </details>
+                {% endif %}
+                <!--details class="fb-advanced-box">
+                    <summary>Opciones avanzadas</summary>
+                    <a class="button button--secondary" href="{% url 'deporte:mercado_editar' mercado.pk %}">Editar mercado</a>
+                    <form class="fb-inline-form" method="post"
+                        action="{% url 'deporte:mercado_seleccion_crear' mercado.pk %}">
+                        {% csrf_token %}
+                        <label>Codigo <input class="app-field" name="codigo_seleccion" placeholder="HOME"></label>
+                        <label>Nombre <input class="app-field" name="nombre" placeholder="Gana local"></label>
+                        <button class="button button--secondary" type="submit">Agregar seleccion</button>
+                    </form>
+                </details-->
+            </div>
+        </article>
+        {% empty %}
+        <div class="fb-empty-panel">Aun no hay mercados configurados. Crea uno desde el panel superior.</div>
+        {% endfor %}
+    </section>
+
+    <section id="historial-odds" class="fb-panel">
+        <div class="fb-panel__header">
+            <h3>Historial reciente de odds</h3>
+            <a class="button button--secondary" href="{% url 'deporte:odds_lista' %}">Ver auditoria completa</a>
+        </div>
+        <div class="fb-history-list">
+            {% for item in historial_odds_reciente %}
+            <div>
+                <strong>{{ item.seleccion.nombre }}</strong>
+                <span>{{ item.seleccion.mercado.nombre }} · {{ item.odds|floatformat:2 }} · v{{ item.numero_version }}</span>
+                {% if item.activa %}<span class="fb-badge fb-badge--current">Vigente</span>{% else %}<span
+                    class="fb-badge fb-badge--history">Historica</span>{% endif %}
+            </div>
+            {% empty %}
+            <div class="fb-empty-panel">Todavia no hay historial de odds para este partido.</div>
+            {% endfor %}
+        </div>
+    </section>
+</section>
+{% endblock %}
