@@ -34,10 +34,14 @@ from billetera.services.wallet_service import (
 from core.choices import (
     DirectionLedger,
     EstadoCuentaContable,
+    EstadoCuentaJugador,
     EstadoTransaccionLedger,
+    PeriodoLimite,
     TipoCuentaContable,
     TipoTransaccionLedger,
 )
+from cuentas.models import PerfilJugador
+from juego_responsable.models import LimiteJuegoResponsable
 
 
 class BilleteraModelTests(TestCase):
@@ -901,3 +905,84 @@ class BilleteraApiTests(TestCase):
         response = self.client.get(f'/api/v1/billetera/transacciones/{transaccion.transaction_id}/')
 
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
+
+
+class BilleteraWebTests(TestCase):
+    def setUp(self):
+        self.usuario = get_user_model().objects.create_user(
+            username='billetera_web_user',
+            email='billetera_web_user@test.com',
+            password='test12345',
+        )
+        PerfilJugador.objects.create(
+            usuario=self.usuario,
+            nombres='Billetera',
+            apellidos='Web',
+            dni='72345678',
+            fecha_nacimiento='2000-01-01',
+            estado_cuenta=EstadoCuentaJugador.VERIFICADO,
+        )
+        self.wallet = crear_cuenta_wallet_usuario(self.usuario)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.CASA)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.APUESTAS_PENDIENTES)
+        self.client.force_login(self.usuario)
+
+    def test_panel_billetera_muestra_saldo_historial_y_limites(self):
+        recargar_fichas(self.usuario, Decimal('150.0000'), idempotency_key='web-panel-recarga')
+
+        response = self.client.get('/billetera/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Billetera del jugador')
+        self.assertEqual(response.context['saldo_disponible'], Decimal('150.0000'))
+        self.assertContains(response, 'Historial de movimientos')
+        self.assertContains(response, 'Limites de recarga')
+        self.assertContains(response, 'Abrir Juego Responsable')
+        self.assertContains(response, 'Gestionar autoexclusion')
+        self.assertNotContains(response, 'Actualizar limites')
+
+    def test_panel_billetera_recarga_con_servicios_existentes(self):
+        response = self.client.post('/billetera/', {'accion': 'recargar', 'monto': '80.00'})
+
+        self.assertRedirects(response, '/billetera/')
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('80.0000'))
+
+    def test_panel_billetera_rechaza_recarga_sobre_limite(self):
+        LimiteJuegoResponsable.objects.create(
+            usuario=self.usuario,
+            periodo=PeriodoLimite.DIARIO,
+            limite_actual=Decimal('50.0000'),
+        )
+
+        response = self.client.post('/billetera/', {'accion': 'recargar', 'monto': '80.00'})
+
+        self.assertRedirects(response, '/billetera/')
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('0.0000'))
+
+    def test_panel_billetera_retiro_con_servicios_existentes(self):
+        recargar_fichas(self.usuario, Decimal('100.0000'), idempotency_key='web-panel-retiro-base')
+
+        response = self.client.post('/billetera/', {'accion': 'retirar', 'monto': '35.00'})
+
+        self.assertRedirects(response, '/billetera/')
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('65.0000'))
+
+    def test_panel_billetera_pagina_historial_de_a_10_registros(self):
+        for indice in range(12):
+            recargar_fichas(
+                self.usuario,
+                Decimal('1.0000'),
+                idempotency_key=f'web-panel-paginacion-{indice}',
+            )
+
+        response = self.client.get('/billetera/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.context['movimientos']), 10)
+        self.assertEqual(response.context['paginator'].count, 12)
+        self.assertTrue(response.context['is_paginated'])
+
+        segunda_pagina = self.client.get('/billetera/?page=2')
+
+        self.assertEqual(segunda_pagina.status_code, 200)
+        self.assertEqual(len(segunda_pagina.context['movimientos']), 2)
