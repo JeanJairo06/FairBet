@@ -25,8 +25,15 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/login/', LoginView.as_view(template_name='registration/login.html'), name='login'),
     path('accounts/logout/', LogoutView.as_view(), name='logout'),
+    path('apuestas/', include('apuesta.urls')),
+    path('deporte/', include('deporte.urls')),
     path('api/v1/', include('api.urls')),
+
 
     # Modulo de Cuentas: usuarios, roles y KYC simulado.
     path('cuentas/', include('cuentas.urls')),
+
+
+    path('juego-responsable/', include('juego_responsable.urls')),
+
 ]

@@ -5,6 +5,7 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.utils import timezone
 
+from billetera.services.account_service import crear_cuenta_wallet_usuario
 from core.choices import EstadoCuentaJugador, RolUsuario
 from cuentas.models import PerfilJugador, Usuario
 from cuentas.services import get_adult_date_limit, resolve_kyc_status
@@ -170,6 +171,7 @@ class UsuarioRegistroForm(UserCreationForm):
                         else timezone.now()
                     ),
                 )
+                crear_cuenta_wallet_usuario(user)
 
         return user
 

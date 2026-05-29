@@ -30,6 +30,14 @@ class LimiteJuegoResponsable(TimeStampedModel):
             ),
         ]
 
+    def actualizar_limites_si_procede(self):
+        if self.limite_pendiente is not None and self.pendiente_aplicar_en:
+            if timezone.now() >= self.pendiente_aplicar_en:
+                self.limite_actual = self.limite_pendiente
+                self.limite_pendiente = None
+                self.pendiente_aplicar_en = None
+                self.save(update_fields=['limite_actual', 'limite_pendiente', 'pendiente_aplicar_en'])
+
     def __str__(self):
         return f'{self.usuario} - {self.periodo}: {self.limite_actual}'
 
