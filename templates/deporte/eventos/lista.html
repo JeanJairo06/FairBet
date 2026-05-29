@@ -84,12 +84,13 @@
                                         {% csrf_token %}
                                         <button type="submit">Anular</button>
                                     </form>
+                                    <a href="{% url 'deporte:evento_confirmar_resultado' evento.pk %}">Finalizar</a>
                                 {% elif evento.estado_evento == 'en_vivo' %}
                                     <form method="post" action="{% url 'deporte:evento_suspender' evento.pk %}">
                                         {% csrf_token %}
                                         <button type="submit">Suspender</button>
                                     </form>
-                                    <a href="{% url 'deporte:evento_confirmar_resultado' evento.pk %}">Confirmar</a>
+                                    <a href="{% url 'deporte:evento_confirmar_resultado' evento.pk %}">Finalizar</a>
                                 {% elif evento.estado_evento == 'suspendido' %}
                                     <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">
                                         {% csrf_token %}
