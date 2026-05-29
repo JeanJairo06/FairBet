@@ -7,6 +7,7 @@ from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, FormView, ListView, UpdateView
 
+from apuesta.servicios import liquidar_apuestas_de_evento
 from deporte.forms import (
     ActualizarOddsForm,
     ConfirmarResultadoEventoForm,
@@ -254,10 +255,19 @@ class EventoEstadoActionView(DeporteLoginRequiredMixin, View):
         }
         servicio, mensaje = acciones[self.accion]
         try:
-            servicio(pk)
+            evento = servicio(pk)
+            liquidaciones = []
+            if self.accion == 'anular':
+                liquidaciones = liquidar_apuestas_de_evento(
+                    evento,
+                    liquidado_por=request.user,
+                    observacion='Liquidacion automatica por anulacion de evento.',
+                )
         except (ResultadoEventoError, ValidationError) as exc:
             messages.error(request, self._format_error(exc))
         else:
+            if liquidaciones:
+                mensaje = f'{mensaje} Apuestas liquidadas: {len(liquidaciones)}.'
             messages.success(request, mensaje)
         return HttpResponseRedirect(self.success_url)
 
@@ -295,11 +305,19 @@ class EventoConfirmarResultadoView(DeporteLoginRequiredMixin, FormView):
                     'marcador_visitante': form.cleaned_data['marcador_visitante'],
                 },
             )
+            liquidaciones = []
             if form.cleaned_data['seleccion_ganadora']:
                 marcar_seleccion_ganadora(form.cleaned_data['seleccion_ganadora'])
+                liquidaciones = liquidar_apuestas_de_evento(
+                    self.evento,
+                    liquidado_por=self.request.user,
+                )
         except (ResultadoEventoError, ValidationError) as exc:
             form.add_error(None, exc)
             return self.form_invalid(form)
 
-        messages.success(self.request, 'Resultado confirmado correctamente.')
+        mensaje = 'Resultado confirmado correctamente.'
+        if liquidaciones:
+            mensaje = f'{mensaje} Apuestas liquidadas: {len(liquidaciones)}.'
+        messages.success(self.request, mensaje)
         return super().form_valid(form)

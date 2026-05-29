@@ -8,7 +8,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from apuesta.models import Apuesta, DetalleApuesta, LiquidacionApuesta
-from apuesta.servicios import crear_apuesta_simple, liquidar_apuesta
+from apuesta.servicios import crear_apuesta_simple, liquidar_apuesta, liquidar_apuestas_de_evento
 from billetera.exceptions import SaldoInsuficienteError
 from billetera.services.account_service import crear_cuenta_wallet_usuario, obtener_o_crear_cuenta_sistema
 from billetera.services.balance_service import calcular_saldo
@@ -16,6 +16,7 @@ from billetera.services.wallet_service import recargar_fichas
 from core.choices import (
     EstadoApuesta,
     EstadoCuentaJugador,
+    EstadoDetalleApuesta,
     EstadoEvento,
     EstadoMercado,
     EstadoSeleccion,
@@ -26,6 +27,7 @@ from core.choices import (
 )
 from cuentas.models import PerfilJugador
 from deporte.models import EventoDeportivo, HistorialOdds, Mercado, SeleccionMercado
+from deporte.services import confirmar_resultado_evento, marcar_seleccion_ganadora
 
 
 class CrearApuestaSimpleTests(TestCase):
@@ -402,9 +404,22 @@ class LiquidarApuestaTests(TestCase):
             nombre='Gana Peru',
             estado_seleccion=EstadoSeleccion.ACTIVA,
         )
+        self.seleccion_visitante = SeleccionMercado.objects.create(
+            mercado=self.mercado,
+            codigo_seleccion='AWAY_WIN',
+            nombre='Gana Brasil',
+            estado_seleccion=EstadoSeleccion.ACTIVA,
+        )
         HistorialOdds.objects.create(
             seleccion=self.seleccion,
             odds=Decimal('2.5000'),
+            numero_version=1,
+            activa=True,
+            valido_desde=timezone.now(),
+        )
+        HistorialOdds.objects.create(
+            seleccion=self.seleccion_visitante,
+            odds=Decimal('3.0000'),
             numero_version=1,
             activa=True,
             valido_desde=timezone.now(),
@@ -494,3 +509,35 @@ class LiquidarApuestaTests(TestCase):
             )
 
         self.assertEqual(LiquidacionApuesta.objects.count(), 1)
+
+    def test_liquida_apuestas_de_evento_ganadora_y_perdedora(self):
+        apuesta_ganadora = self.crear_apuesta_aceptada('liquidacion-evento-ganadora')
+        apuesta_perdedora = crear_apuesta_simple(
+            usuario=self.usuario,
+            seleccion_id=self.seleccion_visitante.id_seleccion,
+            stake=Decimal('10.0000'),
+            idempotency_key='liquidacion-evento-perdedora',
+        )
+
+        confirmar_resultado_evento(
+            self.evento,
+            {
+                'marcador_local': 2,
+                'marcador_visitante': 1,
+            },
+        )
+        marcar_seleccion_ganadora(self.seleccion)
+
+        liquidaciones = liquidar_apuestas_de_evento(self.evento, liquidado_por=self.admin)
+
+        apuesta_ganadora.refresh_from_db()
+        apuesta_perdedora.refresh_from_db()
+        detalle_ganador = apuesta_ganadora.detalles.get()
+        detalle_perdedor = apuesta_perdedora.detalles.get()
+        self.assertEqual(len(liquidaciones), 2)
+        self.assertEqual(apuesta_ganadora.estado_apuesta, EstadoApuesta.WON)
+        self.assertEqual(apuesta_perdedora.estado_apuesta, EstadoApuesta.LOST)
+        self.assertEqual(detalle_ganador.estado_detalle, EstadoDetalleApuesta.WON)
+        self.assertEqual(detalle_perdedor.estado_detalle, EstadoDetalleApuesta.LOST)
+        self.assertEqual(calcular_saldo(self.wallet), Decimal('205.0000'))
+        self.assertEqual(calcular_saldo(self.apuestas_pendientes), Decimal('0.0000'))

@@ -7,7 +7,21 @@ from django.test import TestCase
 from django.urls import reverse
 from django.utils import timezone
 
-from core.choices import EstadoEvento, EstadoMercado, EstadoSeleccion, TipoMercado
+from apuesta.models import LiquidacionApuesta
+from apuesta.servicios import crear_apuesta_simple
+from billetera.services.account_service import crear_cuenta_wallet_usuario, obtener_o_crear_cuenta_sistema
+from billetera.services.balance_service import calcular_saldo
+from billetera.services.wallet_service import recargar_fichas
+from core.choices import (
+    EstadoApuesta,
+    EstadoCuentaJugador,
+    EstadoEvento,
+    EstadoMercado,
+    EstadoSeleccion,
+    TipoCuentaContable,
+    TipoMercado,
+)
+from cuentas.models import PerfilJugador
 from deporte.forms import ActualizarOddsForm, MercadoForm
 from deporte.exceptions import SeleccionNoApostableError
 from deporte.models import HistorialOdds
@@ -113,6 +127,53 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertEqual(self.local.estado_seleccion, EstadoSeleccion.GANADORA)
         self.assertEqual(self.empate.estado_seleccion, EstadoSeleccion.PERDEDORA)
         self.assertEqual(self.mercado.estado_mercado, EstadoMercado.LIQUIDADO)
+
+    def test_vista_confirmar_resultado_liquida_apuestas_del_evento(self):
+        jugador = get_user_model().objects.create_user(
+            username='jugador_resultado',
+            email='jugador_resultado@test.com',
+            password='test12345',
+        )
+        PerfilJugador.objects.create(
+            usuario=jugador,
+            nombres='Jugador',
+            apellidos='Resultado',
+            dni='56781234',
+            fecha_nacimiento='2000-01-01',
+            estado_cuenta=EstadoCuentaJugador.VERIFICADO,
+        )
+        operador = get_user_model().objects.create_user(
+            username='operador_resultado',
+            email='operador_resultado@test.com',
+            password='test12345',
+        )
+        wallet = crear_cuenta_wallet_usuario(jugador)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.CASA)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.APUESTAS_PENDIENTES)
+        recargar_fichas(jugador, Decimal('100.0000'), idempotency_key='vista-confirmar-resultado')
+        actualizar_odds(self.local, Decimal('2.5000'))
+        apuesta = crear_apuesta_simple(
+            usuario=jugador,
+            seleccion_id=self.local.id_seleccion,
+            stake=Decimal('10.0000'),
+            idempotency_key='vista-confirmar-resultado-apuesta',
+        )
+        self.client.login(username='operador_resultado', password='test12345')
+
+        response = self.client.post(
+            reverse('deporte:evento_confirmar_resultado', args=[self.evento.pk]),
+            {
+                'marcador_local': 2,
+                'marcador_visitante': 1,
+                'seleccion_ganadora': self.local.pk,
+            },
+        )
+
+        apuesta.refresh_from_db()
+        self.assertRedirects(response, reverse('deporte:eventos_lista'))
+        self.assertEqual(apuesta.estado_apuesta, EstadoApuesta.WON)
+        self.assertEqual(LiquidacionApuesta.objects.count(), 1)
+        self.assertEqual(calcular_saldo(wallet), Decimal('115.0000'))
 
     def test_paginas_visuales_deporte_renderizan(self):
         get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
