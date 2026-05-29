@@ -6,6 +6,8 @@ from django.core.exceptions import ValidationError
 from juego_responsable.models import LimiteJuegoResponsable
 from django.conf import settings
 from decimal import Decimal
+from billetera.models import TransaccionLedger
+from core.choices import TipoTransaccionLedger, EstadoTransaccionLedger
 
 def obtener_fecha_inicio_periodo(periodo):
 
@@ -43,9 +45,10 @@ def validar_limite_recarga(usuario, monto_a_recargar):
             limite_maximo = Decimal(str(val_default))
 
         fecha_inicio = obtener_fecha_inicio_periodo(per)
-        total_recargado = usuario.transacciones_billetera.filter(
-            tipo_transaccion='recarga',
-            estado='completado',
+        total_recargado = TransaccionLedger.objects.filter(
+            usuario=usuario,
+            tipo_transaccion=TipoTransaccionLedger.RECARGA,
+            estado=EstadoTransaccionLedger.COMPLETED,
             created_at__gte=fecha_inicio
         ).aggregate(total=Sum('monto'))['total'] or Decimal('0.00')
         
