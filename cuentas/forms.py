@@ -47,7 +47,8 @@ class UsuarioRegistroForm(UserCreationForm):
     dni = forms.CharField(max_length=8, required=False)
     fecha_nacimiento = forms.DateField(
         required=False,
-        widget=forms.DateInput(attrs={'type': 'date'}),
+        input_formats=['%Y-%m-%d'],
+        widget=forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
     )
     telefono = forms.CharField(max_length=30, required=False)
 
@@ -161,11 +162,11 @@ class CuentaAdminUpdateForm(forms.Form):
     email = forms.EmailField()
     nombres = forms.CharField(max_length=150, required=False)
     apellidos = forms.CharField(max_length=150, required=False)
-    rol = forms.ChoiceField(choices=())
     dni = forms.CharField(max_length=8, required=False)
     fecha_nacimiento = forms.DateField(
         required=False,
-        widget=forms.DateInput(attrs={'type': 'date'}),
+        input_formats=['%Y-%m-%d'],
+        widget=forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
     )
     telefono = forms.CharField(max_length=30, required=False)
     is_active = forms.BooleanField(required=False)
@@ -187,9 +188,6 @@ class CuentaAdminUpdateForm(forms.Form):
         self.current_user = current_user
         self.target_user = target_user
         super().__init__(*args, **kwargs)
-        self.fields['rol'].choices = get_admin_assignable_roles(current_user)
-        if self._is_protected_admin() or self._is_admin_role_protected():
-            self.fields['rol'].disabled = True
         if current_user and not current_user.is_superuser:
             self.fields['is_staff'].widget.attrs['disabled'] = 'disabled'
             self.fields['is_superuser'].widget.attrs['disabled'] = 'disabled'
@@ -217,14 +215,6 @@ class CuentaAdminUpdateForm(forms.Form):
             self.current_user
             and self.current_user.is_superuser
             and not self._is_protected_admin()
-        )
-
-    def _is_admin_role_protected(self):
-        return bool(
-            self.current_user
-            and self.target_user
-            and self.target_user.rol == RolUsuario.ADMIN
-            and not self.current_user.is_superuser
         )
 
     def clean_username(self):
@@ -258,24 +248,16 @@ class CuentaAdminUpdateForm(forms.Form):
             raise forms.ValidationError('Ya existe un perfil registrado con este DNI.')
         return dni
 
-    def clean_rol(self):
-        rol = self.cleaned_data['rol']
-        if rol not in dict(get_admin_assignable_roles(self.current_user)):
-            raise forms.ValidationError('No tienes permisos para asignar ese rol.')
-        return rol
-
     def clean(self):
         cleaned_data = super().clean()
         if not self.target_user:
             return cleaned_data
 
         if self._is_protected_admin():
-            cleaned_data['rol'] = self.target_user.rol
             cleaned_data['is_active'] = self.target_user.is_active
             cleaned_data['is_staff'] = self.target_user.is_staff
             cleaned_data['is_superuser'] = self.target_user.is_superuser
         elif self.target_user.rol == RolUsuario.ADMIN and not self._can_manage_admin_permissions():
-            cleaned_data['rol'] = self.target_user.rol
             cleaned_data['is_active'] = self.target_user.is_active
             cleaned_data['is_staff'] = self.target_user.is_staff
             cleaned_data['is_superuser'] = self.target_user.is_superuser
@@ -287,12 +269,25 @@ class CuentaAdminUpdateForm(forms.Form):
             cleaned_data['is_staff'] = self.target_user.is_staff
             cleaned_data['is_superuser'] = self.target_user.is_superuser
 
-        if cleaned_data.get('rol') != RolUsuario.ADMIN:
+        if self.target_user.rol != RolUsuario.ADMIN:
             cleaned_data['is_staff'] = False
             cleaned_data['is_superuser'] = False
 
         if self.target_user.pk == self.current_user.pk and not cleaned_data.get('is_superuser'):
             cleaned_data['is_superuser'] = self.target_user.is_superuser
+
+        password1 = cleaned_data.get('password1')
+        password2 = cleaned_data.get('password2')
+        if password1 or password2:
+            if self.target_user.pk != self.current_user.pk:
+                self.add_error('password1', 'Solo puedes cambiar la contrasena de tu propia cuenta.')
+            elif password1 != password2:
+                self.add_error('password2', 'Las contrasenas no coinciden.')
+            else:
+                try:
+                    validate_password(password1, self.target_user)
+                except DjangoValidationError as exc:
+                    self.add_error('password1', exc)
 
         perfil = getattr(self.target_user, 'perfil_jugador', None)
         if perfil:
@@ -311,17 +306,6 @@ class CuentaAdminUpdateForm(forms.Form):
                 if not kyc_result.is_valid:
                     raise forms.ValidationError(kyc_result.message)
 
-        password1 = cleaned_data.get('password1')
-        password2 = cleaned_data.get('password2')
-        if password1 or password2:
-            if password1 != password2:
-                self.add_error('password2', 'Las contrasenas no coinciden.')
-            elif password1:
-                try:
-                    validate_password(password1, self.target_user)
-                except DjangoValidationError as exc:
-                    self.add_error('password1', exc)
-
         return cleaned_data
 
     def apply(self):
@@ -331,7 +315,6 @@ class CuentaAdminUpdateForm(forms.Form):
             'email',
             'first_name',
             'last_name',
-            'rol',
             'is_active',
             'is_staff',
             'is_superuser',
@@ -340,12 +323,10 @@ class CuentaAdminUpdateForm(forms.Form):
         user.email = self.cleaned_data['email']
         user.first_name = self.cleaned_data.get('nombres', '')
         user.last_name = self.cleaned_data.get('apellidos', '')
-        user.rol = self.cleaned_data['rol']
         user.is_active = self.cleaned_data['is_active']
         user.is_staff = self.cleaned_data['is_staff']
         user.is_superuser = self.cleaned_data['is_superuser']
-
-        if self.cleaned_data.get('password1'):
+        if user.pk == self.current_user.pk and self.cleaned_data.get('password1'):
             user.set_password(self.cleaned_data['password1'])
             update_fields.append('password')
 
@@ -386,6 +367,12 @@ class CuentaSelfUpdateForm(forms.Form):
     email = forms.EmailField()
     nombres = forms.CharField(max_length=150, required=False)
     apellidos = forms.CharField(max_length=150, required=False)
+    dni = forms.CharField(max_length=8, required=False)
+    fecha_nacimiento = forms.DateField(
+        required=False,
+        input_formats=['%Y-%m-%d'],
+        widget=forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+    )
     telefono = forms.CharField(max_length=30, required=False)
     password1 = forms.CharField(
         label='Nueva contrasena',
@@ -402,6 +389,7 @@ class CuentaSelfUpdateForm(forms.Form):
         self.user = user
         super().__init__(*args, **kwargs)
         _decorate_fields(self.fields)
+        self.fields['fecha_nacimiento'].widget.attrs['max'] = get_adult_date_limit().isoformat()
         self.fields['password1'].widget.attrs.setdefault('placeholder', 'Opcional')
         self.fields['password2'].widget.attrs.setdefault('placeholder', 'Repite la nueva contrasena')
 
@@ -423,8 +411,38 @@ class CuentaSelfUpdateForm(forms.Form):
             raise forms.ValidationError('Ya existe un usuario con este correo.')
         return email
 
+    def clean_dni(self):
+        dni = self.cleaned_data.get('dni', '').strip()
+        if not dni:
+            return dni
+
+        qs = PerfilJugador.objects.filter(dni=dni)
+        perfil = getattr(self.user, 'perfil_jugador', None)
+        if perfil:
+            qs = qs.exclude(pk=perfil.pk)
+        if qs.exists():
+            raise forms.ValidationError('Ya existe un perfil registrado con este DNI.')
+        return dni
+
     def clean(self):
         cleaned_data = super().clean()
+        perfil = getattr(self.user, 'perfil_jugador', None)
+        if perfil:
+            if not cleaned_data.get('dni'):
+                self.add_error('dni', 'El DNI es obligatorio para jugadores.')
+            if not cleaned_data.get('fecha_nacimiento'):
+                self.add_error(
+                    'fecha_nacimiento',
+                    'La fecha de nacimiento es obligatoria para jugadores.',
+                )
+            if cleaned_data.get('dni') and cleaned_data.get('fecha_nacimiento'):
+                kyc_result = resolve_kyc_status(
+                    cleaned_data['dni'],
+                    cleaned_data['fecha_nacimiento'],
+                )
+                if not kyc_result.is_valid:
+                    raise forms.ValidationError(kyc_result.message)
+
         password1 = cleaned_data.get('password1')
         password2 = cleaned_data.get('password2')
         if password1 or password2:
@@ -456,8 +474,19 @@ class CuentaSelfUpdateForm(forms.Form):
         if perfil:
             perfil.nombres = self.cleaned_data.get('nombres', '')
             perfil.apellidos = self.cleaned_data.get('apellidos', '')
+            perfil.dni = self.cleaned_data['dni']
+            perfil.fecha_nacimiento = self.cleaned_data['fecha_nacimiento']
             perfil.telefono = self.cleaned_data.get('telefono', '')
-            perfil.save(update_fields=['nombres', 'apellidos', 'telefono', 'updated_at'])
+            perfil.save(
+                update_fields=[
+                    'nombres',
+                    'apellidos',
+                    'dni',
+                    'fecha_nacimiento',
+                    'telefono',
+                    'updated_at',
+                ]
+            )
 
         return user
 

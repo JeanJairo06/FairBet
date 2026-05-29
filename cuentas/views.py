@@ -12,7 +12,6 @@ from cuentas.forms import (
     CuentaSelfUpdateForm,
     CuentaSearchForm,
     UsuarioRegistroForm,
-    get_admin_assignable_roles,
 )
 from cuentas.models import Usuario
 
@@ -50,8 +49,9 @@ class CuentasView(LoginRequiredMixin, TemplateView):
                 'usuarios': self._get_usuarios(search_form),
                 'can_admin_accounts': self.can_admin_accounts,
                 'self_profile': getattr(self.request.user, 'perfil_jugador', None),
+                'self_user': self.request.user,
                 'self_can_edit': self.request.user.is_authenticated,
-                'stats': self._build_stats(),
+                'stats': self._build_stats() if self.can_admin_accounts else None,
             }
         )
         return context
@@ -163,7 +163,6 @@ class EditarCuentaView(AdminAccountRequiredMixin, TemplateView):
             {
                 'usuario': usuario,
                 'form': kwargs.get('form') or self._build_form(usuario),
-                'assignable_roles': get_admin_assignable_roles(self.request.user),
                 'estados_kyc': EstadoCuentaJugador.choices,
                 'is_protected_admin': self._is_protected_admin(usuario),
             }
@@ -181,7 +180,7 @@ class EditarCuentaView(AdminAccountRequiredMixin, TemplateView):
         if form.is_valid():
             form.apply()
             if usuario.pk == request.user.pk and form.cleaned_data.get('password1'):
-                update_session_auth_hash(request, usuario)
+                update_session_auth_hash(request, request.user)
             messages.success(request, f'Cuenta {usuario.username} actualizada correctamente.')
             return redirect('cuentas:cuentas')
 
@@ -208,9 +207,10 @@ class EditarCuentaView(AdminAccountRequiredMixin, TemplateView):
                 'nombres': perfil.nombres if perfil else usuario.first_name,
                 'apellidos': perfil.apellidos if perfil else usuario.last_name,
                 'dni': perfil.dni if perfil else '',
-                'fecha_nacimiento': perfil.fecha_nacimiento if perfil else '',
+                'fecha_nacimiento': perfil.fecha_nacimiento.isoformat()
+                if perfil and perfil.fecha_nacimiento
+                else '',
                 'telefono': perfil.telefono if perfil else '',
-                'rol': usuario.rol,
                 'is_active': usuario.is_active,
                 'is_staff': usuario.is_staff,
                 'is_superuser': usuario.is_superuser,
@@ -238,6 +238,10 @@ class PerfilJugadorView(LoginRequiredMixin, TemplateView):
                 'email': self.request.user.email,
                 'nombres': perfil.nombres if perfil else self.request.user.first_name,
                 'apellidos': perfil.apellidos if perfil else self.request.user.last_name,
+                'dni': perfil.dni if perfil else '',
+                'fecha_nacimiento': perfil.fecha_nacimiento.isoformat()
+                if perfil and perfil.fecha_nacimiento
+                else '',
                 'telefono': perfil.telefono if perfil else '',
             },
         )

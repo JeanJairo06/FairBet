@@ -13,7 +13,7 @@
         <div>
             <p class="eyebrow">Cuentas / Perfil</p>
             <h2>Mis datos personales</h2>
-            <p>Actualiza informacion de contacto. El rol, DNI y estado KYC no pueden modificarse desde esta vista.</p>
+            <p>Actualiza la informacion personal permitida y cambia tu contrasena cuando lo necesites.</p>
         </div>
         <a href="{% url 'cuentas:cuentas' %}" class="accounts-back">
             <i class="bi bi-arrow-left"></i>
@@ -50,6 +50,12 @@
                     {% include 'cuentas/partials/form_field.html' with field=form.apellidos label='Apellidos' %}
                     {% include 'cuentas/partials/form_field.html' with field=form.telefono label='Telefono' %}
                 </div>
+                {% if perfil %}
+                    <div class="account-form__split">
+                        {% include 'cuentas/partials/form_field.html' with field=form.dni label='DNI' %}
+                        {% include 'cuentas/partials/form_field.html' with field=form.fecha_nacimiento label='Nacimiento' %}
+                    </div>
+                {% endif %}
             </fieldset>
 
             <fieldset class="account-form__section">

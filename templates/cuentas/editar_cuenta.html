@@ -49,14 +49,16 @@
 
             <fieldset class="account-form__section">
                 <legend>Control administrativo</legend>
-                <div class="account-form__split">
-                    {% include 'cuentas/partials/form_field.html' with field=form.rol label='Rol' %}
-                    {% if usuario.perfil_jugador %}
-                        {% include 'cuentas/partials/form_field.html' with field=form.estado_cuenta label='Estado KYC' %}
-                    {% else %}
-                        <input type="hidden" name="estado_cuenta" value="">
-                    {% endif %}
+                <div class="account-readonly-field">
+                    <span>Rol</span>
+                    <strong>{{ usuario.get_rol_display }}</strong>
                 </div>
+
+                {% if usuario.perfil_jugador %}
+                    {% include 'cuentas/partials/form_field.html' with field=form.estado_cuenta label='Estado KYC' %}
+                {% else %}
+                    <input type="hidden" name="estado_cuenta" value="">
+                {% endif %}
 
                 {% if usuario.perfil_jugador %}
                     <div class="account-form__split">
@@ -126,14 +128,18 @@
                 </fieldset>
             {% endif %}
 
-            <fieldset class="account-form__section">
-                <legend>Cambio de contrasena</legend>
-                <p class="account-form__hint">Completa estos campos solo si necesitas actualizar la contrasena.</p>
-                <div class="account-form__split">
-                    {% include 'cuentas/partials/form_field.html' with field=form.password1 label='Nueva contrasena' %}
-                    {% include 'cuentas/partials/form_field.html' with field=form.password2 label='Confirmar contrasena' %}
-                </div>
-            </fieldset>
+            {% if usuario.pk == request.user.pk %}
+                <fieldset class="account-form__section">
+                    <legend>Cambio de contrasena</legend>
+                    <p class="account-form__hint">
+                        Esta accion solo afecta a tu cuenta autenticada. Completa ambos campos si deseas actualizarla.
+                    </p>
+                    <div class="account-form__split">
+                        {% include 'cuentas/partials/form_field.html' with field=form.password1 label='Nueva contrasena' %}
+                        {% include 'cuentas/partials/form_field.html' with field=form.password2 label='Confirmar contrasena' %}
+                    </div>
+                </fieldset>
+            {% endif %}
 
             <div class="account-form-actions">
                 <a href="{% url 'cuentas:cuentas' %}" class="account-action account-action--ghost">Cancelar</a>
