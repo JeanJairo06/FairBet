@@ -1,0 +1,26 @@
+<div class="account-stats">
+    <article class="account-stat">
+        <span>Total</span>
+        <strong>{{ stats.total }}</strong>
+    </article>
+    <article class="account-stat account-stat--ok">
+        <span>Jugadores</span>
+        <strong>{{ stats.jugadores }}</strong>
+    </article>
+    <article class="account-stat account-stat--info">
+        <span>Operadores</span>
+        <strong>{{ stats.operadores }}</strong>
+    </article>
+    <article class="account-stat account-stat--admin">
+        <span>Administradores</span>
+        <strong>{{ stats.administradores }}</strong>
+    </article>
+    <article class="account-stat account-stat--pending">
+        <span>KYC pendiente</span>
+        <strong>{{ stats.pendientes }}</strong>
+    </article>
+    <article class="account-stat account-stat--risk">
+        <span>Alertas</span>
+        <strong>{{ stats.bloqueados|add:stats.autoexcluidos }}</strong>
+    </article>
+</div>

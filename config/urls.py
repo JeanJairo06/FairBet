@@ -30,5 +30,10 @@ urlpatterns = [
     path('api/v1/', include('api.urls')),
 
 
+    # Modulo de Cuentas: usuarios, roles y KYC simulado.
+    path('cuentas/', include('cuentas.urls')),
+
+
     path('juego-responsable/', include('juego_responsable.urls')),
+
 ]

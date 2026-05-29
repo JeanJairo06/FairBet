@@ -6,6 +6,9 @@
 
     <div class="site-nav__links">
         <a href="{% url 'home' %}"><i class="bi bi-house"></i> Inicio</a>
+
+        <a href="{% url 'cuentas:cuentas' %}"><i class="bi bi-people"></i> Cuentas</a>
+
         {% if request.user.is_authenticated and request.user.rol == 'PLAYER'%}
             <a href="{% url 'juego_responsable:panel' %}"><i class="bi bi-shield-check"></i> Juego Responsable</a>
         {% endif %}
@@ -13,6 +16,7 @@
         {% if request.user.is_authenticated %}
             <a href="{% url 'apuesta:apuestas_web' %}"><i class="bi bi-ticket-perforated"></i> Apuestas</a>
         {% endif %}
+
     </div>
 
     <div class="site-nav__auth">
