@@ -518,6 +518,8 @@ class LiquidarApuestaTests(TestCase):
             stake=Decimal('10.0000'),
             idempotency_key='liquidacion-evento-perdedora',
         )
+        self.evento.inicia_en = timezone.now() - timezone.timedelta(hours=2)
+        self.evento.save(update_fields=['inicia_en'])
 
         confirmar_resultado_evento(
             self.evento,

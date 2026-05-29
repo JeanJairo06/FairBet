@@ -5,16 +5,14 @@
 {% block content %}
 <section class="module-header">
     <div>
-        <p class="eyebrow">Catalogo deportivo</p>
-        <h2>Odds</h2>
-        <p>Historial de cuotas por seleccion, con una sola odds vigente por seleccion.</p>
+        <p class="eyebrow">Auditoria</p>
+        <h2>Historial de odds</h2>
+        <p>Historial global de cuotas. Para actualizar odds, usa el detalle del partido correspondiente.</p>
     </div>
     <a href="{% url 'deporte:odds_actualizar' %}" class="button button--primary">
         <i class="bi bi-arrow-repeat"></i> Actualizar odds
     </a>
 </section>
-
-{% include 'deporte/_tabs.html' with active_tab='odds' %}
 
 <form class="module-search" method="get">
     <i class="bi bi-search"></i>

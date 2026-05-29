@@ -22,17 +22,21 @@ from core.choices import (
     TipoMercado,
 )
 from cuentas.models import PerfilJugador
-from deporte.forms import ActualizarOddsForm, MercadoForm
-from deporte.exceptions import SeleccionNoApostableError
+from deporte.forms import ActualizarOddsForm, EventoDeportivoForm, MercadoForm
+from deporte.exceptions import ResultadoEventoError, SeleccionNoApostableError
 from deporte.models import HistorialOdds
 from deporte.services import (
     actualizar_odds,
     confirmar_resultado_evento,
     crear_evento,
     crear_mercado,
+    crear_mercado_rapido,
     crear_seleccion,
     marcar_seleccion_ganadora,
     obtener_odds_vigente,
+    pasar_evento_en_vivo,
+    reactivar_evento,
+    suspender_evento,
     validar_seleccion_apostable,
 )
 
@@ -98,6 +102,9 @@ class CatalogoDeportivoServiceTests(TestCase):
             validar_seleccion_apostable(self.local)
 
     def test_confirmar_resultado_cierra_evento_y_mercado(self):
+        self.evento.inicia_en = timezone.now() - timedelta(hours=2)
+        self.evento.save(update_fields=['inicia_en'])
+
         evento = confirmar_resultado_evento(
             self.evento,
             {
@@ -112,6 +119,9 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertEqual(self.mercado.estado_mercado, EstadoMercado.CERRADO)
 
     def test_marcar_seleccion_ganadora_liquida_mercado_y_pierde_las_demas(self):
+        self.evento.inicia_en = timezone.now() - timedelta(hours=2)
+        self.evento.save(update_fields=['inicia_en'])
+
         confirmar_resultado_evento(
             self.evento,
             {
@@ -158,6 +168,8 @@ class CatalogoDeportivoServiceTests(TestCase):
             stake=Decimal('10.0000'),
             idempotency_key='vista-confirmar-resultado-apuesta',
         )
+        self.evento.inicia_en = timezone.now() - timedelta(hours=2)
+        self.evento.save(update_fields=['inicia_en'])
         self.client.login(username='operador_resultado', password='test12345')
 
         response = self.client.post(
@@ -170,7 +182,7 @@ class CatalogoDeportivoServiceTests(TestCase):
         )
 
         apuesta.refresh_from_db()
-        self.assertRedirects(response, reverse('deporte:eventos_lista'))
+        self.assertRedirects(response, reverse('deporte:evento_detalle', args=[self.evento.pk]))
         self.assertEqual(apuesta.estado_apuesta, EstadoApuesta.WON)
         self.assertEqual(LiquidacionApuesta.objects.count(), 1)
         self.assertEqual(calcular_saldo(wallet), Decimal('115.0000'))
@@ -192,6 +204,101 @@ class CatalogoDeportivoServiceTests(TestCase):
                 response = self.client.get(url)
                 self.assertEqual(response.status_code, 200)
 
+    def test_detalle_partido_muestra_workspace_de_configuracion(self):
+        get_user_model().objects.create_user(username='operador_detalle', email='op_detalle@test.com', password='test12345')
+        self.client.login(username='operador_detalle', password='test12345')
+        actualizar_odds(self.local, Decimal('2.1000'))
+        actualizar_odds(self.empate, Decimal('3.2000'))
+
+        response = self.client.get(reverse('deporte:evento_detalle', args=[self.evento.pk]))
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Configurar partido')
+        self.assertContains(response, 'Resultado final')
+        self.assertContains(response, 'Guardar odds')
+
+    def test_crear_mercado_rapido_resultado_final_crea_selecciones_base(self):
+        mercado = crear_mercado_rapido(self.evento, 'resultado_final')
+
+        self.assertEqual(mercado.tipo_mercado, TipoMercado.UNO_X_DOS)
+        self.assertEqual(set(mercado.selecciones.values_list('codigo_seleccion', flat=True)), {'HOME', 'DRAW', 'AWAY'})
+
+    def test_crear_mercado_rapido_resultado_final_configura_stake_y_odds(self):
+        mercado = crear_mercado_rapido(
+            self.evento,
+            'resultado_final',
+            stake_minimo=Decimal('5.0000'),
+            stake_maximo=Decimal('250.0000'),
+            odds_iniciales={
+                'HOME': Decimal('2.0000'),
+                'DRAW': Decimal('3.5000'),
+                'AWAY': Decimal('3.0000'),
+            },
+        )
+
+        self.assertEqual(mercado.stake_minimo, Decimal('5.0000'))
+        self.assertEqual(mercado.stake_maximo, Decimal('250.0000'))
+        self.assertEqual(obtener_odds_vigente(mercado.selecciones.get(codigo_seleccion='HOME')).odds, Decimal('2.0000'))
+        self.assertEqual(obtener_odds_vigente(mercado.selecciones.get(codigo_seleccion='DRAW')).odds, Decimal('3.5000'))
+        self.assertEqual(obtener_odds_vigente(mercado.selecciones.get(codigo_seleccion='AWAY')).odds, Decimal('3.0000'))
+
+    def test_crear_mercado_rapido_ambos_anotan_crea_si_no(self):
+        mercado = crear_mercado_rapido(self.evento, 'ambos_anotan')
+
+        self.assertEqual(mercado.tipo_mercado, TipoMercado.BTTS)
+        self.assertEqual(set(mercado.selecciones.values_list('codigo_seleccion', flat=True)), {'YES', 'NO'})
+
+    def test_crear_mercado_rapido_total_goles_crea_over_under(self):
+        mercado = crear_mercado_rapido(self.evento, 'total_goles', linea=Decimal('2.5'))
+
+        self.assertEqual(mercado.tipo_mercado, TipoMercado.OVER_UNDER)
+        self.assertEqual(set(mercado.selecciones.values_list('codigo_seleccion', flat=True)), {'OVER_2_5', 'UNDER_2_5'})
+
+    def test_crear_mercado_rapido_handicap_crea_local_visitante(self):
+        mercado = crear_mercado_rapido(self.evento, 'handicap', linea=Decimal('0'))
+
+        self.assertEqual(mercado.tipo_mercado, TipoMercado.HANDICAP)
+        self.assertEqual(set(mercado.selecciones.values_list('codigo_seleccion', flat=True)), {'HOME_0', 'AWAY_0'})
+
+    def test_vista_actualiza_odds_inline_desde_detalle(self):
+        get_user_model().objects.create_user(username='operador_odds_inline', email='op_odds_inline@test.com', password='test12345')
+        self.client.login(username='operador_odds_inline', password='test12345')
+
+        response = self.client.post(
+            reverse('deporte:evento_odds_actualizar', args=[self.evento.pk]),
+            {
+                f'odds_{self.local.pk}': '2.4000',
+                f'odds_{self.empate.pk}': '3.1000',
+            },
+        )
+
+        self.assertRedirects(response, reverse('deporte:evento_detalle', args=[self.evento.pk]))
+        self.assertEqual(obtener_odds_vigente(self.local).odds, Decimal('2.4000'))
+        self.assertEqual(obtener_odds_vigente(self.empate).odds, Decimal('3.1000'))
+
+    def test_vista_crea_mercado_total_goles_con_stake_y_odds_iniciales(self):
+        get_user_model().objects.create_user(username='operador_builder', email='op_builder@test.com', password='test12345')
+        self.client.login(username='operador_builder', password='test12345')
+
+        response = self.client.post(
+            reverse('deporte:evento_mercado_rapido', args=[self.evento.pk]),
+            {
+                'plantilla': 'total_goles',
+                'linea': '2.5',
+                'stake_minimo': '3.0000',
+                'stake_maximo': '150.0000',
+                'odds_OVER': '1.9000',
+                'odds_UNDER': '1.9500',
+            },
+        )
+
+        mercado = self.evento.mercados.get(nombre='Total de goles 2.5')
+        self.assertRedirects(response, reverse('deporte:evento_detalle', args=[self.evento.pk]))
+        self.assertEqual(mercado.stake_minimo, Decimal('3.0000'))
+        self.assertEqual(mercado.stake_maximo, Decimal('150.0000'))
+        self.assertEqual(obtener_odds_vigente(mercado.selecciones.get(codigo_seleccion='OVER_2_5')).odds, Decimal('1.9000'))
+        self.assertEqual(obtener_odds_vigente(mercado.selecciones.get(codigo_seleccion='UNDER_2_5')).odds, Decimal('1.9500'))
+
     def test_selector_evento_en_mercado_muestra_fecha(self):
         form = MercadoForm()
         label = form.fields['evento'].label_from_instance(self.evento)
@@ -199,6 +306,12 @@ class CatalogoDeportivoServiceTests(TestCase):
 
         self.assertIn('Alianza Lima vs Universitario', label)
         self.assertIn(fecha, label)
+
+    def test_formulario_evento_no_expone_marcador(self):
+        form = EventoDeportivoForm()
+
+        self.assertNotIn('marcador_local', form.fields)
+        self.assertNotIn('marcador_visitante', form.fields)
 
     def test_editar_evento_mantiene_fecha_en_input(self):
         get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
@@ -221,13 +334,11 @@ class CatalogoDeportivoServiceTests(TestCase):
                 'equipo_local': 'Equipo A',
                 'equipo_visitante': 'Equipo B',
                 'inicia_en': (timezone.now() + timedelta(days=2)).strftime('%Y-%m-%dT%H:%M'),
-                'estado_evento': EstadoEvento.PROGRAMADO,
-                'marcador_local': 0,
-                'marcador_visitante': 0,
             },
         )
 
-        self.assertRedirects(response, reverse('deporte:eventos_lista'))
+        evento_creado = self.evento.__class__.objects.get(competicion='Copa Peru')
+        self.assertRedirects(response, reverse('deporte:evento_detalle', args=[evento_creado.pk]))
         self.assertTrue(
             self.evento.__class__.objects.filter(
                 competicion='Copa Peru',
@@ -271,6 +382,9 @@ class CatalogoDeportivoServiceTests(TestCase):
             )
 
     def test_crear_mercado_no_permite_abierto_en_evento_finalizado(self):
+        self.evento.inicia_en = timezone.now() - timedelta(hours=2)
+        self.evento.save(update_fields=['inicia_en'])
+
         confirmar_resultado_evento(
             self.evento,
             {
@@ -298,6 +412,106 @@ class CatalogoDeportivoServiceTests(TestCase):
 
         with self.assertRaises(ValidationError):
             actualizar_odds(self.local, Decimal('2.1000'))
+
+    def test_evento_programado_mantiene_marcador_cero(self):
+        with self.assertRaisesMessage(ValidationError, 'Un evento programado debe mantener marcador 0 - 0.'):
+            crear_evento(
+                {
+                    'competicion': 'Liga 1',
+                    'equipo_local': 'Equipo Marcador A',
+                    'equipo_visitante': 'Equipo Marcador B',
+                    'inicia_en': timezone.now() + timedelta(days=1),
+                    'estado_evento': EstadoEvento.PROGRAMADO,
+                    'marcador_local': 2,
+                    'marcador_visitante': 1,
+                }
+            )
+
+    def test_no_permite_finalizar_evento_futuro(self):
+        with self.assertRaisesMessage(ResultadoEventoError, 'No se puede finalizar un evento que aun no inicia.'):
+            confirmar_resultado_evento(
+                self.evento,
+                {
+                    'marcador_local': 1,
+                    'marcador_visitante': 0,
+                },
+            )
+
+    def test_no_permite_pasar_a_en_vivo_evento_futuro(self):
+        with self.assertRaisesMessage(ResultadoEventoError, 'No se puede pasar a en vivo un evento que aun no inicia.'):
+            pasar_evento_en_vivo(self.evento)
+
+    def test_no_permite_finalizar_evento_suspendido(self):
+        suspender_evento(self.evento)
+
+        with self.assertRaisesMessage(ResultadoEventoError, 'Solo un evento programado o en vivo puede finalizarse.'):
+            confirmar_resultado_evento(
+                self.evento,
+                {
+                    'marcador_local': 1,
+                    'marcador_visitante': 0,
+                },
+            )
+
+    def test_reactivar_evento_suspendido_futuro_vuelve_a_programado(self):
+        suspender_evento(self.evento)
+
+        evento = reactivar_evento(self.evento)
+        self.mercado.refresh_from_db()
+
+        self.assertEqual(evento.estado_evento, EstadoEvento.PROGRAMADO)
+        self.assertEqual(self.mercado.estado_mercado, EstadoMercado.ABIERTO)
+
+    def test_reactivar_evento_suspendido_iniciado_vuelve_a_en_vivo(self):
+        self.evento.inicia_en = timezone.now() - timedelta(hours=1)
+        self.evento.save(update_fields=['inicia_en'])
+        suspender_evento(self.evento)
+
+        evento = reactivar_evento(self.evento)
+        self.mercado.refresh_from_db()
+
+        self.assertEqual(evento.estado_evento, EstadoEvento.EN_VIVO)
+        self.assertEqual(self.mercado.estado_mercado, EstadoMercado.SUSPENDIDO)
+
+    def test_evento_futuro_muestra_acciones_de_inicio_o_finalizacion_deshabilitadas(self):
+        get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
+        self.client.login(username='operador', password='test12345')
+        self.evento.__class__.objects.filter(pk=self.evento.pk).update(marcador_local=5, marcador_visitante=5)
+
+        response = self.client.get(reverse('deporte:eventos_lista'))
+
+        self.assertContains(response, 'En vivo')
+        self.assertContains(response, 'Finalizar')
+        self.assertContains(response, 'disabled title="Disponible cuando inicie el evento"', count=2)
+        self.assertContains(response, 'Suspender')
+        self.assertContains(response, 'Anular')
+        self.assertContains(response, '0 - 0')
+        self.assertNotContains(response, '5 - 5')
+
+    def test_evento_suspendido_muestra_editar_reactivar_y_anular(self):
+        get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
+        self.client.login(username='operador', password='test12345')
+        suspender_evento(self.evento)
+
+        response = self.client.get(reverse('deporte:eventos_lista'))
+
+        self.assertContains(response, reverse('deporte:evento_editar', args=[self.evento.pk]))
+        self.assertContains(response, 'Reactivar')
+        self.assertContains(response, 'Anular')
+        self.assertNotContains(response, 'Finalizar')
+
+    def test_evento_en_vivo_muestra_suspender_anular_y_finalizar(self):
+        get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
+        self.client.login(username='operador', password='test12345')
+        self.evento.inicia_en = timezone.now() - timedelta(hours=1)
+        self.evento.save(update_fields=['inicia_en'])
+        pasar_evento_en_vivo(self.evento)
+
+        response = self.client.get(reverse('deporte:eventos_lista'))
+
+        self.assertContains(response, 'Suspender')
+        self.assertContains(response, 'Anular')
+        self.assertContains(response, 'Finalizar')
 
     def test_formulario_odds_solo_muestra_selecciones_apostables(self):
         self.evento.estado_evento = EstadoEvento.ANULADO

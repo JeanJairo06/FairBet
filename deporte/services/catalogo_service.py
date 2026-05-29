@@ -4,7 +4,7 @@ from django.db import transaction
 from django.db.models import Max, Q
 from django.utils import timezone
 
-from core.choices import EstadoEvento, EstadoMercado, EstadoSeleccion
+from core.choices import EstadoEvento, EstadoMercado, EstadoSeleccion, TipoMercado
 from deporte.exceptions import OddsNoDisponibleError, ResultadoEventoError, SeleccionNoApostableError
 from deporte.models import EventoDeportivo, HistorialOdds, Mercado, SeleccionMercado
 
@@ -56,6 +56,116 @@ def crear_seleccion(mercado, datos):
     seleccion.full_clean()
     seleccion.save()
     return seleccion
+
+
+@transaction.atomic
+def crear_mercado_con_selecciones(evento, datos_mercado, selecciones, odds_iniciales=None, cambiado_por=None):
+    mercado = crear_mercado(evento, datos_mercado)
+    odds_iniciales = odds_iniciales or {}
+    for seleccion in selecciones:
+        nueva_seleccion = crear_seleccion(mercado, seleccion)
+        odds = odds_iniciales.get(nueva_seleccion.codigo_seleccion)
+        if odds not in [None, '']:
+            actualizar_odds(nueva_seleccion, odds, cambiado_por=cambiado_por)
+    return mercado
+
+
+def _codigo_linea(linea):
+    return str(linea).replace('-', 'M').replace('+', 'P').replace('.', '_')
+
+
+def crear_mercado_rapido(
+    evento,
+    plantilla,
+    linea=None,
+    datos_personalizados=None,
+    stake_minimo=None,
+    stake_maximo=None,
+    odds_iniciales=None,
+    cambiado_por=None,
+):
+    evento = _resolver_evento(evento)
+    stake_minimo = _to_decimal(stake_minimo or '1.0000', 'stake_minimo')
+    stake_maximo = _to_decimal(stake_maximo or '100.0000', 'stake_maximo')
+
+    if plantilla == 'resultado_final':
+        return crear_mercado_con_selecciones(
+            evento,
+            {
+                'tipo_mercado': TipoMercado.UNO_X_DOS,
+                'nombre': 'Resultado final',
+                'stake_minimo': stake_minimo,
+                'stake_maximo': stake_maximo,
+            },
+            [
+                {'codigo_seleccion': 'HOME', 'nombre': f'Gana {evento.equipo_local}'},
+                {'codigo_seleccion': 'DRAW', 'nombre': 'Empate'},
+                {'codigo_seleccion': 'AWAY', 'nombre': f'Gana {evento.equipo_visitante}'},
+            ],
+            odds_iniciales=odds_iniciales,
+            cambiado_por=cambiado_por,
+        )
+
+    if plantilla == 'ambos_anotan':
+        return crear_mercado_con_selecciones(
+            evento,
+            {
+                'tipo_mercado': TipoMercado.BTTS,
+                'nombre': 'Ambos equipos anotan',
+                'stake_minimo': stake_minimo,
+                'stake_maximo': stake_maximo,
+            },
+            [
+                {'codigo_seleccion': 'YES', 'nombre': 'Si'},
+                {'codigo_seleccion': 'NO', 'nombre': 'No'},
+            ],
+            odds_iniciales=odds_iniciales,
+            cambiado_por=cambiado_por,
+        )
+
+    if plantilla == 'total_goles':
+        linea = _to_decimal(linea, 'linea')
+        codigo = _codigo_linea(linea)
+        return crear_mercado_con_selecciones(
+            evento,
+            {
+                'tipo_mercado': TipoMercado.OVER_UNDER,
+                'nombre': f'Total de goles {linea}',
+                'stake_minimo': stake_minimo,
+                'stake_maximo': stake_maximo,
+            },
+            [
+                {'codigo_seleccion': f'OVER_{codigo}', 'nombre': f'Mas de {linea} goles'},
+                {'codigo_seleccion': f'UNDER_{codigo}', 'nombre': f'Menos de {linea} goles'},
+            ],
+            odds_iniciales=odds_iniciales,
+            cambiado_por=cambiado_por,
+        )
+
+    if plantilla == 'handicap':
+        linea = _to_decimal(linea, 'linea')
+        codigo = _codigo_linea(linea)
+        return crear_mercado_con_selecciones(
+            evento,
+            {
+                'tipo_mercado': TipoMercado.HANDICAP,
+                'nombre': f'Handicap {linea}',
+                'stake_minimo': stake_minimo,
+                'stake_maximo': stake_maximo,
+            },
+            [
+                {'codigo_seleccion': f'HOME_{codigo}', 'nombre': f'{evento.equipo_local} handicap {linea}'},
+                {'codigo_seleccion': f'AWAY_{codigo}', 'nombre': f'{evento.equipo_visitante} handicap {linea}'},
+            ],
+            odds_iniciales=odds_iniciales,
+            cambiado_por=cambiado_por,
+        )
+
+    if plantilla == 'personalizado':
+        datos_personalizados = datos_personalizados or {}
+        return crear_mercado(evento, datos_personalizados)
+
+    raise ValueError('Plantilla de mercado no soportada.')
 
 
 @transaction.atomic
@@ -136,6 +246,8 @@ def pasar_evento_en_vivo(evento):
         raise ResultadoEventoError('No se puede pasar a en vivo un evento con resultado confirmado.')
     if evento.estado_evento != EstadoEvento.PROGRAMADO:
         raise ResultadoEventoError('Solo un evento programado puede pasar a en vivo.')
+    if evento.inicia_en > timezone.now():
+        raise ResultadoEventoError('No se puede pasar a en vivo un evento que aun no inicia.')
 
     evento.estado_evento = EstadoEvento.EN_VIVO
     evento.full_clean()
@@ -153,6 +265,25 @@ def suspender_evento(evento):
     evento.full_clean()
     evento.save(update_fields=['estado_evento', 'updated_at'])
     evento.mercados.filter(estado_mercado=EstadoMercado.ABIERTO).update(estado_mercado=EstadoMercado.SUSPENDIDO)
+    return evento
+
+
+@transaction.atomic
+def reactivar_evento(evento):
+    evento = EventoDeportivo.objects.select_for_update().get(pk=_resolver_evento(evento).pk)
+    if evento.estado_evento != EstadoEvento.SUSPENDIDO:
+        raise ResultadoEventoError('Solo un evento suspendido puede reactivarse.')
+    if evento.resultado_confirmado:
+        raise ResultadoEventoError('No se puede reactivar un evento con resultado confirmado.')
+
+    evento.estado_evento = EstadoEvento.EN_VIVO if evento.ha_iniciado else EstadoEvento.PROGRAMADO
+    evento.full_clean()
+    evento.save(update_fields=['estado_evento', 'updated_at'])
+    mercados_suspendidos = evento.mercados.filter(estado_mercado=EstadoMercado.SUSPENDIDO)
+    if evento.estado_evento == EstadoEvento.EN_VIVO:
+        mercados_suspendidos.filter(permite_in_play=True).update(estado_mercado=EstadoMercado.ABIERTO)
+    else:
+        mercados_suspendidos.update(estado_mercado=EstadoMercado.ABIERTO)
     return evento
 
 
@@ -184,6 +315,10 @@ def confirmar_resultado_evento(evento, resultado):
     evento = EventoDeportivo.objects.select_for_update().get(pk=_resolver_evento(evento).pk)
     if evento.resultado_confirmado:
         raise ResultadoEventoError('El resultado del evento ya fue confirmado.')
+    if evento.estado_evento not in {EstadoEvento.PROGRAMADO, EstadoEvento.EN_VIVO}:
+        raise ResultadoEventoError('Solo un evento programado o en vivo puede finalizarse.')
+    if evento.inicia_en > timezone.now():
+        raise ResultadoEventoError('No se puede finalizar un evento que aun no inicia.')
 
     marcador_local = resultado.get('marcador_local')
     marcador_visitante = resultado.get('marcador_visitante')

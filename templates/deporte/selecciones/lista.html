@@ -5,16 +5,14 @@
 {% block content %}
 <section class="module-header">
     <div>
-        <p class="eyebrow">Catalogo deportivo</p>
+        <p class="eyebrow">Administracion avanzada</p>
         <h2>Selecciones</h2>
-        <p>Opciones apostables dentro de cada mercado.</p>
+        <p>Vista tecnica de selecciones. Para operar el flujo principal, gestionalas dentro del partido y su mercado.</p>
     </div>
     <a href="{% url 'deporte:seleccion_crear' %}" class="button button--primary">
         <i class="bi bi-plus-circle"></i> Nueva seleccion
     </a>
 </section>
-
-{% include 'deporte/_tabs.html' with active_tab='selecciones' %}
 
 <form class="module-search" method="get">
     <i class="bi bi-search"></i>

@@ -1,0 +1,650 @@
+.fb-event-dashboard,
+.fb-event-workspace,
+.fb-markets-section {
+    display: grid;
+    gap: 18px;
+}
+
+.fb-event-card,
+.fb-panel,
+.fb-market-card,
+.fb-result-panel,
+.fb-empty-panel {
+    border: 1px solid var(--line);
+    border-radius: 22px;
+    background: linear-gradient(145deg, rgba(17, 28, 51, 0.92), rgba(15, 23, 42, 0.9));
+    box-shadow: 0 18px 56px rgba(0, 0, 0, 0.22);
+}
+
+.fb-event-card {
+    position: relative;
+    display: grid;
+    gap: 18px;
+    padding: 22px;
+    overflow: hidden;
+}
+
+.fb-event-card::before {
+    content: '';
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: linear-gradient(180deg, var(--accent), rgba(34, 197, 94, 0.08));
+}
+
+.fb-event-card__content {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 20px;
+    padding-right: 230px;
+}
+
+.fb-event-competition {
+    margin: 0 0 8px;
+    color: var(--accent);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+}
+
+.fb-event-card__main h3 {
+    color: var(--text);
+    font-size: clamp(1.18rem, 2.4vw, 1.6rem);
+    line-height: 1.2;
+}
+
+.fb-event-card__main h3 span {
+    color: var(--muted);
+    font-size: 0.78em;
+    font-weight: 700;
+}
+
+.fb-event-date {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    color: var(--muted);
+    font-size: 0.95rem;
+}
+
+.fb-score-card {
+    min-width: 126px;
+    padding: 14px 16px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 18px;
+    text-align: center;
+    background: rgba(255, 255, 255, 0.055);
+}
+
+.fb-score-card span {
+    display: block;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.fb-score-card strong {
+    display: block;
+    margin-top: 4px;
+    color: var(--text);
+    font-size: 1.55rem;
+    line-height: 1;
+}
+
+.fb-event-card h3,
+.fb-event-header h2,
+.fb-panel h3,
+.fb-market-card h4 {
+    margin: 0;
+}
+
+.fb-event-card__status,
+.fb-event-card__metrics,
+.fb-event-meta,
+.fb-action-row,
+.fb-event-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+}
+
+.fb-event-card__status {
+    position: absolute;
+    top: 18px;
+    right: 18px;
+    justify-content: flex-end;
+    max-width: 230px;
+    z-index: 1;
+}
+
+.fb-event-card__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding-top: 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+}
+
+.fb-event-card__metrics a,
+.fb-event-card__metrics span,
+.fb-event-meta span,
+.fb-muted,
+.fb-panel p,
+.fb-market-card p,
+.fb-history-list span {
+    color: var(--muted);
+}
+
+.fb-event-card__metrics strong {
+    color: var(--accent);
+}
+
+.fb-event-card__metrics a,
+.fb-event-card__metrics span {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 32px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.035);
+    font-size: 0.9rem;
+}
+
+.fb-event-card__metrics a:hover {
+    color: var(--text);
+    border-color: rgba(34, 197, 94, 0.35);
+    background: rgba(34, 197, 94, 0.08);
+}
+
+.fb-event-card__metrics i {
+    color: var(--accent);
+}
+
+.fb-card-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.fb-card-actions form {
+    margin: 0;
+}
+
+.fb-icon-action {
+    display: inline-grid;
+    place-items: center;
+    width: 38px;
+    height: 38px;
+    padding: 0;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.045);
+    font: inherit;
+    cursor: pointer;
+    transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, color 140ms ease;
+}
+
+.fb-icon-action:hover:not(:disabled) {
+    color: #052e16;
+    border-color: var(--accent);
+    background: var(--accent);
+    transform: translateY(-1px);
+}
+
+.fb-icon-action--primary {
+    color: #052e16;
+    border-color: var(--accent);
+    background: var(--accent);
+}
+
+.fb-icon-action--primary:hover {
+    background: var(--accent-strong);
+}
+
+.fb-icon-action--danger:hover:not(:disabled) {
+    color: #450a0a;
+    border-color: var(--danger);
+    background: var(--danger);
+}
+
+.fb-icon-action:disabled {
+    cursor: not-allowed;
+    opacity: 0.45;
+}
+
+.fb-event-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 24px;
+    border: 1px solid var(--line);
+    border-radius: 26px;
+    background: radial-gradient(circle at top right, rgba(34, 197, 94, 0.14), transparent 34%), rgba(17, 28, 51, 0.88);
+}
+
+.fb-workspace-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
+    gap: 18px;
+}
+
+.fb-panel,
+.fb-result-panel,
+.fb-market-card {
+    padding: 18px;
+}
+
+.fb-panel__header,
+.fb-section-title,
+.fb-market-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 18px;
+    margin-bottom: 16px;
+}
+
+.fb-checklist {
+    display: grid;
+    gap: 10px;
+}
+
+.fb-checklist-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.fb-checklist-item--done i {
+    color: var(--accent);
+}
+
+.fb-checklist-item--pending i {
+    color: #facc15;
+}
+
+.fb-market-toolbar {
+    gap: 16px;
+}
+
+.fb-market-builder {
+    display: grid;
+    gap: 12px;
+}
+
+.fb-market-builder-item {
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.035);
+    overflow: hidden;
+}
+
+.fb-market-builder-item[open] {
+    border-color: rgba(34, 197, 94, 0.28);
+    background: rgba(34, 197, 94, 0.045);
+}
+
+.fb-market-builder-item summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 14px 16px;
+    cursor: pointer;
+    list-style: none;
+}
+
+.fb-market-builder-item summary::-webkit-details-marker {
+    display: none;
+}
+
+.fb-market-builder-item summary span {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    font-weight: 900;
+}
+
+.fb-market-builder-item summary i {
+    color: var(--accent);
+}
+
+.fb-market-builder-item summary small {
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.fb-market-builder-body {
+    display: grid;
+    gap: 14px;
+    padding: 0 16px 16px;
+}
+
+.fb-market-builder-grid,
+.fb-market-builder-stakes,
+.fb-market-builder-odds {
+    display: grid;
+    gap: 12px;
+}
+
+.fb-market-builder-grid,
+.fb-market-builder-odds--three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.fb-market-builder-stakes,
+.fb-market-builder-odds {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.fb-market-builder label {
+    display: grid;
+    gap: 7px;
+    color: var(--muted);
+    font-weight: 800;
+}
+
+.fb-quick-market-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+}
+
+.fb-inline-form,
+.fb-custom-market-form,
+.fb-result-form {
+    display: grid;
+    gap: 12px;
+}
+
+.fb-inline-form {
+    grid-template-columns: 1fr auto;
+    align-items: end;
+}
+
+.fb-inline-form label,
+.fb-result-form label {
+    display: grid;
+    gap: 6px;
+    color: var(--muted);
+    font-weight: 700;
+}
+
+.fb-custom-market-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    margin-top: 14px;
+}
+
+.fb-custom-market-form .button {
+    grid-column: 1 / -1;
+}
+
+.fb-advanced-box {
+    margin-top: 14px;
+    padding: 14px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.fb-advanced-box summary {
+    cursor: pointer;
+    color: var(--accent);
+    font-weight: 800;
+}
+
+.fb-selection-table {
+    display: grid;
+    gap: 8px;
+}
+
+.fb-selection-summary {
+    display: grid;
+    gap: 10px;
+}
+
+.fb-selection-summary-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.fb-selection-summary-row span {
+    display: block;
+    margin-top: 4px;
+    color: var(--muted);
+    font-size: 0.88rem;
+}
+
+.fb-odds-value {
+    min-width: 72px;
+    padding: 8px 10px;
+    border-radius: 12px;
+    color: var(--accent);
+    text-align: center;
+    background: rgba(34, 197, 94, 0.09);
+}
+
+.fb-selection-row {
+    display: grid;
+    grid-template-columns: 1.4fr 0.7fr 0.8fr 0.8fr;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.fb-selection-row--head {
+    color: var(--muted);
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    background: transparent;
+}
+
+.fb-selection-info strong {
+    display: block;
+}
+
+.fb-odds-input {
+    width: 100%;
+    min-height: 40px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--text);
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.fb-action-row--end {
+    justify-content: flex-end;
+    margin-top: 12px;
+}
+
+.fb-score-grid {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: end;
+    gap: 14px;
+}
+
+.fb-score-grid > span {
+    padding-bottom: 12px;
+    color: var(--muted);
+    font-weight: 900;
+}
+
+.fb-result-options {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+
+.fb-result-options p {
+    flex-basis: 100%;
+    margin: 0;
+    color: var(--muted);
+    font-weight: 800;
+}
+
+.fb-result-choice {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.fb-history-list {
+    display: grid;
+    gap: 10px;
+}
+
+.fb-history-list > div {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 6px 12px;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.fb-empty-panel {
+    padding: 18px;
+    color: var(--muted);
+    text-align: center;
+}
+
+.fb-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 0 10px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.05);
+    font-size: 0.82rem;
+    font-weight: 800;
+}
+
+.fb-badge--programado,
+.fb-badge--scheduled,
+.fb-badge--abierto,
+.fb-badge--open,
+.fb-badge--activa,
+.fb-badge--active,
+.fb-badge--current {
+    color: var(--accent);
+    border-color: rgba(34, 197, 94, 0.35);
+    background: rgba(34, 197, 94, 0.09);
+}
+
+.fb-badge--en_vivo,
+.fb-badge--live {
+    color: #60a5fa;
+    border-color: rgba(96, 165, 250, 0.35);
+    background: rgba(96, 165, 250, 0.1);
+}
+
+.fb-badge--finalizado,
+.fb-badge--finished,
+.fb-badge--liquidado,
+.fb-badge--settled,
+.fb-badge--ganadora,
+.fb-badge--winner {
+    color: #c084fc;
+    border-color: rgba(192, 132, 252, 0.35);
+    background: rgba(192, 132, 252, 0.1);
+}
+
+.fb-badge--suspendido,
+.fb-badge--suspended,
+.fb-badge--cerrado,
+.fb-badge--closed,
+.fb-badge--pending {
+    color: #facc15;
+    border-color: rgba(250, 204, 21, 0.35);
+    background: rgba(250, 204, 21, 0.09);
+}
+
+.fb-badge--anulado,
+.fb-badge--cancelled,
+.fb-badge--perdedora,
+.fb-badge--loser,
+.fb-badge--history {
+    color: #f87171;
+    border-color: rgba(248, 113, 113, 0.35);
+    background: rgba(248, 113, 113, 0.09);
+}
+
+@media (max-width: 960px) {
+    .fb-event-card,
+    .fb-event-header,
+    .fb-workspace-grid,
+    .fb-quick-market-grid,
+    .fb-market-builder-grid,
+    .fb-market-builder-stakes,
+    .fb-market-builder-odds,
+    .fb-custom-market-form,
+    .fb-selection-row,
+    .fb-score-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .fb-event-header,
+    .fb-panel__header,
+    .fb-section-title,
+    .fb-market-card-header {
+        flex-direction: column;
+    }
+
+    .fb-event-card__content {
+        padding-right: 0;
+    }
+
+    .fb-event-card__status {
+        position: static;
+        max-width: none;
+        justify-content: flex-start;
+    }
+
+    .fb-event-card__footer {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .fb-card-actions {
+        justify-content: flex-start;
+    }
+}

@@ -5,7 +5,7 @@
 {% block content %}
 <section class="module-header">
     <div>
-        <p class="eyebrow">Catalogo deportivo</p>
+        <p class="eyebrow">Administracion avanzada</p>
         <h2>Actualizar odds</h2>
         <p>Al guardar, la odds anterior queda historica y esta pasa a ser la vigente.</p>
     </div>
@@ -13,8 +13,6 @@
         <i class="bi bi-arrow-left"></i> Volver
     </a>
 </section>
-
-{% include 'deporte/_tabs.html' with active_tab='odds' %}
 
 <form class="app-form" method="post">
     {% csrf_token %}
