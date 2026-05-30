@@ -118,3 +118,56 @@ class HomeRedirectTests(TestCase):
         response = self.client.get(reverse('home'))
 
         self.assertRedirects(response, reverse('deporte:eventos_lista'))
+
+
+class DigitoVerificadorDniTests(TestCase):
+    def test_calcular_digito_verificador_17801146(self):
+        from core.services import calcular_digito_verificador
+        resultado = calcular_digito_verificador('17801146')
+        self.assertEqual(resultado, 0)
+
+    def test_calcular_digito_verificador_40000000(self):
+        from core.services import calcular_digito_verificador
+        resultado = calcular_digito_verificador('40000000')
+        self.assertIsInstance(resultado, int)
+        self.assertIn(resultado, range(11))
+
+    def test_calcular_digito_verificador_longitud_incorrecta(self):
+        from core.services import calcular_digito_verificador
+        with self.assertRaises(ValueError):
+            calcular_digito_verificador('1234567')
+
+    def test_calcular_digito_verificador_no_numerico(self):
+        from core.services import calcular_digito_verificador
+        with self.assertRaises(ValueError):
+            calcular_digito_verificador('1234ABCD')
+
+    def test_digito_verificador_letra(self):
+        from core.services import digito_verificador_letra
+        letra = digito_verificador_letra('17801146')
+        self.assertIn(letra, ('K', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'))
+
+    def test_validar_dni_8_digitos_valido(self):
+        from core.services import validar_dni_peruano
+        self.assertTrue(validar_dni_peruano('17801146'))
+
+    def test_validar_dni_8_digitos_secuencia_trivial(self):
+        from core.services import validar_dni_peruano
+        self.assertFalse(validar_dni_peruano('00000000'))
+
+    def test_validar_dni_8_digitos_no_numerico(self):
+        from core.services import validar_dni_peruano
+        self.assertFalse(validar_dni_peruano('1234ABCD'))
+
+    def test_validar_dni_9_con_verificador_correcto(self):
+        from core.services import validar_dni_peruano
+        self.assertTrue(validar_dni_peruano('178011460'))
+
+    def test_validar_dni_9_con_verificador_incorrecto(self):
+        from core.services import validar_dni_peruano
+        self.assertFalse(validar_dni_peruano('178011461'))
+
+    def test_validar_dni_longitud_incorrecta(self):
+        from core.services import validar_dni_peruano
+        self.assertFalse(validar_dni_peruano('1234567'))
+        self.assertFalse(validar_dni_peruano('1234567890'))

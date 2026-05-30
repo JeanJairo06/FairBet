@@ -51,6 +51,7 @@
                 <button type="submit" class="link-button"><i class="bi bi-box-arrow-right"></i><span>Salir</span></button>
             </form>
         {% else %}
+            <a href="{% url 'registro_jugador' %}" class="site-nav__login" style="margin-right:8px;"><i class="bi bi-person-plus"></i><span>Crear cuenta</span></a>
             <a href="{% url 'login' %}" class="site-nav__login"><i class="bi bi-box-arrow-in-right"></i><span>Ingresar</span></a>
         {% endif %}
     </div>

@@ -4,6 +4,7 @@ from datetime import date
 from django.utils import timezone
 
 from core.choices import EstadoCuentaJugador
+from core.services import calcular_digito_verificador, validar_dni_peruano
 
 
 @dataclass(frozen=True)
@@ -31,6 +32,13 @@ class LocalKYCValidator:
                 message='El DNI debe contener exactamente 8 digitos numericos.',
             )
 
+        if not self._has_valid_check_digit(dni):
+            return KYCResult(
+                is_valid=False,
+                estado_cuenta=EstadoCuentaJugador.PENDIENTE_VERIFICACION,
+                message='El digito verificador del DNI no es valido.',
+            )
+
         if not self._is_adult(fecha_nacimiento):
             return KYCResult(
                 is_valid=False,
@@ -46,6 +54,9 @@ class LocalKYCValidator:
 
     def _has_valid_dni_format(self, dni):
         return bool(dni and dni.isdigit() and len(dni) == self.DNI_LENGTH)
+
+    def _has_valid_check_digit(self, dni):
+        return validar_dni_peruano(dni)
 
     def _is_adult(self, fecha_nacimiento):
         return fecha_nacimiento <= get_adult_date_limit()
