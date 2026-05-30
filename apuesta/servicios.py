@@ -178,14 +178,18 @@ def _estado_detalle_desde_resultado(resultado):
 @transaction.atomic
 def liquidar_apuestas_de_evento(evento, liquidado_por=None, observacion='Liquidacion automatica por resultado de evento.'):
     evento_id = evento.pk if hasattr(evento, 'pk') else evento
-    apuestas = (
-        Apuesta.objects.select_for_update()
-        .filter(
+    apuesta_ids = (
+        Apuesta.objects.filter(
             estado_apuesta=EstadoApuesta.ACCEPTED,
             detalles__seleccion__mercado__evento_id=evento_id,
         )
-        .prefetch_related('detalles__seleccion')
+        .values_list('pk', flat=True)
         .distinct()
+    )
+    apuestas = (
+        Apuesta.objects.select_for_update()
+        .filter(pk__in=apuesta_ids)
+        .prefetch_related('detalles__seleccion')
     )
 
     liquidaciones = []

@@ -8,6 +8,7 @@
         <p class="eyebrow">Resultado deportivo</p>
         <h2>Finalizar evento</h2>
         <p>{{ evento.equipo_local }} vs {{ evento.equipo_visitante }} - {{ evento.inicia_en|date:'d/m/Y H:i' }}</p>
+        <p>Ingresa el marcador final. FairBet resolvera todos los mercados automaticamente y liquidara las apuestas pendientes.</p>
     </div>
     <a href="{% url 'deporte:eventos_lista' %}" class="button button--secondary">
         <i class="bi bi-arrow-left"></i> Volver
@@ -25,7 +26,7 @@
         </label>
     {% endfor %}
     <div class="form-actions">
-        <button type="submit" class="button button--primary"><i class="bi bi-check-circle"></i> Finalizar evento</button>
+        <button type="submit" class="button button--primary"><i class="bi bi-check-circle"></i> Finalizar partido y liquidar mercados</button>
     </div>
 </form>
 {% endblock %}

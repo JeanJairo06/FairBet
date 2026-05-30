@@ -24,9 +24,11 @@ from deporte.models import EventoDeportivo, HistorialOdds, Mercado, SeleccionMer
 from deporte.services import (
     actualizar_odds,
     anular_evento,
+    anular_evento_y_liquidar,
     confirmar_resultado_evento,
     crear_mercado_rapido,
     crear_seleccion,
+    finalizar_evento_y_liquidar,
     marcar_seleccion_ganadora,
     pasar_evento_en_vivo,
     reactivar_evento,
@@ -453,18 +455,15 @@ class EventoEstadoActionView(DeporteLoginRequiredMixin, View):
             'en_vivo': (pasar_evento_en_vivo, 'Evento marcado como en vivo.'),
             'reactivar': (reactivar_evento, 'Evento reactivado correctamente.'),
             'suspender': (suspender_evento, 'Evento suspendido correctamente.'),
-            'anular': (anular_evento, 'Evento anulado correctamente.'),
+            'anular': (anular_evento_y_liquidar, 'Evento anulado correctamente.'),
         }
         servicio, mensaje = acciones[self.accion]
         try:
-            evento = servicio(pk)
             liquidaciones = []
             if self.accion == 'anular':
-                liquidaciones = liquidar_apuestas_de_evento(
-                    evento,
-                    liquidado_por=request.user,
-                    observacion='Liquidacion automatica por anulacion de evento.',
-                )
+                evento, liquidaciones = servicio(pk, liquidado_por=request.user)
+            else:
+                evento = servicio(pk)
         except (ResultadoEventoError, ValidationError) as exc:
             messages.error(request, self._format_error(exc))
         else:
@@ -500,20 +499,14 @@ class EventoConfirmarResultadoView(DeporteLoginRequiredMixin, FormView):
 
     def form_valid(self, form):
         try:
-            confirmar_resultado_evento(
+            evento, liquidaciones = finalizar_evento_y_liquidar(
                 self.evento,
                 {
                     'marcador_local': form.cleaned_data['marcador_local'],
                     'marcador_visitante': form.cleaned_data['marcador_visitante'],
                 },
+                liquidado_por=self.request.user,
             )
-            liquidaciones = []
-            if form.cleaned_data['seleccion_ganadora']:
-                marcar_seleccion_ganadora(form.cleaned_data['seleccion_ganadora'])
-                liquidaciones = liquidar_apuestas_de_evento(
-                    self.evento,
-                    liquidado_por=self.request.user,
-                )
         except (ResultadoEventoError, ValidationError) as exc:
             form.add_error(None, exc)
             return self.form_invalid(form)

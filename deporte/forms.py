@@ -168,14 +168,9 @@ class ActualizarOddsForm(forms.Form):
 class ConfirmarResultadoEventoForm(forms.Form):
     marcador_local = forms.IntegerField(min_value=0)
     marcador_visitante = forms.IntegerField(min_value=0)
-    seleccion_ganadora = SeleccionChoiceField(queryset=SeleccionMercado.objects.none(), required=False)
 
     def __init__(self, *args, **kwargs):
         self.evento = kwargs.pop('evento')
         super().__init__(*args, **kwargs)
-        self.fields['seleccion_ganadora'].queryset = SeleccionMercado.objects.select_related('mercado__evento').filter(
-            mercado__evento=self.evento,
-            estado_seleccion__in=[EstadoSeleccion.ACTIVA, EstadoSeleccion.SUSPENDIDA],
-        )
         for field in self.fields.values():
             field.widget.attrs.setdefault('class', 'app-field')

@@ -74,6 +74,63 @@ def _codigo_linea(linea):
     return str(linea).replace('-', 'M').replace('+', 'P').replace('.', '_')
 
 
+def _linea_desde_codigo(codigo):
+    codigo = str(codigo).replace('M', '-').replace('P', '+').replace('_', '.')
+    return Decimal(codigo)
+
+
+def _resolver_codigo_seleccion(mercado, seleccion, marcador_local, marcador_visitante):
+    codigo = seleccion.codigo_seleccion.upper()
+    total_goles = Decimal(marcador_local + marcador_visitante)
+
+    if mercado.tipo_mercado == TipoMercado.UNO_X_DOS:
+        if marcador_local > marcador_visitante:
+            return EstadoSeleccion.GANADORA if codigo == 'HOME' else EstadoSeleccion.PERDEDORA
+        if marcador_local < marcador_visitante:
+            return EstadoSeleccion.GANADORA if codigo == 'AWAY' else EstadoSeleccion.PERDEDORA
+        return EstadoSeleccion.GANADORA if codigo == 'DRAW' else EstadoSeleccion.PERDEDORA
+
+    if mercado.tipo_mercado == TipoMercado.BTTS:
+        ambos_anotan = marcador_local > 0 and marcador_visitante > 0
+        if codigo == 'YES':
+            return EstadoSeleccion.GANADORA if ambos_anotan else EstadoSeleccion.PERDEDORA
+        if codigo == 'NO':
+            return EstadoSeleccion.PERDEDORA if ambos_anotan else EstadoSeleccion.GANADORA
+        return EstadoSeleccion.ANULADA
+
+    if mercado.tipo_mercado == TipoMercado.OVER_UNDER:
+        if codigo.startswith('OVER_'):
+            linea = _linea_desde_codigo(codigo.removeprefix('OVER_'))
+            if total_goles == linea:
+                return EstadoSeleccion.ANULADA
+            return EstadoSeleccion.GANADORA if total_goles > linea else EstadoSeleccion.PERDEDORA
+        if codigo.startswith('UNDER_'):
+            linea = _linea_desde_codigo(codigo.removeprefix('UNDER_'))
+            if total_goles == linea:
+                return EstadoSeleccion.ANULADA
+            return EstadoSeleccion.GANADORA if total_goles < linea else EstadoSeleccion.PERDEDORA
+        return EstadoSeleccion.ANULADA
+
+    if mercado.tipo_mercado == TipoMercado.HANDICAP:
+        if codigo.startswith('HOME_'):
+            linea = _linea_desde_codigo(codigo.removeprefix('HOME_'))
+            local_ajustado = Decimal(marcador_local) + linea
+            visitante = Decimal(marcador_visitante)
+            if local_ajustado == visitante:
+                return EstadoSeleccion.ANULADA
+            return EstadoSeleccion.GANADORA if local_ajustado > visitante else EstadoSeleccion.PERDEDORA
+        if codigo.startswith('AWAY_'):
+            linea = _linea_desde_codigo(codigo.removeprefix('AWAY_'))
+            visitante_ajustado = Decimal(marcador_visitante) + linea
+            local = Decimal(marcador_local)
+            if visitante_ajustado == local:
+                return EstadoSeleccion.ANULADA
+            return EstadoSeleccion.GANADORA if visitante_ajustado > local else EstadoSeleccion.PERDEDORA
+        return EstadoSeleccion.ANULADA
+
+    return EstadoSeleccion.ANULADA
+
+
 def crear_mercado_rapido(
     evento,
     plantilla,
@@ -369,3 +426,66 @@ def marcar_seleccion_ganadora(seleccion):
     mercado.full_clean()
     mercado.save(update_fields=['estado_mercado'])
     return seleccion
+
+
+def resolver_mercados_por_marcador(evento, marcador_local, marcador_visitante):
+    evento = _resolver_evento(evento)
+    mercados_resueltos = []
+    ahora = timezone.now()
+
+    mercados = Mercado.objects.select_for_update().filter(evento=evento).prefetch_related('selecciones')
+    for mercado in mercados:
+        estados = []
+        for seleccion in mercado.selecciones.all():
+            try:
+                estado = _resolver_codigo_seleccion(mercado, seleccion, marcador_local, marcador_visitante)
+            except (InvalidOperation, ValueError):
+                estado = EstadoSeleccion.ANULADA
+
+            seleccion.estado_seleccion = estado
+            seleccion.save(update_fields=['estado_seleccion'])
+            estados.append(estado)
+
+        if estados and any(estado != EstadoSeleccion.ANULADA for estado in estados):
+            mercado.estado_mercado = EstadoMercado.LIQUIDADO
+        else:
+            mercado.estado_mercado = EstadoMercado.ANULADO
+        mercado.save(update_fields=['estado_mercado'])
+        mercados_resueltos.append(mercado)
+
+    HistorialOdds.objects.filter(seleccion__mercado__evento=evento, activa=True).update(
+        activa=False,
+        valido_hasta=ahora,
+    )
+    return mercados_resueltos
+
+
+@transaction.atomic
+def finalizar_evento_y_liquidar(evento, resultado, liquidado_por=None):
+    from apuesta.servicios import liquidar_apuestas_de_evento
+
+    evento = confirmar_resultado_evento(evento, resultado)
+    resolver_mercados_por_marcador(
+        evento,
+        resultado.get('marcador_local'),
+        resultado.get('marcador_visitante'),
+    )
+    liquidaciones = liquidar_apuestas_de_evento(
+        evento,
+        liquidado_por=liquidado_por,
+        observacion='Liquidacion automatica por marcador final.',
+    )
+    return evento, liquidaciones
+
+
+@transaction.atomic
+def anular_evento_y_liquidar(evento, liquidado_por=None):
+    from apuesta.servicios import liquidar_apuestas_de_evento
+
+    evento = anular_evento(evento)
+    liquidaciones = liquidar_apuestas_de_evento(
+        evento,
+        liquidado_por=liquidado_por,
+        observacion='Liquidacion automatica por anulacion de evento.',
+    )
+    return evento, liquidaciones

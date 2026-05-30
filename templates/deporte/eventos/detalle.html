@@ -34,8 +34,7 @@
         <div class="fb-panel__header">
             <div>
                 <h3>Resultado y finalizacion</h3>
-                <p>Confirma el marcador final y la seleccion ganadora. Por ahora la liquidacion guiada se enfoca en
-                    Resultado final 1X2.</p>
+                <p>Confirma el marcador final. FairBet resolvera todos los mercados automaticamente.</p>
             </div>
         </div>
         <form class="fb-result-form" method="post" action="{% url 'deporte:evento_confirmar_resultado' evento.pk %}">
@@ -46,17 +45,6 @@
                 <span>-</span>
                 <label>{{ evento.equipo_visitante }} <input class="app-field" type="number" name="marcador_visitante"
                         min="0" value="{{ evento.marcador_visitante }}"></label>
-            </div>
-            <div class="fb-result-options">
-                {% for mercado in mercados %}
-                {% if mercado.tipo_mercado == '1X2' %}
-                <p>Resultado final</p>
-                {% for seleccion in mercado.selecciones_workspace %}
-                <label class="fb-result-choice"><input type="radio" name="seleccion_ganadora"
-                        value="{{ seleccion.pk }}"> {{ seleccion.nombre }}</label>
-                {% endfor %}
-                {% endif %}
-                {% endfor %}
             </div>
             <button class="button button--primary" type="submit">Confirmar resultado y liquidar</button>
         </form>
