@@ -28,38 +28,64 @@
 
         {% for evento in eventos %}
             <article class="evento-card" data-evento-id="{{ evento.id_evento }}">
-                <div class="evento-card__top">
-                    <div>
-                        <span class="evento-card__league">{{ evento.competicion }}</span>
-                        <h3>{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}</h3>
-                        {% if evento.estado_evento == 'EN_VIVO' %}
-                            <span class="evento-marcador">{{ evento.marcador_local }} - {{ evento.marcador_visitante }}</span>
-                        {% else %}
-                            <span class="evento-marcador" hidden>0 - 0</span>
-                        {% endif %}
+                {% if evento.estado_evento == 'EN_VIVO' %}
+                    <div class="scoreboard">
+                        <div class="scoreboard__team scoreboard__team--left">
+                            <span class="scoreboard__name">{{ evento.equipo_local }}</span>
+                        </div>
+                        <div class="scoreboard__center">
+                            <div class="scoreboard__badge">
+                                <span class="scoreboard__live-dot"></span>
+                                LIVE
+                            </div>
+                            <div class="scoreboard__score">
+                                <span class="scoreboard__goals">{{ evento.marcador_local }}</span>
+                                <span class="scoreboard__sep">-</span>
+                                <span class="scoreboard__goals">{{ evento.marcador_visitante }}</span>
+                            </div>
+                            <div class="scoreboard__time">
+                                <i class="bi bi-clock-fill"></i>
+                                <span class="scoreboard__clock" data-inicio="{{ evento.inicia_en|date:'c' }}">00:00</span>
+                            </div>
+                        </div>
+                        <div class="scoreboard__team scoreboard__team--right">
+                            <span class="scoreboard__name">{{ evento.equipo_visitante }}</span>
+                        </div>
                     </div>
-                    {% if evento.estado_evento == 'EN_VIVO' %}
-                        <span class="status-pill status-pill--live">🔴 En vivo</span>
-                    {% elif evento.estado_evento == 'SUSPENDIDO' %}
-                        <span class="status-pill status-pill--warn">Suspendido</span>
-                    {% else %}
-                        <span class="status-pill status-pill--ok">{{ evento.inicia_en|date:'d/m H:i' }}</span>
-                    {% endif %}
-                </div>
+                {% else %}
+                    <div class="evento-card__top">
+                        <span class="evento-card__league">{{ evento.competicion }}</span>
+                        <div class="evento-matchup">
+                            <span class="evento-matchup__team evento-matchup__team--left">{{ evento.equipo_local }}</span>
+                            <div class="evento-matchup__center">
+                                {% if evento.estado_evento == 'SUSPENDIDO' %}
+                                    <span class="status-pill status-pill--warn">Suspendido</span>
+                                {% else %}
+                                    <span class="evento-matchup__time">{{ evento.inicia_en|date:'d/m · H:i' }}</span>
+                                {% endif %}
+                            </div>
+                            <span class="evento-matchup__team evento-matchup__team--right">{{ evento.equipo_visitante }}</span>
+                        </div>
+                    </div>
+                {% endif %}
 
                 {% for mercado in evento.mercados.all %}
                     {% if mercado.selecciones_activas %}
-                        <div class="mercado-row" data-mercado-id="{{ mercado.id_mercado }}">
-                            <div class="mercado-row__title">
-                                <strong>{{ mercado.nombre }}</strong>
-                                <span>Min {{ mercado.stake_minimo|floatformat:2 }} | Max {{ mercado.stake_maximo|floatformat:2 }}</span>
-                            </div>
+                        <details class="mercado-row" data-mercado-id="{{ mercado.id_mercado }}" open>
+                            <summary class="mercado-row__header">
+                                <span class="mercado-row__icon"><i class="bi bi-diamond-half"></i></span>
+                                <span class="mercado-row__name">{{ mercado.nombre }}</span>
+                                <span class="mercado-row__count">({{ mercado.selecciones_activas|length }})</span>
+                                <i class="bi bi-chevron-down mercado-row__arrow"></i>
+                            </summary>
                             <div class="odds-grid">
                                 {% for seleccion in mercado.selecciones_activas %}
                                     <button
                                         type="button"
-                                        class="odd-button"
+                                        class="odd-button{% if seleccion.id_seleccion in selecciones_apostadas %} is-apostada{% endif %}"
+                                        {% if seleccion.id_seleccion in selecciones_apostadas %}disabled title="Ya tienes una apuesta pendiente en esta seleccion"{% endif %}
                                         data-seleccion-id="{{ seleccion.id_seleccion }}"
+                                        data-mercado-id="{{ mercado.id_mercado }}"
                                         data-seleccion="{{ seleccion.nombre }}"
                                         data-evento="{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}"
                                         data-mercado="{{ mercado.nombre }}"
@@ -73,7 +99,7 @@
                                     </button>
                                 {% endfor %}
                             </div>
-                        </div>
+                        </details>
                     {% endif %}
                 {% endfor %}
             </article>
@@ -84,50 +110,58 @@
 
     <aside class="apuestas-sidebar">
         <div class="ticket-panel">
-            <p class="eyebrow">Ticket de apuesta</p>
-            <h3>Confirma tu seleccion</h3>
+            <div class="ticket-header">
+                <div class="ticket-header__left">
+                    <i class="bi bi-ticket-perforated"></i>
+                    <span class="ticket-header__title">Cupon de apuestas</span>
+                </div>
+                <span class="ticket-counter" id="ticket-counter">0/30</span>
+            </div>
+
             <form method="post" class="bet-slip" id="bet-slip">
                 {% csrf_token %}
-                <div class="ticket-empty" id="ticket-empty">Selecciona una o mas cuotas para armar tu ticket combinado.</div>
+                <div class="ticket-empty" id="ticket-empty">
+                    <i class="bi bi-inbox" style="font-size:2rem; color:var(--muted);"></i>
+                    <p>Selecciona cuotas del evento para agregar al cupon</p>
+                </div>
                 <div class="ticket-content" id="ticket-content" hidden>
+                    <div class="ticket-items-header">
+                        <span>Seleccion</span>
+                        <span>Cuota</span>
+                    </div>
                     <div id="ticket-items"></div>
-                    <div class="ticket-numbers">
-                        <div>
-                            <span>Cuota combinada</span>
-                            <strong id="ticket-odds">—</strong>
+
+                    <div class="ticket-summary">
+                        <div class="ticket-summary__row">
+                            <span>Cuota total</span>
+                            <strong id="ticket-odds">1.00</strong>
                         </div>
-                        <div>
-                            <span>Pago potencial</span>
+                        <div class="ticket-summary__row ticket-summary__row--highlight">
+                            <span>Ganancia potencial</span>
                             <strong id="ticket-payout">0.00</strong>
                         </div>
                     </div>
-                    <label class="ticket-label" for="ticket-stake">Fichas a apostar</label>
-                    <input class="stake-input" type="number" name="stake" id="ticket-stake" step="0.01" placeholder="Ej. 10.00">
-                    <div class="quick-stakes" aria-label="Montos rapidos">
-                        <button type="button" data-stake="10">10</button>
-                        <button type="button" data-stake="25">25</button>
-                        <button type="button" data-stake="50">50</button>
-                        <button type="button" data-stake="100">100</button>
+
+                    <div class="ticket-stake">
+                        <label for="ticket-stake">Monto a apostar</label>
+                        <div class="ticket-stake__input">
+                            <input type="number" name="stake" id="ticket-stake" step="0.01" min="1" placeholder="0.00">
+                        </div>
+                        <div class="quick-stakes">
+                            <button type="button" data-stake="10">10</button>
+                            <button type="button" data-stake="25">25</button>
+                            <button type="button" data-stake="50">50</button>
+                            <button type="button" data-stake="100">100</button>
+                        </div>
                     </div>
-                    <small id="ticket-limits"></small>
-                    <button type="submit" class="button button--primary button--full">Confirmar apuesta combinada</button>
+
+                    <small id="ticket-limits" class="ticket-limits"></small>
+                    <button type="submit" class="ticket-submit" id="ticket-submit">
+                        <i class="bi bi-check-circle"></i>
+                        <span>Apostar</span>
+                    </button>
                 </div>
             </form>
-        </div>
-
-        <div class="ticket-panel">
-            <p class="eyebrow">Historial</p>
-            <h3>Mis apuestas recientes</h3>
-            {% for apuesta in mis_apuestas %}
-                <div class="mini-bet">
-                    <strong>#{{ apuesta.id_apuesta }} - {{ apuesta.get_estado_apuesta_display }}</strong>
-                    <span>Stake: {{ apuesta.stake|floatformat:2 }} | Cuota: {{ apuesta.odds_total|floatformat:2 }}</span>
-                    <span>Pago potencial: {{ apuesta.payout_potencial|floatformat:2 }}</span>
-                </div>
-            {% empty %}
-                <p class="empty-state">Aun no tienes apuestas registradas.</p>
-            {% endfor %}
-            <a href="{% url 'apuesta:mis_apuestas_web' %}" class="button button--secondary button--full">Ver historial</a>
         </div>
     </aside>
 </section>
@@ -136,29 +170,20 @@
 {% block extra_js %}
 <script src="{% static 'js/apuestas.js' %}"></script>
 <script>
-// Conectar un WebSocket por cada evento visible en la página
+// WebSocket por cada evento visible
 document.querySelectorAll('.evento-card[data-evento-id]').forEach(card => {
     const idEvento = card.dataset.eventoId;
     const wsUrl = `ws://${location.host}/ws/eventos/${idEvento}/`;
     const socket = new WebSocket(wsUrl);
-
-    socket.onopen = () => {
-        console.log(`[WS] Conectado al evento ${idEvento}`);
-    };
-
-    socket.onmessage = (e) => {
-        const msg = JSON.parse(e.data);
-        if (msg.type === 'odds.update') {
-            actualizarOddsEnDOM(card, msg);
-        } else if (msg.type === 'mercado.estado') {
-            actualizarEstadoMercadoEnDOM(card, msg);
-        } else if (msg.type === 'evento.estado') {
-            actualizarEstadoEventoEnDOM(card, msg);
-        }
-    };
-
+    socket.onopen  = () => console.log(`[WS] Conectado evento ${idEvento}`);
     socket.onerror = (err) => console.warn(`[WS] Error evento ${idEvento}:`, err);
     socket.onclose = () => console.log(`[WS] Cerrado evento ${idEvento}`);
+    socket.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if      (msg.type === 'odds.update')    actualizarOddsEnDOM(card, msg);
+        else if (msg.type === 'mercado.estado') actualizarEstadoMercadoEnDOM(card, msg);
+        else if (msg.type === 'evento.estado')  actualizarEstadoEventoEnDOM(card, msg);
+    };
 });
 
 function actualizarOddsEnDOM(card, msg) {
@@ -170,13 +195,11 @@ function actualizarOddsEnDOM(card, msg) {
     btn.dataset.version = msg.version;
     btn.querySelector('.odd-value').textContent = parseFloat(msg.odds).toFixed(2);
 
-    // Animación visual para indicar que la cuota cambió
     const subio = parseFloat(msg.odds) > parseFloat(oddsAnterior);
     btn.classList.remove('odds-up', 'odds-down');
     btn.classList.add(subio ? 'odds-up' : 'odds-down');
-    setTimeout(() => btn.classList.remove('odds-up', 'odds-down'), 2000);
+    setTimeout(() => btn.classList.remove('odds-up', 'odds-down'), 1500);
 
-    // Si esta selección ya está en el ticket, actualizar la cuota ahí también
     const enTicket = selecciones.findIndex(s => s.seleccionId === String(msg.id_seleccion));
     if (enTicket !== -1) {
         selecciones[enTicket].odds = msg.odds;
@@ -191,17 +214,19 @@ function actualizarEstadoMercadoEnDOM(card, msg) {
     if (!fila) return;
     const suspendido = msg.estado === 'SUSPENDIDO' || msg.estado === 'CERRADO';
     fila.querySelectorAll('.odd-button').forEach(btn => {
-        btn.disabled = suspendido;
-        btn.title = suspendido ? 'Mercado suspendido' : '';
+        if (!btn.classList.contains('is-apostada')) {
+            btn.disabled = suspendido;
+            btn.title = suspendido ? 'Mercado suspendido' : '';
+        }
     });
     let badge = fila.querySelector('.mercado-suspendido-badge');
     if (suspendido) {
         if (!badge) {
             badge = document.createElement('span');
             badge.className = 'mercado-suspendido-badge';
-            fila.querySelector('.mercado-row__title')?.appendChild(badge);
+            fila.querySelector('.mercado-row__header')?.appendChild(badge);
         }
-        badge.textContent = '⏸ Suspendido';
+        badge.textContent = 'Suspendido';
     } else if (badge) {
         badge.remove();
     }
@@ -209,25 +234,29 @@ function actualizarEstadoMercadoEnDOM(card, msg) {
 
 function actualizarEstadoEventoEnDOM(card, msg) {
     const pill = card.querySelector('.status-pill');
-    if (!pill) return;
-    if (msg.estado === 'EN_VIVO') {
-        pill.textContent = '🔴 En vivo';
-        pill.className = 'status-pill status-pill--live';
-    } else if (msg.estado === 'SUSPENDIDO') {
-        pill.textContent = 'Suspendido';
-        pill.className = 'status-pill status-pill--warn';
-    } else if (msg.estado === 'FINALIZADO') {
-        pill.textContent = 'Finalizado';
-        pill.className = 'status-pill status-pill--off';
-        card.querySelectorAll('.odd-button').forEach(btn => btn.disabled = true);
+    if (pill) {
+        if (msg.estado === 'EN_VIVO') {
+            pill.textContent = 'En vivo';
+            pill.className = 'status-pill status-pill--live';
+        } else if (msg.estado === 'SUSPENDIDO') {
+            pill.textContent = 'Suspendido';
+            pill.className = 'status-pill status-pill--warn';
+        } else if (msg.estado === 'FINALIZADO') {
+            pill.textContent = 'Finalizado';
+            pill.className = 'status-pill status-pill--off';
+            card.querySelectorAll('.odd-button').forEach(btn => btn.disabled = true);
+        }
     }
+    // Actualizar marcador en scoreboard (eventos en vivo)
     if (msg.marcador_local !== undefined && msg.marcador_visitante !== undefined) {
-        const marcador = card.querySelector('.evento-marcador');
-        if (marcador) marcador.textContent = `${msg.marcador_local} - ${msg.marcador_visitante}`;
+        const goals = card.querySelectorAll('.scoreboard__goals');
+        if (goals.length === 2) {
+            goals[0].textContent = msg.marcador_local;
+            goals[1].textContent = msg.marcador_visitante;
+        }
     }
 }
 
-// Banner de re-cotización cuando la cuota del ticket cambia en vivo
 function mostrarAlertaRecotizacion(msg) {
     let banner = document.getElementById('recotizacion-banner');
     if (!banner) {
@@ -238,9 +267,30 @@ function mostrarAlertaRecotizacion(msg) {
     }
     banner.innerHTML = `
         <i class="bi bi-exclamation-triangle"></i>
-        <span>Una cuota de tu ticket cambió a <strong>${parseFloat(msg.odds).toFixed(2)}</strong>. Revisa antes de confirmar.</span>
+        <span>Cuota cambiada a <strong>${parseFloat(msg.odds).toFixed(2)}</strong>. Revisa antes de confirmar.</span>
     `;
     banner.hidden = false;
 }
+
+// Reloj en vivo - actualiza el tiempo de cada evento en vivo
+function actualizarRelojes() {
+    document.querySelectorAll('.scoreboard__clock').forEach(reloj => {
+        const inicio = reloj.dataset.inicio;
+        if (!inicio) return;
+        const fechaInicio = new Date(inicio);
+        const ahora = new Date();
+        const diff = Math.floor((ahora - fechaInicio) / 1000);
+        if (diff < 0) {
+            reloj.textContent = '00:00';
+            return;
+        }
+        const min = Math.floor(diff / 60);
+        const seg = diff % 60;
+        reloj.textContent = `${String(min).padStart(2, '0')}:${String(seg).padStart(2, '0')}`;
+    });
+}
+
+setInterval(actualizarRelojes, 1000);
+actualizarRelojes();
 </script>
 {% endblock %}
