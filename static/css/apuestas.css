@@ -257,3 +257,112 @@
         grid-template-columns: 1fr;
     }
 }
+
+/* ── Status pill base ── */
+.status-pill {
+    display: inline-block;
+    flex-shrink: 0;
+    border-radius: 999px;
+    padding: 3px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.status-pill--ok {
+    background: rgba(34, 197, 94, 0.12);
+    color: #4ade80;
+    border: 1px solid rgba(34, 197, 94, 0.25);
+}
+
+.evento-marcador {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #f87171;
+    letter-spacing: 0.05em;
+}
+
+/* ── WebSocket: animaciones de cuota en tiempo real ── */
+@keyframes flash-up {
+    0%   { background: rgba(34, 197, 94, 0.35); border-color: #22c55e; }
+    100% { background: rgba(255, 255, 255, 0.045); border-color: var(--line); }
+}
+
+@keyframes flash-down {
+    0%   { background: rgba(239, 68, 68, 0.35); border-color: #ef4444; }
+    100% { background: rgba(255, 255, 255, 0.045); border-color: var(--line); }
+}
+
+.odd-button.odds-up {
+    animation: flash-up 2s ease-out forwards;
+}
+
+.odd-button.odds-down {
+    animation: flash-down 2s ease-out forwards;
+}
+
+.odd-button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+/* Banner de re-cotización */
+.recotizacion-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px;
+    border: 1px solid #f59e0b;
+    border-radius: 12px;
+    background: rgba(245, 158, 11, 0.12);
+    color: #fbbf24;
+    font-size: 0.88rem;
+}
+
+.recotizacion-banner i {
+    flex-shrink: 0;
+    font-size: 1rem;
+}
+
+/* Pill de estado en vivo */
+.status-pill--live {
+    background: rgba(239, 68, 68, 0.15);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.status-pill--warn {
+    background: rgba(245, 158, 11, 0.15);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 0.8rem;
+}
+
+.status-pill--off {
+    background: rgba(107, 114, 128, 0.15);
+    color: #9ca3af;
+    border: 1px solid rgba(107, 114, 128, 0.3);
+    border-radius: 999px;
+    padding: 2px 10px;
+    font-size: 0.8rem;
+}
+
+.mercado-suspendido-badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 999px;
+    background: rgba(245, 158, 11, 0.12);
+    color: #fbbf24;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    font-size: 0.75rem;
+    font-weight: 600;
+}

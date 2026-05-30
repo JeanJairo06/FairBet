@@ -27,18 +27,29 @@
         </div>
 
         {% for evento in eventos %}
-            <article class="evento-card">
+            <article class="evento-card" data-evento-id="{{ evento.id_evento }}">
                 <div class="evento-card__top">
                     <div>
                         <span class="evento-card__league">{{ evento.competicion }}</span>
                         <h3>{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}</h3>
+                        {% if evento.estado_evento == 'EN_VIVO' %}
+                            <span class="evento-marcador">{{ evento.marcador_local }} - {{ evento.marcador_visitante }}</span>
+                        {% else %}
+                            <span class="evento-marcador" hidden>0 - 0</span>
+                        {% endif %}
                     </div>
-                    <span class="status-pill status-pill--ok">{{ evento.inicia_en|date:'d/m H:i' }}</span>
+                    {% if evento.estado_evento == 'EN_VIVO' %}
+                        <span class="status-pill status-pill--live">🔴 En vivo</span>
+                    {% elif evento.estado_evento == 'SUSPENDIDO' %}
+                        <span class="status-pill status-pill--warn">Suspendido</span>
+                    {% else %}
+                        <span class="status-pill status-pill--ok">{{ evento.inicia_en|date:'d/m H:i' }}</span>
+                    {% endif %}
                 </div>
 
                 {% for mercado in evento.mercados.all %}
                     {% if mercado.selecciones_activas %}
-                        <div class="mercado-row">
+                        <div class="mercado-row" data-mercado-id="{{ mercado.id_mercado }}">
                             <div class="mercado-row__title">
                                 <strong>{{ mercado.nombre }}</strong>
                                 <span>Min {{ mercado.stake_minimo|floatformat:2 }} | Max {{ mercado.stake_maximo|floatformat:2 }}</span>
@@ -53,11 +64,12 @@
                                         data-evento="{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}"
                                         data-mercado="{{ mercado.nombre }}"
                                         data-odds="{{ seleccion.odds_activa.odds }}"
+                                        data-version="{{ seleccion.odds_activa.numero_version }}"
                                         data-min="{{ mercado.stake_minimo }}"
                                         data-max="{{ mercado.stake_maximo }}"
                                     >
                                         <span>{{ seleccion.nombre }}</span>
-                                        <strong>{{ seleccion.odds_activa.odds|floatformat:2 }}</strong>
+                                        <strong class="odd-value">{{ seleccion.odds_activa.odds|floatformat:2 }}</strong>
                                     </button>
                                 {% endfor %}
                             </div>
@@ -123,4 +135,112 @@
 
 {% block extra_js %}
 <script src="{% static 'js/apuestas.js' %}"></script>
+<script>
+// Conectar un WebSocket por cada evento visible en la página
+document.querySelectorAll('.evento-card[data-evento-id]').forEach(card => {
+    const idEvento = card.dataset.eventoId;
+    const wsUrl = `ws://${location.host}/ws/eventos/${idEvento}/`;
+    const socket = new WebSocket(wsUrl);
+
+    socket.onopen = () => {
+        console.log(`[WS] Conectado al evento ${idEvento}`);
+    };
+
+    socket.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'odds.update') {
+            actualizarOddsEnDOM(card, msg);
+        } else if (msg.type === 'mercado.estado') {
+            actualizarEstadoMercadoEnDOM(card, msg);
+        } else if (msg.type === 'evento.estado') {
+            actualizarEstadoEventoEnDOM(card, msg);
+        }
+    };
+
+    socket.onerror = (err) => console.warn(`[WS] Error evento ${idEvento}:`, err);
+    socket.onclose = () => console.log(`[WS] Cerrado evento ${idEvento}`);
+});
+
+function actualizarOddsEnDOM(card, msg) {
+    const btn = card.querySelector(`.odd-button[data-seleccion-id="${msg.id_seleccion}"]`);
+    if (!btn) return;
+
+    const oddsAnterior = btn.dataset.odds;
+    btn.dataset.odds = msg.odds;
+    btn.dataset.version = msg.version;
+    btn.querySelector('.odd-value').textContent = parseFloat(msg.odds).toFixed(2);
+
+    // Animación visual para indicar que la cuota cambió
+    const subio = parseFloat(msg.odds) > parseFloat(oddsAnterior);
+    btn.classList.remove('odds-up', 'odds-down');
+    btn.classList.add(subio ? 'odds-up' : 'odds-down');
+    setTimeout(() => btn.classList.remove('odds-up', 'odds-down'), 2000);
+
+    // Si esta selección ya está en el ticket, actualizar la cuota ahí también
+    const enTicket = selecciones.findIndex(s => s.seleccionId === String(msg.id_seleccion));
+    if (enTicket !== -1) {
+        selecciones[enTicket].odds = msg.odds;
+        selecciones[enTicket].version = msg.version;
+        actualizarTicket();
+        mostrarAlertaRecotizacion(msg);
+    }
+}
+
+function actualizarEstadoMercadoEnDOM(card, msg) {
+    const fila = card.querySelector(`.mercado-row[data-mercado-id="${msg.id_mercado}"]`);
+    if (!fila) return;
+    const suspendido = msg.estado === 'SUSPENDIDO' || msg.estado === 'CERRADO';
+    fila.querySelectorAll('.odd-button').forEach(btn => {
+        btn.disabled = suspendido;
+        btn.title = suspendido ? 'Mercado suspendido' : '';
+    });
+    let badge = fila.querySelector('.mercado-suspendido-badge');
+    if (suspendido) {
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'mercado-suspendido-badge';
+            fila.querySelector('.mercado-row__title')?.appendChild(badge);
+        }
+        badge.textContent = '⏸ Suspendido';
+    } else if (badge) {
+        badge.remove();
+    }
+}
+
+function actualizarEstadoEventoEnDOM(card, msg) {
+    const pill = card.querySelector('.status-pill');
+    if (!pill) return;
+    if (msg.estado === 'EN_VIVO') {
+        pill.textContent = '🔴 En vivo';
+        pill.className = 'status-pill status-pill--live';
+    } else if (msg.estado === 'SUSPENDIDO') {
+        pill.textContent = 'Suspendido';
+        pill.className = 'status-pill status-pill--warn';
+    } else if (msg.estado === 'FINALIZADO') {
+        pill.textContent = 'Finalizado';
+        pill.className = 'status-pill status-pill--off';
+        card.querySelectorAll('.odd-button').forEach(btn => btn.disabled = true);
+    }
+    if (msg.marcador_local !== undefined && msg.marcador_visitante !== undefined) {
+        const marcador = card.querySelector('.evento-marcador');
+        if (marcador) marcador.textContent = `${msg.marcador_local} - ${msg.marcador_visitante}`;
+    }
+}
+
+// Banner de re-cotización cuando la cuota del ticket cambia en vivo
+function mostrarAlertaRecotizacion(msg) {
+    let banner = document.getElementById('recotizacion-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'recotizacion-banner';
+        banner.className = 'recotizacion-banner';
+        document.getElementById('bet-slip')?.prepend(banner);
+    }
+    banner.innerHTML = `
+        <i class="bi bi-exclamation-triangle"></i>
+        <span>Una cuota de tu ticket cambió a <strong>${parseFloat(msg.odds).toFixed(2)}</strong>. Revisa antes de confirmar.</span>
+    `;
+    banner.hidden = false;
+}
+</script>
 {% endblock %}
