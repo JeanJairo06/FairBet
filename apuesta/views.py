@@ -4,16 +4,16 @@ from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
 from django.db.models import Prefetch, Q
-from django.shortcuts import redirect
+from django.shortcuts import redirect, render
 from django.utils import timezone
-from django.views.generic import ListView
+from django.views.generic import ListView, View
 from rest_framework import status
 from rest_framework.generics import ListCreateAPIView
 from rest_framework.response import Response
 
 from apuesta.models import Apuesta
-from apuesta.servicios import crear_apuesta_simple
 from apuesta.serializers import ApuestaSerializer, CrearApuestaSimpleSerializer
+from apuesta.servicios import crear_apuesta_simple
 from billetera.exceptions import BilleteraError
 from core.choices import EstadoEvento, EstadoMercado, EstadoSeleccion
 from deporte.models import EventoDeportivo, HistorialOdds, Mercado, SeleccionMercado
@@ -59,7 +59,7 @@ class ApuestasWebView(LoginRequiredMixin, ListView):
             estado_mercado=EstadoMercado.ABIERTO,
         ).filter(
             Q(evento__estado_evento=EstadoEvento.PROGRAMADO, evento__inicia_en__gt=ahora)
-            | Q(evento__estado_evento=EstadoEvento.EN_VIVO, permite_in_play=True)
+            | Q(evento__estado_evento=EstadoEvento.EN_VIVO)
         ).prefetch_related(
             Prefetch('selecciones', queryset=selecciones_apostables)
         )
@@ -70,7 +70,7 @@ class ApuestasWebView(LoginRequiredMixin, ListView):
             mercados__selecciones__historial_odds__activa=True,
         ).filter(
             Q(estado_evento=EstadoEvento.PROGRAMADO, inicia_en__gt=ahora)
-            | Q(estado_evento=EstadoEvento.EN_VIVO, mercados__permite_in_play=True)
+            | Q(estado_evento=EstadoEvento.EN_VIVO)
         ).distinct().prefetch_related(
             Prefetch('mercados', queryset=mercados_apostables),
         ).order_by('inicia_en')
@@ -127,6 +127,52 @@ class ApuestasWebView(LoginRequiredMixin, ListView):
         for err in errores:
             messages.error(request, err)
         return redirect('apuesta:mis_apuestas_web')
+
+
+class EventosFragmentoView(LoginRequiredMixin, View):
+    """Devuelve solo el fragmento HTML de la lista de eventos apostables.
+    Usado por el WebSocket del frontend para refrescar la sección sin recargar la página."""
+
+    login_url = 'login'
+
+    def get(self, request):
+        ahora = timezone.now()
+        selecciones_apostables = SeleccionMercado.objects.filter(
+            estado_seleccion=EstadoSeleccion.ACTIVA,
+            historial_odds__activa=True,
+        ).prefetch_related('historial_odds').distinct()
+        mercados_apostables = Mercado.objects.filter(
+            estado_mercado=EstadoMercado.ABIERTO,
+        ).filter(
+            Q(evento__estado_evento=EstadoEvento.PROGRAMADO, evento__inicia_en__gt=ahora)
+            | Q(evento__estado_evento=EstadoEvento.EN_VIVO)
+        ).prefetch_related(Prefetch('selecciones', queryset=selecciones_apostables))
+
+        eventos = EventoDeportivo.objects.filter(
+            mercados__estado_mercado=EstadoMercado.ABIERTO,
+            mercados__selecciones__estado_seleccion=EstadoSeleccion.ACTIVA,
+            mercados__selecciones__historial_odds__activa=True,
+        ).filter(
+            Q(estado_evento=EstadoEvento.PROGRAMADO, inicia_en__gt=ahora)
+            | Q(estado_evento=EstadoEvento.EN_VIVO)
+        ).distinct().prefetch_related(
+            Prefetch('mercados', queryset=mercados_apostables),
+        ).order_by('inicia_en')
+
+        odds_activas = {
+            odds.seleccion_id: odds
+            for odds in HistorialOdds.objects.filter(activa=True).select_related('seleccion')
+        }
+        for evento in eventos:
+            for mercado in evento.mercados.all():
+                mercado.selecciones_activas = [
+                    sel for sel in mercado.selecciones.all()
+                    if sel.estado_seleccion == EstadoSeleccion.ACTIVA and odds_activas.get(sel.id_seleccion)
+                ]
+                for sel in mercado.selecciones_activas:
+                    sel.odds_activa = odds_activas[sel.id_seleccion]
+
+        return render(request, 'apuestas/fragmento_eventos.html', {'eventos': eventos})
 
 
 class MisApuestasWebView(LoginRequiredMixin, ListView):

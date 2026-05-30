@@ -8,7 +8,7 @@
             {% if request.user.is_authenticated %}
                 {% if header_wallet_available %}
                     <span class="site-header__status-label">Saldo disponible</span>
-                    <strong><i class="bi bi-coin"></i> {{ header_wallet_balance_display }} monedas</strong>
+                    <strong><i class="bi bi-coin"></i> <span id="header-saldo">{{ header_wallet_balance_display }}</span> monedas</strong>
                 {% elif header_wallet_label %}
                     <span class="site-header__status-label">Sesion</span>
                     <strong><i class="bi bi-person-badge"></i> {{ header_wallet_label }}</strong>

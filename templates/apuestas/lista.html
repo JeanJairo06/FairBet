@@ -26,21 +26,22 @@
             <span>Juega con responsabilidad. Las fichas son virtuales y no tienen valor monetario real.</span>
         </div>
 
+        <div id="eventos-container">
         {% for evento in eventos %}
-            <article class="evento-card" data-evento-id="{{ evento.id_evento }}">
+            <article class="evento-card" data-evento-id="{{ evento.id_evento }}" data-estado-evento="{{ evento.estado_evento }}">
                 <div class="evento-card__top">
                     <div>
                         <span class="evento-card__league">{{ evento.competicion }}</span>
                         <h3>{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}</h3>
-                        {% if evento.estado_evento == 'EN_VIVO' %}
+                        {% if evento.estado_evento == 'en_vivo' %}
                             <span class="evento-marcador">{{ evento.marcador_local }} - {{ evento.marcador_visitante }}</span>
                         {% else %}
                             <span class="evento-marcador" hidden>0 - 0</span>
                         {% endif %}
                     </div>
-                    {% if evento.estado_evento == 'EN_VIVO' %}
+                    {% if evento.estado_evento == 'en_vivo' %}
                         <span class="status-pill status-pill--live">🔴 En vivo</span>
-                    {% elif evento.estado_evento == 'SUSPENDIDO' %}
+                    {% elif evento.estado_evento == 'suspendido' %}
                         <span class="status-pill status-pill--warn">Suspendido</span>
                     {% else %}
                         <span class="status-pill status-pill--ok">{{ evento.inicia_en|date:'d/m H:i' }}</span>
@@ -49,10 +50,11 @@
 
                 {% for mercado in evento.mercados.all %}
                     {% if mercado.selecciones_activas %}
-                        <div class="mercado-row" data-mercado-id="{{ mercado.id_mercado }}">
+                        <div class="mercado-row {% if evento.estado_evento == 'en_vivo' and not mercado.permite_in_play %}mercado-row--locked{% endif %}" data-mercado-id="{{ mercado.id_mercado }}" data-permite-in-play="{% if mercado.permite_in_play %}true{% else %}false{% endif %}">
                             <div class="mercado-row__title">
                                 <strong>{{ mercado.nombre }}</strong>
                                 <span>Min {{ mercado.stake_minimo|floatformat:2 }} | Max {{ mercado.stake_maximo|floatformat:2 }}</span>
+                                {% if evento.estado_evento == 'en_vivo' and not mercado.permite_in_play %}<em class="mercado-suspendido-badge">No permite in-play</em>{% endif %}
                             </div>
                             <div class="odds-grid">
                                 {% for seleccion in mercado.selecciones_activas %}
@@ -67,6 +69,7 @@
                                         data-version="{{ seleccion.odds_activa.numero_version }}"
                                         data-min="{{ mercado.stake_minimo }}"
                                         data-max="{{ mercado.stake_maximo }}"
+                                        {% if evento.estado_evento == 'en_vivo' and not mercado.permite_in_play %}disabled title="Este mercado no permite apuestas en vivo"{% endif %}
                                     >
                                         <span>{{ seleccion.nombre }}</span>
                                         <strong class="odd-value">{{ seleccion.odds_activa.odds|floatformat:2 }}</strong>
@@ -78,8 +81,9 @@
                 {% endfor %}
             </article>
         {% empty %}
-            <section class="data-panel empty-state">No hay eventos disponibles para apostar en este momento.</section>
+            <section class="data-panel empty-state" id="no-eventos-msg">No hay eventos disponibles para apostar en este momento.</section>
         {% endfor %}
+        </div>{# /#eventos-container #}
     </div>
 
     <aside class="apuestas-sidebar">
@@ -136,30 +140,80 @@
 {% block extra_js %}
 <script src="{% static 'js/apuestas.js' %}"></script>
 <script>
-// Conectar un WebSocket por cada evento visible en la página
-document.querySelectorAll('.evento-card[data-evento-id]').forEach(card => {
-    const idEvento = card.dataset.eventoId;
-    const wsUrl = `ws://${location.host}/ws/eventos/${idEvento}/`;
-    const socket = new WebSocket(wsUrl);
+// ── Canal global: nueva creación o finalización de eventos ───────────
+(function () {
+    const FRAGMENTO_URL = "{% url 'apuesta:eventos_fragmento' %}";
+    const contenedor = document.getElementById('eventos-container');
+    const wsScheme = location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${wsScheme}://${location.host}/ws/eventos/`);
 
-    socket.onopen = () => {
-        console.log(`[WS] Conectado al evento ${idEvento}`);
-    };
-
-    socket.onmessage = (e) => {
+    socket.onmessage = async (e) => {
         const msg = JSON.parse(e.data);
-        if (msg.type === 'odds.update') {
-            actualizarOddsEnDOM(card, msg);
-        } else if (msg.type === 'mercado.estado') {
-            actualizarEstadoMercadoEnDOM(card, msg);
-        } else if (msg.type === 'evento.estado') {
-            actualizarEstadoEventoEnDOM(card, msg);
+        if (msg.type !== 'lista.eventos.cambio') return;
+
+        // Recargar el fragmento de eventos desde el servidor
+        try {
+            const resp = await fetch(FRAGMENTO_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!resp.ok) return;
+            const html = await resp.text();
+
+            // Guardar selecciones activas antes de reemplazar el DOM
+            const seleccionesActivas = new Set(selecciones.map(s => s.seleccionId));
+
+            contenedor.innerHTML = html;
+
+            // Reconectar WebSockets individuales para los nuevos eventos
+            reconectarSocketsEventos();
+
+            // Restaurar estado visual de botones que estaban seleccionados
+            seleccionesActivas.forEach(id => {
+                const btn = contenedor.querySelector(`.odd-button[data-seleccion-id="${id}"]`);
+                if (btn) btn.classList.add('is-selected');
+            });
+
+            // Toast informativo según la acción
+            const accion = msg.accion;
+            if (accion === 'creado') {
+                mostrarToast(`🆕 Nuevo partido disponible: ${msg.equipo_local} vs ${msg.equipo_visitante}`, 'info');
+            } else if (accion === 'finalizado') {
+                mostrarToast(`🏁 Partido finalizado: ${msg.equipo_local} vs ${msg.equipo_visitante}`, 'warning');
+            }
+        } catch (err) {
+            console.warn('[WS] Error al recargar fragmento de eventos:', err);
         }
     };
 
+    socket.onerror = () => {};
+    socket.onclose = () => {};
+})();
+
+// ── Canal por evento individual ───────────────────────────────────────
+function reconectarSocketsEventos() {
+    document.querySelectorAll('.evento-card[data-evento-id]').forEach(conectarSocketEvento);
+}
+
+function conectarSocketEvento(card) {
+    // Evitar doble conexión si ya tiene socket activo
+    if (card._wsSocket && card._wsSocket.readyState <= 1) return;
+
+    const idEvento = card.dataset.eventoId;
+    const wsScheme = location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${wsScheme}://${location.host}/ws/eventos/${idEvento}/`);
+    card._wsSocket = socket;
+
+    socket.onopen = () => console.log(`[WS] Conectado al evento ${idEvento}`);
+    socket.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'odds.update') actualizarOddsEnDOM(card, msg);
+        else if (msg.type === 'mercado.estado') actualizarEstadoMercadoEnDOM(card, msg);
+        else if (msg.type === 'evento.estado') actualizarEstadoEventoEnDOM(card, msg);
+    };
     socket.onerror = (err) => console.warn(`[WS] Error evento ${idEvento}:`, err);
     socket.onclose = () => console.log(`[WS] Cerrado evento ${idEvento}`);
-});
+}
+
+// Conectar WebSockets iniciales al cargar la página
+reconectarSocketsEventos();
 
 function actualizarOddsEnDOM(card, msg) {
     const btn = card.querySelector(`.odd-button[data-seleccion-id="${msg.id_seleccion}"]`);
@@ -189,10 +243,15 @@ function actualizarOddsEnDOM(card, msg) {
 function actualizarEstadoMercadoEnDOM(card, msg) {
     const fila = card.querySelector(`.mercado-row[data-mercado-id="${msg.id_mercado}"]`);
     if (!fila) return;
-    const suspendido = msg.estado === 'SUSPENDIDO' || msg.estado === 'CERRADO';
+    const eventoEnVivo = card.dataset.estadoEvento === 'en_vivo';
+    const bloqueadoPorEstado = msg.estado === 'suspendido' || msg.estado === 'cerrado' || msg.estado === 'liquidado' || msg.estado === 'anulado';
+    const bloqueadoPorInPlay = eventoEnVivo && msg.permite_in_play === false;
+    const suspendido = bloqueadoPorEstado || bloqueadoPorInPlay;
+    fila.dataset.permiteInPlay = msg.permite_in_play ? 'true' : 'false';
+    fila.classList.toggle('mercado-row--locked', bloqueadoPorInPlay);
     fila.querySelectorAll('.odd-button').forEach(btn => {
         btn.disabled = suspendido;
-        btn.title = suspendido ? 'Mercado suspendido' : '';
+        btn.title = bloqueadoPorInPlay ? 'Este mercado no permite apuestas en vivo' : (bloqueadoPorEstado ? 'Mercado suspendido' : '');
     });
     let badge = fila.querySelector('.mercado-suspendido-badge');
     if (suspendido) {
@@ -201,7 +260,7 @@ function actualizarEstadoMercadoEnDOM(card, msg) {
             badge.className = 'mercado-suspendido-badge';
             fila.querySelector('.mercado-row__title')?.appendChild(badge);
         }
-        badge.textContent = '⏸ Suspendido';
+        badge.textContent = bloqueadoPorInPlay ? 'No permite in-play' : '⏸ Suspendido';
     } else if (badge) {
         badge.remove();
     }
@@ -210,20 +269,30 @@ function actualizarEstadoMercadoEnDOM(card, msg) {
 function actualizarEstadoEventoEnDOM(card, msg) {
     const pill = card.querySelector('.status-pill');
     if (!pill) return;
-    if (msg.estado === 'EN_VIVO') {
+    if (msg.estado === 'en_vivo') {
+        card.dataset.estadoEvento = 'en_vivo';
         pill.textContent = '🔴 En vivo';
         pill.className = 'status-pill status-pill--live';
-    } else if (msg.estado === 'SUSPENDIDO') {
+        const marcador = card.querySelector('.evento-marcador');
+        if (marcador) marcador.hidden = false;
+    } else if (msg.estado === 'suspendido') {
+        card.dataset.estadoEvento = 'suspendido';
         pill.textContent = 'Suspendido';
         pill.className = 'status-pill status-pill--warn';
-    } else if (msg.estado === 'FINALIZADO') {
+    } else if (msg.estado === 'finalizado' || msg.estado === 'anulado') {
+        card.dataset.estadoEvento = msg.estado;
         pill.textContent = 'Finalizado';
         pill.className = 'status-pill status-pill--off';
         card.querySelectorAll('.odd-button').forEach(btn => btn.disabled = true);
     }
     if (msg.marcador_local !== undefined && msg.marcador_visitante !== undefined) {
         const marcador = card.querySelector('.evento-marcador');
-        if (marcador) marcador.textContent = `${msg.marcador_local} - ${msg.marcador_visitante}`;
+        if (marcador) {
+            marcador.hidden = false;
+            marcador.textContent = `${msg.marcador_local} - ${msg.marcador_visitante}`;
+            marcador.classList.add('evento-marcador--flash');
+            setTimeout(() => marcador.classList.remove('evento-marcador--flash'), 1200);
+        }
     }
 }
 

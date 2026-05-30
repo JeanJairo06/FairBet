@@ -34,7 +34,7 @@
             </thead>
             <tbody>
                 {% for apuesta in apuestas %}
-                    <tr>
+                    <tr data-apuesta-id="{{ apuesta.id_apuesta }}">
                         <td><strong>#{{ apuesta.id_apuesta }}</strong><span>{{ apuesta.get_tipo_apuesta_display }}</span></td>
                         <td>{{ apuesta.stake|floatformat:2 }}</td>
                         <td>{{ apuesta.odds_total|floatformat:2 }}</td>

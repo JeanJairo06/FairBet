@@ -65,6 +65,10 @@
     border-top: 1px solid var(--line);
 }
 
+.mercado-row--locked {
+    opacity: 0.78;
+}
+
 .odds-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -282,6 +286,15 @@
     font-weight: 700;
     color: #f87171;
     letter-spacing: 0.05em;
+}
+
+@keyframes marcador-flash {
+    0% { color: #fef08a; transform: scale(1.08); }
+    100% { color: #f87171; transform: scale(1); }
+}
+
+.evento-marcador--flash {
+    animation: marcador-flash 1.2s ease-out forwards;
 }
 
 /* ── WebSocket: animaciones de cuota en tiempo real ── */

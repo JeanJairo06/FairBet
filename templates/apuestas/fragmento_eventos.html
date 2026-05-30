@@ -1,0 +1,57 @@
+{% load static %}
+{% for evento in eventos %}
+    <article class="evento-card" data-evento-id="{{ evento.id_evento }}" data-estado-evento="{{ evento.estado_evento }}">
+        <div class="evento-card__top">
+            <div>
+                <span class="evento-card__league">{{ evento.competicion }}</span>
+                <h3>{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}</h3>
+                {% if evento.estado_evento == 'en_vivo' %}
+                    <span class="evento-marcador">{{ evento.marcador_local }} - {{ evento.marcador_visitante }}</span>
+                {% else %}
+                    <span class="evento-marcador" hidden>0 - 0</span>
+                {% endif %}
+            </div>
+            {% if evento.estado_evento == 'en_vivo' %}
+                <span class="status-pill status-pill--live">🔴 En vivo</span>
+            {% elif evento.estado_evento == 'suspendido' %}
+                <span class="status-pill status-pill--warn">Suspendido</span>
+            {% else %}
+                <span class="status-pill status-pill--ok">{{ evento.inicia_en|date:'d/m H:i' }}</span>
+            {% endif %}
+        </div>
+
+        {% for mercado in evento.mercados.all %}
+            {% if mercado.selecciones_activas %}
+                <div class="mercado-row {% if evento.estado_evento == 'en_vivo' and not mercado.permite_in_play %}mercado-row--locked{% endif %}" data-mercado-id="{{ mercado.id_mercado }}" data-permite-in-play="{% if mercado.permite_in_play %}true{% else %}false{% endif %}">
+                    <div class="mercado-row__title">
+                        <strong>{{ mercado.nombre }}</strong>
+                        <span>Min {{ mercado.stake_minimo|floatformat:2 }} | Max {{ mercado.stake_maximo|floatformat:2 }}</span>
+                        {% if evento.estado_evento == 'en_vivo' and not mercado.permite_in_play %}<em class="mercado-suspendido-badge">No permite in-play</em>{% endif %}
+                    </div>
+                    <div class="odds-grid">
+                        {% for seleccion in mercado.selecciones_activas %}
+                            <button
+                                type="button"
+                                class="odd-button"
+                                data-seleccion-id="{{ seleccion.id_seleccion }}"
+                                data-seleccion="{{ seleccion.nombre }}"
+                                data-evento="{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}"
+                                data-mercado="{{ mercado.nombre }}"
+                                data-odds="{{ seleccion.odds_activa.odds }}"
+                                data-version="{{ seleccion.odds_activa.numero_version }}"
+                                data-min="{{ mercado.stake_minimo }}"
+                                data-max="{{ mercado.stake_maximo }}"
+                                {% if evento.estado_evento == 'en_vivo' and not mercado.permite_in_play %}disabled title="Este mercado no permite apuestas en vivo"{% endif %}
+                            >
+                                <span>{{ seleccion.nombre }}</span>
+                                <strong class="odd-value">{{ seleccion.odds_activa.odds|floatformat:2 }}</strong>
+                            </button>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+        {% endfor %}
+    </article>
+{% empty %}
+    <section class="data-panel empty-state" id="no-eventos-msg">No hay eventos disponibles para apostar en este momento.</section>
+{% endfor %}

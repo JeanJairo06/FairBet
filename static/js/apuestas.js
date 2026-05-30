@@ -59,28 +59,29 @@ function actualizarTicket() {
     ticketPayout.textContent = stake > 0 ? mostrarDecimal(stake * comb) : '0.00';
 }
 
-document.querySelectorAll('.odd-button').forEach(boton => {
-    boton.addEventListener('click', () => {
-        const id = boton.dataset.seleccionId;
-        const idx = selecciones.findIndex(s => s.seleccionId === id);
+document.addEventListener('click', (event) => {
+    const boton = event.target.closest('.odd-button');
+    if (!boton || boton.disabled) return;
 
-        if (idx !== -1) {
-            selecciones.splice(idx, 1);
-            boton.classList.remove('is-selected');
-        } else {
-            selecciones.push({
-                seleccionId: id,
-                evento: boton.dataset.evento,
-                mercado: boton.dataset.mercado,
-                seleccion: boton.dataset.seleccion,
-                odds: boton.dataset.odds,
-                min: boton.dataset.min,
-                max: boton.dataset.max,
-            });
-            boton.classList.add('is-selected');
-        }
-        actualizarTicket();
-    });
+    const id = boton.dataset.seleccionId;
+    const idx = selecciones.findIndex(s => s.seleccionId === id);
+
+    if (idx !== -1) {
+        selecciones.splice(idx, 1);
+        boton.classList.remove('is-selected');
+    } else {
+        selecciones.push({
+            seleccionId: id,
+            evento: boton.dataset.evento,
+            mercado: boton.dataset.mercado,
+            seleccion: boton.dataset.seleccion,
+            odds: boton.dataset.odds,
+            min: boton.dataset.min,
+            max: boton.dataset.max,
+        });
+        boton.classList.add('is-selected');
+    }
+    actualizarTicket();
 });
 
 if (stakeInput) {

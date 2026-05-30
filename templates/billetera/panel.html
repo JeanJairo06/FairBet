@@ -23,7 +23,7 @@
     <section class="wallet-hero" aria-labelledby="wallet-balance-title">
         <div class="wallet-hero__balance">
             <span class="wallet-label"><i class="bi bi-wallet2"></i> Saldo disponible</span>
-            <h3 id="wallet-balance-title">S/ {{ saldo_disponible|floatformat:2 }}</h3>
+            <h3 id="wallet-balance-title">S/ <span id="wallet-hero-saldo">{{ saldo_disponible|floatformat:2 }}</span></h3>
             <p><i class="bi bi-lock"></i> Bloqueado en apuestas: <strong>S/ {{ fichas_bloqueadas|floatformat:2 }}</strong></p>
         </div>
         <div class="wallet-actions" aria-label="Acciones de billetera">

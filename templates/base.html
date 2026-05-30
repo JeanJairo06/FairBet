@@ -22,5 +22,85 @@
     {% include 'partials/footer.html' %}
     <script src="{% static 'js/toasts.js' %}"></script>
     {% block extra_js %}{% endblock %}
+
+    {% if request.user.is_authenticated %}
+    <script>
+    // ── Canal WebSocket personal del usuario ──────────────────────────────
+    (function () {
+        const wsUrl = `ws://${location.host}/ws/usuario/`;
+        let socket;
+        let reintentos = 0;
+
+        function conectar() {
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
+                reintentos = 0;
+                console.log('[WS] Canal de usuario conectado');
+            };
+
+            socket.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+                if (msg.type === 'saldo.actualizado') manejarSaldo(msg);
+                if (msg.type === 'apuesta.liquidada') manejarLiquidacion(msg);
+            };
+
+            socket.onclose = () => {
+                // Reconexión exponencial: 2s, 4s, 8s… hasta 30s
+                const delay = Math.min(2000 * Math.pow(2, reintentos), 30000);
+                reintentos++;
+                console.log(`[WS] Reconectando en ${delay / 1000}s...`);
+                setTimeout(conectar, delay);
+            };
+
+            socket.onerror = () => socket.close();
+        }
+
+        function manejarSaldo(msg) {
+            const el = document.getElementById('header-saldo');
+            if (el) {
+                const nuevo = parseFloat(msg.saldo).toFixed(2);
+                el.textContent = nuevo;
+                el.classList.add('saldo-flash');
+                setTimeout(() => el.classList.remove('saldo-flash'), 1000);
+            }
+            // Si estamos en la página de billetera, actualizar también el saldo hero
+            const heroSaldo = document.getElementById('wallet-hero-saldo');
+            if (heroSaldo) heroSaldo.textContent = `S/ ${parseFloat(msg.saldo).toFixed(2)}`;
+        }
+
+        function manejarLiquidacion(msg) {
+            const estado = msg.estado;
+            const id = msg.id_apuesta;
+            const payout = msg.payout ? parseFloat(msg.payout).toFixed(2) : null;
+
+            // Toast de notificación
+            if (estado === 'WON') {
+                mostrarToast(`🏆 ¡Apuesta #${id} ganada! Recibes ${payout} fichas.`, 'success');
+            } else if (estado === 'LOST') {
+                mostrarToast(`😔 Apuesta #${id} perdida.`, 'error');
+            } else if (estado === 'VOID') {
+                mostrarToast(`↩️ Apuesta #${id} anulada. Fondos devueltos.`, 'info');
+            } else if (estado === 'CASHED_OUT') {
+                mostrarToast(`💰 Cash-out de apuesta #${id}: ${payout} fichas.`, 'info');
+            }
+
+            // Actualizar pill de estado en la tabla "Mis apuestas" si está visible
+            const fila = document.querySelector(`tr[data-apuesta-id="${id}"]`);
+            if (fila) {
+                const pill = fila.querySelector('.status-pill');
+                if (pill) {
+                    const etiquetas = { WON: 'Ganada', LOST: 'Perdida', VOID: 'Anulada', CASHED_OUT: 'Cashout' };
+                    const clases   = { WON: 'status-pill--ok', LOST: 'status-pill--danger', VOID: 'status-pill--warn', CASHED_OUT: 'status-pill--info' };
+                    pill.textContent = etiquetas[estado] || estado;
+                    pill.className = `status-pill ${clases[estado] || ''}`;
+                }
+            }
+        }
+
+        conectar();
+    })();
+    </script>
+    {% endif %}
 </body>
 </html>
