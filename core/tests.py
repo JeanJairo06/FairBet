@@ -23,7 +23,7 @@ class HeaderWalletTests(TestCase):
 
         response = self.client.get('/')
 
-        self.assertContains(response, '150.0000 monedas')
+        self.assertContains(response, '150.00 monedas')
         self.assertNotContains(response, 'Administrador')
 
     def test_jugador_sin_wallet_no_rompe_header(self):

@@ -27,6 +27,7 @@ urlpatterns = [
     path('accounts/logout/', LogoutView.as_view(), name='logout'),
     path('apuestas/', include('apuesta.urls')),
     path('deporte/', include('deporte.urls')),
+    path('', include('billetera.web_urls')),
     path('api/v1/', include('api.urls')),
 
 

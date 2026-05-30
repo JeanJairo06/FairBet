@@ -1,11 +1,13 @@
 from .catalogo_service import (
     actualizar_odds,
+    anular_evento_y_liquidar,
     anular_evento,
     confirmar_resultado_evento,
     crear_evento,
     crear_mercado,
     crear_mercado_rapido,
     crear_seleccion,
+    finalizar_evento_y_liquidar,
     marcar_seleccion_ganadora,
     obtener_odds_vigente,
     pasar_evento_en_vivo,
@@ -16,12 +18,14 @@ from .catalogo_service import (
 
 __all__ = [
     'actualizar_odds',
+    'anular_evento_y_liquidar',
     'anular_evento',
     'confirmar_resultado_evento',
     'crear_evento',
     'crear_mercado',
     'crear_mercado_rapido',
     'crear_seleccion',
+    'finalizar_evento_y_liquidar',
     'marcar_seleccion_ganadora',
     'obtener_odds_vigente',
     'pasar_evento_en_vivo',

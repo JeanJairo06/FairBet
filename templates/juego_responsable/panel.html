@@ -34,7 +34,7 @@
                                     {{ limite.periodo_display }}
                                 </strong>
                                 <span style="font-family: monospace; font-weight: 700; font-size: 1.1rem; text-align: right;">
-                                    {{ limite.limite_actual }} fichas
+                                    {{ limite.limite_actual|floatformat:2 }} fichas
                                     {% if limite.es_default %}
                                         <small style="font-size: 0.7rem; color: var(--text-muted); display: block; font-weight: normal; font-family: sans-serif;">
                                             (Por defecto)
@@ -46,7 +46,7 @@
                             {% if limite.limite_pendiente %}
                                 <div class="message message--error" style="margin-top: 0.75rem; font-size: 0.8rem; padding: 0.5rem;">
                                     <i class="bi bi-hourglass-split"></i> 
-                                    Aumento solicitado a <strong>{{ limite.limite_pendiente }}</strong>. 
+                                    Aumento solicitado a <strong>{{ limite.limite_pendiente|floatformat:2 }}</strong>. 
                                     Aplica el: {{ limite.pendiente_aplicar_en|date:"d/m/Y H:i" }}
                                 </div>
                             {% endif %}

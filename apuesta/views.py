@@ -3,6 +3,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
+from django.db.models import Prefetch, Q
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.views.generic import ListView
@@ -13,7 +14,7 @@ from apuesta.servicios import crear_apuesta_simple
 from apuesta.serializers import ApuestaSerializer, CrearApuestaSimpleSerializer
 from billetera.exceptions import BilleteraError
 from core.choices import EstadoEvento, EstadoMercado, EstadoSeleccion
-from deporte.models import EventoDeportivo, HistorialOdds
+from deporte.models import EventoDeportivo, HistorialOdds, Mercado, SeleccionMercado
 
 
 class ApuestaListCreateView(ListCreateAPIView):
@@ -32,13 +33,29 @@ class ApuestasWebView(LoginRequiredMixin, ListView):
     login_url = 'login'
 
     def get_queryset(self):
+        ahora = timezone.now()
+        selecciones_apostables = SeleccionMercado.objects.filter(
+            estado_seleccion=EstadoSeleccion.ACTIVA,
+            historial_odds__activa=True,
+        ).prefetch_related('historial_odds').distinct()
+        mercados_apostables = Mercado.objects.filter(
+            estado_mercado=EstadoMercado.ABIERTO,
+        ).filter(
+            Q(evento__estado_evento=EstadoEvento.PROGRAMADO, evento__inicia_en__gt=ahora)
+            | Q(evento__estado_evento=EstadoEvento.EN_VIVO, permite_in_play=True)
+        ).prefetch_related(
+            Prefetch('selecciones', queryset=selecciones_apostables)
+        )
+
         return EventoDeportivo.objects.filter(
-            estado_evento=EstadoEvento.PROGRAMADO,
-            inicia_en__gt=timezone.now(),
             mercados__estado_mercado=EstadoMercado.ABIERTO,
             mercados__selecciones__estado_seleccion=EstadoSeleccion.ACTIVA,
+            mercados__selecciones__historial_odds__activa=True,
+        ).filter(
+            Q(estado_evento=EstadoEvento.PROGRAMADO, inicia_en__gt=ahora)
+            | Q(estado_evento=EstadoEvento.EN_VIVO, mercados__permite_in_play=True)
         ).distinct().prefetch_related(
-            'mercados__selecciones__historial_odds',
+            Prefetch('mercados', queryset=mercados_apostables),
         ).order_by('inicia_en')
 
     def get_context_data(self, **kwargs):

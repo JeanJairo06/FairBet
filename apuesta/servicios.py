@@ -42,11 +42,14 @@ def validar_apuesta_simple(seleccion, odds_activa, stake):
     mercado = seleccion.mercado
     evento = mercado.evento
 
-    if evento.estado_evento != EstadoEvento.PROGRAMADO:
+    if evento.estado_evento not in {EstadoEvento.PROGRAMADO, EstadoEvento.EN_VIVO}:
         raise ValidationError('El evento no esta disponible para nuevas apuestas.')
 
-    if evento.inicia_en <= timezone.now():
+    if evento.estado_evento == EstadoEvento.PROGRAMADO and evento.inicia_en <= timezone.now():
         raise ValidationError('No se puede apostar sobre un evento que ya inicio.')
+
+    if evento.estado_evento == EstadoEvento.EN_VIVO and not mercado.permite_in_play:
+        raise ValidationError('El mercado no permite apuestas en vivo.')
 
     if seleccion.estado_seleccion != EstadoSeleccion.ACTIVA:
         raise ValidationError('La seleccion no esta activa para apostar.')
@@ -178,14 +181,18 @@ def _estado_detalle_desde_resultado(resultado):
 @transaction.atomic
 def liquidar_apuestas_de_evento(evento, liquidado_por=None, observacion='Liquidacion automatica por resultado de evento.'):
     evento_id = evento.pk if hasattr(evento, 'pk') else evento
-    apuestas = (
-        Apuesta.objects.select_for_update()
-        .filter(
+    apuesta_ids = (
+        Apuesta.objects.filter(
             estado_apuesta=EstadoApuesta.ACCEPTED,
             detalles__seleccion__mercado__evento_id=evento_id,
         )
-        .prefetch_related('detalles__seleccion')
+        .values_list('pk', flat=True)
         .distinct()
+    )
+    apuestas = (
+        Apuesta.objects.select_for_update()
+        .filter(pk__in=apuesta_ids)
+        .prefetch_related('detalles__seleccion')
     )
 
     liquidaciones = []

@@ -27,11 +27,13 @@ from deporte.exceptions import ResultadoEventoError, SeleccionNoApostableError
 from deporte.models import HistorialOdds
 from deporte.services import (
     actualizar_odds,
+    anular_evento_y_liquidar,
     confirmar_resultado_evento,
     crear_evento,
     crear_mercado,
     crear_mercado_rapido,
     crear_seleccion,
+    finalizar_evento_y_liquidar,
     marcar_seleccion_ganadora,
     obtener_odds_vigente,
     pasar_evento_en_vivo,
@@ -186,6 +188,112 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertEqual(apuesta.estado_apuesta, EstadoApuesta.WON)
         self.assertEqual(LiquidacionApuesta.objects.count(), 1)
         self.assertEqual(calcular_saldo(wallet), Decimal('115.0000'))
+
+    def test_finalizar_evento_liquida_todos_los_mercados_por_marcador(self):
+        jugador = get_user_model().objects.create_user(
+            username='jugador_multimercado',
+            email='jugador_multimercado@test.com',
+            password='test12345',
+        )
+        PerfilJugador.objects.create(
+            usuario=jugador,
+            nombres='Jugador',
+            apellidos='Multimercado',
+            dni='66781234',
+            fecha_nacimiento='2000-01-01',
+            estado_cuenta=EstadoCuentaJugador.VERIFICADO,
+        )
+        wallet = crear_cuenta_wallet_usuario(jugador)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.CASA)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.APUESTAS_PENDIENTES)
+        recargar_fichas(jugador, Decimal('100.0000'), idempotency_key='multimercado-recarga')
+
+        mercado_btts = crear_mercado_rapido(
+            self.evento,
+            'ambos_anotan',
+            stake_minimo=Decimal('1.0000'),
+            stake_maximo=Decimal('100.0000'),
+            odds_iniciales={'YES': Decimal('1.8000'), 'NO': Decimal('2.1000')},
+        )
+        mercado_goles = crear_mercado_rapido(
+            self.evento,
+            'total_goles',
+            linea=Decimal('2.5'),
+            stake_minimo=Decimal('1.0000'),
+            stake_maximo=Decimal('100.0000'),
+            odds_iniciales={'OVER_2_5': Decimal('1.9000'), 'UNDER_2_5': Decimal('1.9500')},
+        )
+        actualizar_odds(self.local, Decimal('2.5000'))
+        apuesta_1x2 = crear_apuesta_simple(jugador, self.local.pk, Decimal('10.0000'), 'multimercado-1x2')
+        apuesta_btts = crear_apuesta_simple(
+            jugador,
+            mercado_btts.selecciones.get(codigo_seleccion='YES').pk,
+            Decimal('10.0000'),
+            'multimercado-btts',
+        )
+        apuesta_goles = crear_apuesta_simple(
+            jugador,
+            mercado_goles.selecciones.get(codigo_seleccion='OVER_2_5').pk,
+            Decimal('10.0000'),
+            'multimercado-over',
+        )
+        self.evento.inicia_en = timezone.now() - timedelta(hours=2)
+        self.evento.save(update_fields=['inicia_en'])
+
+        evento, liquidaciones = finalizar_evento_y_liquidar(
+            self.evento,
+            {'marcador_local': 2, 'marcador_visitante': 1},
+            liquidado_por=None,
+        )
+
+        apuesta_1x2.refresh_from_db()
+        apuesta_btts.refresh_from_db()
+        apuesta_goles.refresh_from_db()
+        self.mercado.refresh_from_db()
+        mercado_btts.refresh_from_db()
+        mercado_goles.refresh_from_db()
+        self.assertEqual(evento.estado_evento, EstadoEvento.FINALIZADO)
+        self.assertEqual(len(liquidaciones), 3)
+        self.assertEqual(apuesta_1x2.estado_apuesta, EstadoApuesta.WON)
+        self.assertEqual(apuesta_btts.estado_apuesta, EstadoApuesta.WON)
+        self.assertEqual(apuesta_goles.estado_apuesta, EstadoApuesta.WON)
+        self.assertEqual(self.mercado.estado_mercado, EstadoMercado.LIQUIDADO)
+        self.assertEqual(mercado_btts.estado_mercado, EstadoMercado.LIQUIDADO)
+        self.assertEqual(mercado_goles.estado_mercado, EstadoMercado.LIQUIDADO)
+        self.assertEqual(calcular_saldo(wallet), Decimal('132.0000'))
+
+    def test_anular_evento_devuelve_stakes_bloqueados(self):
+        jugador = get_user_model().objects.create_user(
+            username='jugador_anulacion',
+            email='jugador_anulacion@test.com',
+            password='test12345',
+        )
+        PerfilJugador.objects.create(
+            usuario=jugador,
+            nombres='Jugador',
+            apellidos='Anulacion',
+            dni='76781234',
+            fecha_nacimiento='2000-01-01',
+            estado_cuenta=EstadoCuentaJugador.VERIFICADO,
+        )
+        wallet = crear_cuenta_wallet_usuario(jugador)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.CASA)
+        obtener_o_crear_cuenta_sistema(TipoCuentaContable.APUESTAS_PENDIENTES)
+        recargar_fichas(jugador, Decimal('50.0000'), idempotency_key='anulacion-recarga')
+        actualizar_odds(self.local, Decimal('2.0000'))
+        apuesta = crear_apuesta_simple(jugador, self.local.pk, Decimal('10.0000'), 'anulacion-apuesta')
+
+        evento, liquidaciones = anular_evento_y_liquidar(self.evento, liquidado_por=None)
+
+        apuesta.refresh_from_db()
+        self.local.refresh_from_db()
+        self.mercado.refresh_from_db()
+        self.assertEqual(evento.estado_evento, EstadoEvento.ANULADO)
+        self.assertEqual(self.mercado.estado_mercado, EstadoMercado.ANULADO)
+        self.assertEqual(self.local.estado_seleccion, EstadoSeleccion.ANULADA)
+        self.assertEqual(apuesta.estado_apuesta, EstadoApuesta.VOID)
+        self.assertEqual(len(liquidaciones), 1)
+        self.assertEqual(calcular_saldo(wallet), Decimal('50.0000'))
 
     def test_paginas_visuales_deporte_renderizan(self):
         get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')

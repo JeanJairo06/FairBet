@@ -20,6 +20,8 @@
     </div>
 </div>
 
+<p class="sp-hint"><i class="bi bi-info-circle"></i> Ingresa el marcador final. FairBet resolvera todos los mercados automaticamente y liquidara las apuestas pendientes.</p>
+
 <form class="sp-form" method="post" novalidate>
     {% csrf_token %}
     {{ form.non_field_errors }}
@@ -35,7 +37,7 @@
         </div>
     </div>
     <div class="sp-form__footer">
-        <button type="submit" class="sp-btn sp-btn--primary"><i class="bi bi-check-circle"></i> Confirmar y liquidar</button>
+        <button type="submit" class="sp-btn sp-btn--primary"><i class="bi bi-check-circle"></i> Finalizar partido y liquidar mercados</button>
         <a href="{% url 'deporte:eventos_lista' %}" class="sp-btn">Cancelar</a>
     </div>
 </form>

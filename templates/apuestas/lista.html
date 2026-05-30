@@ -41,7 +41,7 @@
                         <div class="mercado-row">
                             <div class="mercado-row__title">
                                 <strong>{{ mercado.nombre }}</strong>
-                                <span>Min {{ mercado.stake_minimo }} | Max {{ mercado.stake_maximo }}</span>
+                                <span>Min {{ mercado.stake_minimo|floatformat:2 }} | Max {{ mercado.stake_maximo|floatformat:2 }}</span>
                             </div>
                             <div class="odds-grid">
                                 {% for seleccion in mercado.selecciones_activas %}
@@ -57,7 +57,7 @@
                                         data-max="{{ mercado.stake_maximo }}"
                                     >
                                         <span>{{ seleccion.nombre }}</span>
-                                        <strong>{{ seleccion.odds_activa.odds }}</strong>
+                                        <strong>{{ seleccion.odds_activa.odds|floatformat:2 }}</strong>
                                     </button>
                                 {% endfor %}
                             </div>
@@ -90,7 +90,7 @@
                         </div>
                     </div>
                     <label class="ticket-label" for="ticket-stake">Fichas a apostar</label>
-                    <input class="stake-input" type="number" name="stake" id="ticket-stake" step="0.0001" placeholder="Ej. 10.0000">
+                    <input class="stake-input" type="number" name="stake" id="ticket-stake" step="0.01" placeholder="Ej. 10.00">
                     <div class="quick-stakes" aria-label="Montos rapidos">
                         <button type="button" data-stake="10">10</button>
                         <button type="button" data-stake="25">25</button>
@@ -109,8 +109,8 @@
             {% for apuesta in mis_apuestas %}
                 <div class="mini-bet">
                     <strong>#{{ apuesta.id_apuesta }} - {{ apuesta.get_estado_apuesta_display }}</strong>
-                    <span>Stake: {{ apuesta.stake }} | Cuota: {{ apuesta.odds_total }}</span>
-                    <span>Pago potencial: {{ apuesta.payout_potencial }}</span>
+                    <span>Stake: {{ apuesta.stake|floatformat:2 }} | Cuota: {{ apuesta.odds_total|floatformat:2 }}</span>
+                    <span>Pago potencial: {{ apuesta.payout_potencial|floatformat:2 }}</span>
                 </div>
             {% empty %}
                 <p class="empty-state">Aun no tienes apuestas registradas.</p>
