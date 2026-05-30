@@ -126,7 +126,7 @@ class CrearApuestaSimpleTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Peru vs Brasil')
-        self.assertContains(response, '🔴 En vivo')
+        self.assertContains(response, 'LIVE')
         self.assertContains(response, '1 - 0')
         self.assertNotContains(response, 'disabled title="Este mercado no permite apuestas en vivo"')
 
@@ -144,7 +144,7 @@ class CrearApuestaSimpleTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Peru vs Brasil')
-        self.assertContains(response, '🔴 En vivo')
+        self.assertContains(response, 'LIVE')
         self.assertContains(response, '2 - 2')
         self.assertContains(response, 'No permite in-play')
         self.assertContains(response, 'disabled title="Este mercado no permite apuestas en vivo"')

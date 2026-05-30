@@ -27,111 +27,64 @@
         </div>
 
         <div id="eventos-container">
-        {% for evento in eventos %}
-            <article class="evento-card" data-evento-id="{{ evento.id_evento }}" data-estado-evento="{{ evento.estado_evento }}">
-                <div class="evento-card__top">
-                    <div>
-                        <span class="evento-card__league">{{ evento.competicion }}</span>
-                        <h3>{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}</h3>
-                        {% if evento.estado_evento == 'en_vivo' %}
-                            <span class="evento-marcador">{{ evento.marcador_local }} - {{ evento.marcador_visitante }}</span>
-                        {% else %}
-                            <span class="evento-marcador" hidden>0 - 0</span>
-                        {% endif %}
-                    </div>
-                    {% if evento.estado_evento == 'en_vivo' %}
-                        <span class="status-pill status-pill--live">🔴 En vivo</span>
-                    {% elif evento.estado_evento == 'suspendido' %}
-                        <span class="status-pill status-pill--warn">Suspendido</span>
-                    {% else %}
-                        <span class="status-pill status-pill--ok">{{ evento.inicia_en|date:'d/m H:i' }}</span>
-                    {% endif %}
-                </div>
-
-                {% for mercado in evento.mercados.all %}
-                    {% if mercado.selecciones_activas %}
-                        <div class="mercado-row {% if evento.estado_evento == 'en_vivo' and not mercado.permite_in_play %}mercado-row--locked{% endif %}" data-mercado-id="{{ mercado.id_mercado }}" data-permite-in-play="{% if mercado.permite_in_play %}true{% else %}false{% endif %}">
-                            <div class="mercado-row__title">
-                                <strong>{{ mercado.nombre }}</strong>
-                                <span>Min {{ mercado.stake_minimo|floatformat:2 }} | Max {{ mercado.stake_maximo|floatformat:2 }}</span>
-                                {% if evento.estado_evento == 'en_vivo' and not mercado.permite_in_play %}<em class="mercado-suspendido-badge">No permite in-play</em>{% endif %}
-                            </div>
-                            <div class="odds-grid">
-                                {% for seleccion in mercado.selecciones_activas %}
-                                    <button
-                                        type="button"
-                                        class="odd-button"
-                                        data-seleccion-id="{{ seleccion.id_seleccion }}"
-                                        data-seleccion="{{ seleccion.nombre }}"
-                                        data-evento="{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}"
-                                        data-mercado="{{ mercado.nombre }}"
-                                        data-odds="{{ seleccion.odds_activa.odds }}"
-                                        data-version="{{ seleccion.odds_activa.numero_version }}"
-                                        data-min="{{ mercado.stake_minimo }}"
-                                        data-max="{{ mercado.stake_maximo }}"
-                                        {% if evento.estado_evento == 'en_vivo' and not mercado.permite_in_play %}disabled title="Este mercado no permite apuestas en vivo"{% endif %}
-                                    >
-                                        <span>{{ seleccion.nombre }}</span>
-                                        <strong class="odd-value">{{ seleccion.odds_activa.odds|floatformat:2 }}</strong>
-                                    </button>
-                                {% endfor %}
-                            </div>
-                        </div>
-                    {% endif %}
-                {% endfor %}
-            </article>
-        {% empty %}
-            <section class="data-panel empty-state" id="no-eventos-msg">No hay eventos disponibles para apostar en este momento.</section>
-        {% endfor %}
-        </div>{# /#eventos-container #}
+            {% include 'apuestas/fragmento_eventos.html' %}
+        </div>
     </div>
 
     <aside class="apuestas-sidebar">
         <div class="ticket-panel">
-            <p class="eyebrow">Ticket de apuesta</p>
-            <h3>Confirma tu seleccion</h3>
+            <div class="ticket-header">
+                <div class="ticket-header__left">
+                    <i class="bi bi-ticket-perforated"></i>
+                    <span class="ticket-header__title">Cupon de apuestas</span>
+                </div>
+                <span class="ticket-counter" id="ticket-counter">0/30</span>
+            </div>
+
             <form method="post" class="bet-slip" id="bet-slip">
                 {% csrf_token %}
-                <div class="ticket-empty" id="ticket-empty">Selecciona una o mas cuotas para armar tu ticket combinado.</div>
+                <div class="ticket-empty" id="ticket-empty">
+                    <i class="bi bi-inbox" style="font-size:2rem; color:var(--muted);"></i>
+                    <p>Selecciona cuotas del evento para agregar al cupon</p>
+                </div>
                 <div class="ticket-content" id="ticket-content" hidden>
+                    <div class="ticket-items-header">
+                        <span>Seleccion</span>
+                        <span>Cuota</span>
+                    </div>
                     <div id="ticket-items"></div>
-                    <div class="ticket-numbers">
-                        <div>
-                            <span>Cuota combinada</span>
-                            <strong id="ticket-odds">—</strong>
+
+                    <div class="ticket-summary">
+                        <div class="ticket-summary__row">
+                            <span>Cuota total</span>
+                            <strong id="ticket-odds">1.00</strong>
                         </div>
-                        <div>
-                            <span>Pago potencial</span>
+                        <div class="ticket-summary__row ticket-summary__row--highlight">
+                            <span>Ganancia potencial</span>
                             <strong id="ticket-payout">0.00</strong>
                         </div>
                     </div>
-                    <label class="ticket-label" for="ticket-stake">Fichas a apostar</label>
-                    <input class="stake-input" type="number" name="stake" id="ticket-stake" step="0.01" placeholder="Ej. 10.00">
-                    <div class="quick-stakes" aria-label="Montos rapidos">
-                        <button type="button" data-stake="10">10</button>
-                        <button type="button" data-stake="25">25</button>
-                        <button type="button" data-stake="50">50</button>
-                        <button type="button" data-stake="100">100</button>
+
+                    <div class="ticket-stake">
+                        <label for="ticket-stake">Monto a apostar</label>
+                        <div class="ticket-stake__input">
+                            <input type="number" name="stake" id="ticket-stake" step="0.01" min="1" placeholder="0.00">
+                        </div>
+                        <div class="quick-stakes">
+                            <button type="button" data-stake="10">10</button>
+                            <button type="button" data-stake="25">25</button>
+                            <button type="button" data-stake="50">50</button>
+                            <button type="button" data-stake="100">100</button>
+                        </div>
                     </div>
-                    <small id="ticket-limits"></small>
-                    <button type="submit" class="button button--primary button--full">Confirmar apuesta combinada</button>
+
+                    <small id="ticket-limits" class="ticket-limits"></small>
+                    <button type="submit" class="ticket-submit" id="ticket-submit">
+                        <i class="bi bi-check-circle"></i>
+                        <span>Apostar</span>
+                    </button>
                 </div>
             </form>
-        </div>
-
-        <div class="ticket-panel">
-            <p class="eyebrow">Historial</p>
-            <h3>Mis apuestas recientes</h3>
-            {% for apuesta in mis_apuestas %}
-                <div class="mini-bet">
-                    <strong>#{{ apuesta.id_apuesta }} - {{ apuesta.get_estado_apuesta_display }}</strong>
-                    <span>Stake: {{ apuesta.stake|floatformat:2 }} | Cuota: {{ apuesta.odds_total|floatformat:2 }}</span>
-                    <span>Pago potencial: {{ apuesta.payout_potencial|floatformat:2 }}</span>
-                </div>
-            {% empty %}
-                <p class="empty-state">Aun no tienes apuestas registradas.</p>
-            {% endfor %}
-            <a href="{% url 'apuesta:mis_apuestas_web' %}" class="button button--secondary button--full">Ver historial</a>
         </div>
     </aside>
 </section>
@@ -140,60 +93,47 @@
 {% block extra_js %}
 <script src="{% static 'js/apuestas.js' %}"></script>
 <script>
-// ── Canal global: nueva creación o finalización de eventos ───────────
 (function () {
     const FRAGMENTO_URL = "{% url 'apuesta:eventos_fragmento' %}";
     const contenedor = document.getElementById('eventos-container');
     const wsScheme = location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${wsScheme}://${location.host}/ws/eventos/`);
 
+    const socket = new WebSocket(`${wsScheme}://${location.host}/ws/eventos/`);
     socket.onmessage = async (e) => {
         const msg = JSON.parse(e.data);
         if (msg.type !== 'lista.eventos.cambio') return;
 
-        // Recargar el fragmento de eventos desde el servidor
         try {
             const resp = await fetch(FRAGMENTO_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
             if (!resp.ok) return;
             const html = await resp.text();
-
-            // Guardar selecciones activas antes de reemplazar el DOM
             const seleccionesActivas = new Set(selecciones.map(s => s.seleccionId));
 
             contenedor.innerHTML = html;
-
-            // Reconectar WebSockets individuales para los nuevos eventos
             reconectarSocketsEventos();
 
-            // Restaurar estado visual de botones que estaban seleccionados
             seleccionesActivas.forEach(id => {
                 const btn = contenedor.querySelector(`.odd-button[data-seleccion-id="${id}"]`);
-                if (btn) btn.classList.add('is-selected');
+                if (btn && !btn.disabled) btn.classList.add('is-selected');
             });
 
-            // Toast informativo según la acción
-            const accion = msg.accion;
-            if (accion === 'creado') {
-                mostrarToast(`🆕 Nuevo partido disponible: ${msg.equipo_local} vs ${msg.equipo_visitante}`, 'info');
-            } else if (accion === 'finalizado') {
-                mostrarToast(`🏁 Partido finalizado: ${msg.equipo_local} vs ${msg.equipo_visitante}`, 'warning');
+            if (msg.accion === 'creado') {
+                mostrarToast(`Nuevo partido disponible: ${msg.equipo_local} vs ${msg.equipo_visitante}`, 'info');
+            } else if (msg.accion === 'finalizado') {
+                mostrarToast(`Partido finalizado: ${msg.equipo_local} vs ${msg.equipo_visitante}`, 'warning');
             }
         } catch (err) {
             console.warn('[WS] Error al recargar fragmento de eventos:', err);
         }
     };
-
     socket.onerror = () => {};
-    socket.onclose = () => {};
 })();
 
-// ── Canal por evento individual ───────────────────────────────────────
 function reconectarSocketsEventos() {
     document.querySelectorAll('.evento-card[data-evento-id]').forEach(conectarSocketEvento);
 }
 
 function conectarSocketEvento(card) {
-    // Evitar doble conexión si ya tiene socket activo
     if (card._wsSocket && card._wsSocket.readyState <= 1) return;
 
     const idEvento = card.dataset.eventoId;
@@ -201,7 +141,6 @@ function conectarSocketEvento(card) {
     const socket = new WebSocket(`${wsScheme}://${location.host}/ws/eventos/${idEvento}/`);
     card._wsSocket = socket;
 
-    socket.onopen = () => console.log(`[WS] Conectado al evento ${idEvento}`);
     socket.onmessage = (e) => {
         const msg = JSON.parse(e.data);
         if (msg.type === 'odds.update') actualizarOddsEnDOM(card, msg);
@@ -209,10 +148,8 @@ function conectarSocketEvento(card) {
         else if (msg.type === 'evento.estado') actualizarEstadoEventoEnDOM(card, msg);
     };
     socket.onerror = (err) => console.warn(`[WS] Error evento ${idEvento}:`, err);
-    socket.onclose = () => console.log(`[WS] Cerrado evento ${idEvento}`);
 }
 
-// Conectar WebSockets iniciales al cargar la página
 reconectarSocketsEventos();
 
 function actualizarOddsEnDOM(card, msg) {
@@ -224,13 +161,11 @@ function actualizarOddsEnDOM(card, msg) {
     btn.dataset.version = msg.version;
     btn.querySelector('.odd-value').textContent = parseFloat(msg.odds).toFixed(2);
 
-    // Animación visual para indicar que la cuota cambió
     const subio = parseFloat(msg.odds) > parseFloat(oddsAnterior);
     btn.classList.remove('odds-up', 'odds-down');
     btn.classList.add(subio ? 'odds-up' : 'odds-down');
-    setTimeout(() => btn.classList.remove('odds-up', 'odds-down'), 2000);
+    setTimeout(() => btn.classList.remove('odds-up', 'odds-down'), 1500);
 
-    // Si esta selección ya está en el ticket, actualizar la cuota ahí también
     const enTicket = selecciones.findIndex(s => s.seleccionId === String(msg.id_seleccion));
     if (enTicket !== -1) {
         selecciones[enTicket].odds = msg.odds;
@@ -243,60 +178,63 @@ function actualizarOddsEnDOM(card, msg) {
 function actualizarEstadoMercadoEnDOM(card, msg) {
     const fila = card.querySelector(`.mercado-row[data-mercado-id="${msg.id_mercado}"]`);
     if (!fila) return;
+
     const eventoEnVivo = card.dataset.estadoEvento === 'en_vivo';
-    const bloqueadoPorEstado = msg.estado === 'suspendido' || msg.estado === 'cerrado' || msg.estado === 'liquidado' || msg.estado === 'anulado';
+    const bloqueadoPorEstado = ['suspendido', 'cerrado', 'liquidado', 'anulado'].includes(msg.estado);
     const bloqueadoPorInPlay = eventoEnVivo && msg.permite_in_play === false;
-    const suspendido = bloqueadoPorEstado || bloqueadoPorInPlay;
+    const bloqueado = bloqueadoPorEstado || bloqueadoPorInPlay;
+
     fila.dataset.permiteInPlay = msg.permite_in_play ? 'true' : 'false';
     fila.classList.toggle('mercado-row--locked', bloqueadoPorInPlay);
     fila.querySelectorAll('.odd-button').forEach(btn => {
-        btn.disabled = suspendido;
+        if (btn.classList.contains('is-apostada')) return;
+        btn.disabled = bloqueado;
         btn.title = bloqueadoPorInPlay ? 'Este mercado no permite apuestas en vivo' : (bloqueadoPorEstado ? 'Mercado suspendido' : '');
     });
+
     let badge = fila.querySelector('.mercado-suspendido-badge');
-    if (suspendido) {
+    if (bloqueado) {
         if (!badge) {
             badge = document.createElement('span');
             badge.className = 'mercado-suspendido-badge';
-            fila.querySelector('.mercado-row__title')?.appendChild(badge);
+            fila.querySelector('.mercado-row__header')?.appendChild(badge);
         }
-        badge.textContent = bloqueadoPorInPlay ? 'No permite in-play' : '⏸ Suspendido';
+        badge.textContent = bloqueadoPorInPlay ? 'No permite in-play' : 'Suspendido';
     } else if (badge) {
         badge.remove();
     }
 }
 
 function actualizarEstadoEventoEnDOM(card, msg) {
+    card.dataset.estadoEvento = msg.estado;
     const pill = card.querySelector('.status-pill');
-    if (!pill) return;
-    if (msg.estado === 'en_vivo') {
-        card.dataset.estadoEvento = 'en_vivo';
-        pill.textContent = '🔴 En vivo';
-        pill.className = 'status-pill status-pill--live';
-        const marcador = card.querySelector('.evento-marcador');
-        if (marcador) marcador.hidden = false;
-    } else if (msg.estado === 'suspendido') {
-        card.dataset.estadoEvento = 'suspendido';
-        pill.textContent = 'Suspendido';
-        pill.className = 'status-pill status-pill--warn';
-    } else if (msg.estado === 'finalizado' || msg.estado === 'anulado') {
-        card.dataset.estadoEvento = msg.estado;
-        pill.textContent = 'Finalizado';
-        pill.className = 'status-pill status-pill--off';
-        card.querySelectorAll('.odd-button').forEach(btn => btn.disabled = true);
+    if (pill) {
+        if (msg.estado === 'en_vivo') {
+            pill.textContent = 'En vivo';
+            pill.className = 'status-pill status-pill--live';
+        } else if (msg.estado === 'suspendido') {
+            pill.textContent = 'Suspendido';
+            pill.className = 'status-pill status-pill--warn';
+        } else if (msg.estado === 'finalizado' || msg.estado === 'anulado') {
+            pill.textContent = 'Finalizado';
+            pill.className = 'status-pill status-pill--off';
+            card.querySelectorAll('.odd-button').forEach(btn => btn.disabled = true);
+        }
     }
+
     if (msg.marcador_local !== undefined && msg.marcador_visitante !== undefined) {
-        const marcador = card.querySelector('.evento-marcador');
-        if (marcador) {
-            marcador.hidden = false;
-            marcador.textContent = `${msg.marcador_local} - ${msg.marcador_visitante}`;
-            marcador.classList.add('evento-marcador--flash');
-            setTimeout(() => marcador.classList.remove('evento-marcador--flash'), 1200);
+        const goals = card.querySelectorAll('.scoreboard__goals');
+        if (goals.length === 2) {
+            goals[0].textContent = msg.marcador_local;
+            goals[1].textContent = msg.marcador_visitante;
+            goals.forEach(goal => {
+                goal.classList.add('evento-marcador--flash');
+                setTimeout(() => goal.classList.remove('evento-marcador--flash'), 1200);
+            });
         }
     }
 }
 
-// Banner de re-cotización cuando la cuota del ticket cambia en vivo
 function mostrarAlertaRecotizacion(msg) {
     let banner = document.getElementById('recotizacion-banner');
     if (!banner) {
@@ -307,9 +245,29 @@ function mostrarAlertaRecotizacion(msg) {
     }
     banner.innerHTML = `
         <i class="bi bi-exclamation-triangle"></i>
-        <span>Una cuota de tu ticket cambió a <strong>${parseFloat(msg.odds).toFixed(2)}</strong>. Revisa antes de confirmar.</span>
+        <span>Cuota cambiada a <strong>${parseFloat(msg.odds).toFixed(2)}</strong>. Revisa antes de confirmar.</span>
     `;
     banner.hidden = false;
 }
+
+function actualizarRelojes() {
+    document.querySelectorAll('.scoreboard__clock').forEach(reloj => {
+        const inicio = reloj.dataset.inicio;
+        if (!inicio) return;
+        const fechaInicio = new Date(inicio);
+        const ahora = new Date();
+        const diff = Math.floor((ahora - fechaInicio) / 1000);
+        if (diff < 0) {
+            reloj.textContent = '00:00';
+            return;
+        }
+        const min = Math.floor(diff / 60);
+        const seg = diff % 60;
+        reloj.textContent = `${String(min).padStart(2, '0')}:${String(seg).padStart(2, '0')}`;
+    });
+}
+
+setInterval(actualizarRelojes, 1000);
+actualizarRelojes();
 </script>
 {% endblock %}

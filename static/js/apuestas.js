@@ -6,6 +6,8 @@ const ticketOdds = document.getElementById('ticket-odds');
 const ticketPayout = document.getElementById('ticket-payout');
 const stakeInput = document.getElementById('ticket-stake');
 const ticketLimits = document.getElementById('ticket-limits');
+const ticketCounter = document.getElementById('ticket-counter');
+const MAX_SELECCIONES = 30;
 
 let selecciones = [];
 
@@ -18,10 +20,20 @@ function mostrarDecimal(valor) {
 }
 
 function oddsCombinada() {
+    if (selecciones.length === 0) return 1;
     return selecciones.reduce((prod, s) => prod * leerDecimal(s.odds), 1);
 }
 
+function actualizarCounter() {
+    if (!ticketCounter) return;
+    const count = selecciones.length;
+    ticketCounter.textContent = `${count}/${MAX_SELECCIONES}`;
+    ticketCounter.classList.toggle('has-items', count > 0);
+}
+
 function actualizarTicket() {
+    actualizarCounter();
+
     ticketVacio.hidden = selecciones.length > 0;
     ticketContenido.hidden = selecciones.length === 0;
     if (selecciones.length === 0) return;
@@ -29,7 +41,7 @@ function actualizarTicket() {
     ticketItems.innerHTML = selecciones.map((s, i) =>
         `<div class="ticket-item">
             <div class="ticket-item__top">
-                <strong class="ticket-item__evento">${s.evento}</strong>
+                <span class="ticket-item__evento">${s.evento}</span>
                 <button type="button" class="ticket-item__rm" data-idx="${i}" aria-label="Quitar">&times;</button>
             </div>
             <div class="ticket-item__detail">
@@ -53,7 +65,6 @@ function actualizarTicket() {
 
     const comb = oddsCombinada();
     ticketOdds.textContent = mostrarDecimal(comb);
-    ticketLimits.textContent = '';
 
     const stake = leerDecimal(stakeInput.value);
     ticketPayout.textContent = stake > 0 ? mostrarDecimal(stake * comb) : '0.00';
@@ -64,14 +75,31 @@ document.addEventListener('click', (event) => {
     if (!boton || boton.disabled) return;
 
     const id = boton.dataset.seleccionId;
+    const mercadoId = boton.dataset.mercadoId || null;
     const idx = selecciones.findIndex(s => s.seleccionId === id);
 
     if (idx !== -1) {
         selecciones.splice(idx, 1);
         boton.classList.remove('is-selected');
     } else {
+        if (mercadoId) {
+            const idxMismoMercado = selecciones.findIndex(s => s.mercadoId === mercadoId);
+            if (idxMismoMercado !== -1) {
+                const anterior = selecciones[idxMismoMercado];
+                document.querySelectorAll(`.odd-button[data-seleccion-id="${anterior.seleccionId}"]`)
+                    .forEach(b => b.classList.remove('is-selected'));
+                selecciones.splice(idxMismoMercado, 1);
+            }
+        }
+
+        if (selecciones.length >= MAX_SELECCIONES) {
+            alert(`Maximo ${MAX_SELECCIONES} selecciones por cupon.`);
+            return;
+        }
+
         selecciones.push({
             seleccionId: id,
+            mercadoId,
             evento: boton.dataset.evento,
             mercado: boton.dataset.mercado,
             seleccion: boton.dataset.seleccion,
@@ -85,7 +113,9 @@ document.addEventListener('click', (event) => {
 });
 
 if (stakeInput) {
-    stakeInput.addEventListener('input', actualizarTicket);
+    stakeInput.addEventListener('input', () => {
+        actualizarTicket();
+    });
 }
 
 document.querySelectorAll('.quick-stakes button').forEach(boton => {

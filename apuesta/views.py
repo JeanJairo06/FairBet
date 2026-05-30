@@ -13,7 +13,7 @@ from rest_framework.response import Response
 
 from apuesta.models import Apuesta
 from apuesta.serializers import ApuestaSerializer, CrearApuestaSimpleSerializer
-from apuesta.servicios import crear_apuesta_simple
+from apuesta.servicios import crear_apuesta_simple, crear_apuesta_ticket
 from billetera.exceptions import BilleteraError
 from core.choices import EstadoEvento, EstadoMercado, EstadoSeleccion
 from deporte.models import EventoDeportivo, HistorialOdds, Mercado, SeleccionMercado
@@ -91,6 +91,8 @@ class ApuestasWebView(LoginRequiredMixin, ListView):
                 for seleccion in mercado.selecciones_activas:
                     seleccion.odds_activa = odds_activas[seleccion.id_seleccion]
         context['mis_apuestas'] = Apuesta.objects.filter(usuario=self.request.user).order_by('-created_at')[:8]
+
+        context['selecciones_apostadas'] = set()
         return context
 
     def post(self, request, *args, **kwargs):
@@ -108,24 +110,30 @@ class ApuestasWebView(LoginRequiredMixin, ListView):
             return redirect('apuesta:apuestas_web')
 
         ids = [s.strip() for s in seleccion_ids_raw.split(',') if s.strip()]
-        creadas = 0
-        errores = []
-        for seleccion_id in ids:
-            try:
-                apuesta = crear_apuesta_simple(
-                    usuario=request.user,
-                    seleccion_id=seleccion_id,
-                    stake=stake,
-                    idempotency_key=f'web-{request.user.pk}-{seleccion_id}-{stake}-{timezone.now().timestamp()}',
-                )
-                creadas += 1
-            except (ValidationError, BilleteraError) as exc:
-                errores.append(str(exc))
 
-        if creadas:
-            messages.success(request, f'{creadas} apuesta(s) registrada(s) correctamente.')
-        for err in errores:
-            messages.error(request, err)
+        # Validar que no haya dos selecciones del mismo mercado
+        selecciones_qs = SeleccionMercado.objects.filter(
+            id_seleccion__in=ids
+        ).select_related('mercado')
+        mercados_vistos = {}
+        for sel in selecciones_qs:
+            mid = sel.mercado_id
+            if mid in mercados_vistos:
+                messages.error(request, 'No puedes apostar dos selecciones del mismo mercado en un solo cupon.')
+                return redirect('apuesta:apuestas_web')
+            mercados_vistos[mid] = sel
+
+        try:
+            apuesta = crear_apuesta_ticket(
+                usuario=request.user,
+                seleccion_ids=ids,
+                stake=stake,
+                idempotency_key=f'web-{request.user.pk}-{"-".join(ids)}-{stake}-{timezone.now().timestamp()}',
+            )
+            tipo = 'Combinada' if len(ids) > 1 else 'Simple'
+            messages.success(request, f'Apuesta {tipo.lower()} registrada correctamente.')
+        except (ValidationError, BilleteraError) as exc:
+            messages.error(request, str(exc))
         return redirect('apuesta:mis_apuestas_web')
 
 
@@ -183,4 +191,8 @@ class MisApuestasWebView(LoginRequiredMixin, ListView):
     paginate_by = 10
 
     def get_queryset(self):
-        return Apuesta.objects.filter(usuario=self.request.user).order_by('-created_at')
+        return (
+            Apuesta.objects.filter(usuario=self.request.user)
+            .prefetch_related('detalles__seleccion__mercado__evento')
+            .order_by('-created_at')
+        )
