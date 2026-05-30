@@ -1,36 +1,33 @@
-{% extends 'base.html' %}
-{% load static %}
-
+{% extends 'deporte/base_deporte.html' %}
 {% block title %}Partido | FairBet Lab{% endblock %}
-
-{% block extra_css %}
-<link rel="stylesheet" href="{% static 'deporte/css/workspace.css' %}">
+{% block eyebrow %}Partidos{% endblock %}
+{% block page_title %}{% if object %}Editar partido{% else %}Nuevo partido{% endif %}{% endblock %}
+{% block root_class %}sp-root--narrow{% endblock %}
+{% block topbar_action %}
+<a href="{% url 'deporte:eventos_lista' %}" class="sp-btn"><i class="bi bi-arrow-left"></i> Volver</a>
 {% endblock %}
 
-{% block content %}
-<section class="module-header">
-    <div>
-        <p class="eyebrow">Catalogo deportivo</p>
-        <h2>{% if object %}Editar partido{% else %}Nuevo partido{% endif %}</h2>
-        <p>Registra solo los datos base. El deporte, marcador y estado se asignan automaticamente.</p>
-    </div>
-    <a href="{% url 'deporte:eventos_lista' %}" class="button button--secondary">
-        <i class="bi bi-arrow-left"></i> Volver
-    </a>
-</section>
+{% block deporte_content %}
+<p class="sp-hint"><i class="bi bi-info-circle"></i> Registra solo los datos base. Deporte, marcador y estado se asignan automaticamente.</p>
 
-<form class="app-form" method="post">
+<form class="sp-form" method="post" novalidate>
     {% csrf_token %}
     {{ form.non_field_errors }}
-    {% for field in form %}
-        <label class="form-row">
-            <span>{{ field.label }}</span>
-            {{ field }}
-            {% if field.errors %}<small>{{ field.errors|striptags }}</small>{% endif %}
-        </label>
-    {% endfor %}
-    <div class="form-actions">
-        <button type="submit" class="button button--primary"><i class="bi bi-save"></i> Guardar</button>
+    <div class="sp-form__section">
+        <div class="sp-form__section-header"><i class="bi bi-calendar-event"></i> Datos del partido</div>
+        <div class="sp-form__grid">
+            {% for field in form %}
+            <div class="sp-form__field {% if 'nombre' in field.name or 'competic' in field.name %}sp-form__field--full{% endif %}">
+                <label>{{ field.label }}</label>{{ field }}
+                {% if field.help_text %}<small style="color:var(--sp-muted);font-size:.72rem;">{{ field.help_text }}</small>{% endif %}
+                {% if field.errors %}<span class="sp-form__error">{{ field.errors|striptags }}</span>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="sp-form__footer">
+        <button type="submit" class="sp-btn sp-btn--primary"><i class="bi bi-save"></i> Guardar partido</button>
+        <a href="{% url 'deporte:eventos_lista' %}" class="sp-btn">Cancelar</a>
     </div>
 </form>
 {% endblock %}

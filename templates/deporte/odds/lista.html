@@ -1,80 +1,43 @@
-{% extends 'base.html' %}
+{% extends 'deporte/base_deporte.html' %}
+{% block title %}Historial de odds | FairBet Lab{% endblock %}
+{% block eyebrow %}Auditoria{% endblock %}
+{% block page_title %}Historial de odds{% endblock %}
 
-{% block title %}Odds | FairBet Lab{% endblock %}
-
-{% block content %}
-<section class="module-header">
-    <div>
-        <p class="eyebrow">Auditoria</p>
-        <h2>Historial de odds</h2>
-        <p>Historial global de cuotas. Para actualizar odds, usa el detalle del partido correspondiente.</p>
-    </div>
-    <a href="{% url 'deporte:odds_actualizar' %}" class="button button--primary">
-        <i class="bi bi-arrow-repeat"></i> Actualizar odds
-    </a>
-</section>
-
-<form class="module-search" method="get">
-    <i class="bi bi-search"></i>
-    <input type="search" name="q" value="{{ request.GET.q }}" placeholder="Buscar por seleccion, mercado o evento">
-    <button type="submit" class="button button--secondary">Buscar</button>
+{% block deporte_content %}
+<form class="sp-search" method="get" role="search">
+    <button type="submit" class="sp-search__icon" aria-label="Buscar"><i class="bi bi-search"></i></button>
+    <input type="search" name="q" value="{{ request.GET.q }}" placeholder="Buscar seleccion, mercado o evento y pulsa Enter…">
 </form>
 
-<section class="data-panel">
-    <div class="table-wrap">
-        <table class="app-table">
-            <thead>
-                <tr>
-                    <th>Seleccion</th>
-                    <th>Mercado</th>
-                    <th>Evento</th>
-                    <th>Odds</th>
-                    <th>Version</th>
-                    <th>Vigencia</th>
-                    <th>Estado</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for item in odds %}
-                    <tr>
-                        <td>
-                            <strong>{{ item.seleccion.nombre }}</strong>
-                            <span>{{ item.seleccion.codigo_seleccion }}</span>
-                        </td>
-                        <td>{{ item.seleccion.mercado.nombre }}</td>
-                        <td>{{ item.seleccion.mercado.evento.equipo_local }} vs {{ item.seleccion.mercado.evento.equipo_visitante }}</td>
-                        <td><strong>{{ item.odds|floatformat:2 }}</strong></td>
-                        <td>{{ item.numero_version }}</td>
-                        <td>
-                            {{ item.valido_desde|date:'d/m/Y H:i' }}
-                            {% if item.valido_hasta %}<span>hasta {{ item.valido_hasta|date:'d/m/Y H:i' }}</span>{% endif %}
-                        </td>
-                        <td>
-                            {% if item.activa %}
-                                <span class="status-pill status-pill--ok">Vigente</span>
-                            {% else %}
-                                <span class="status-pill">Historica</span>
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if item.activa %}
-                                <div class="row-actions">
-                                    <a href="{% url 'deporte:odds_actualizar' %}?seleccion={{ item.seleccion.pk }}" title="Actualizar esta seleccion">
-                                        <i class="bi bi-arrow-repeat"></i>
-                                    </a>
-                                </div>
-                            {% endif %}
-                        </td>
-                    </tr>
-                {% empty %}
-                    <tr>
-                        <td colspan="8" class="empty-state">Aun no hay odds registradas.</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+<p class="sp-hint"><i class="bi bi-info-circle"></i> Registro de auditoria. Las odds se actualizan desde <strong>Configurar partido</strong>.</p>
+
+<div class="sp-odds-list">
+{% for item in odds %}
+<div class="sp-odds-row {% if item.activa %}sp-odds-row--vigente{% else %}sp-odds-row--historica{% endif %}">
+    <div class="sp-odds-val">
+        <span class="sp-odds-num {% if item.activa %}sp-odds-num--active{% endif %}">{{ item.odds|floatformat:2 }}</span>
+        <span class="sp-odds-version">v{{ item.numero_version }}</span>
     </div>
-    {% include 'partials/pagination.html' %}
-</section>
+    <div>
+        <div class="sp-odds-row__crumb">
+            {{ item.seleccion.mercado.evento.equipo_local }} vs {{ item.seleccion.mercado.evento.equipo_visitante }}
+            <i class="bi bi-chevron-right"></i>
+            {{ item.seleccion.mercado.nombre }}
+            <i class="bi bi-chevron-right"></i>
+            <strong>{{ item.seleccion.nombre }}</strong>
+        </div>
+        <div class="sp-odds-row__meta">
+            <span><i class="bi bi-calendar3"></i> {{ item.valido_desde|date:'d/m/Y H:i' }}</span>
+            {% if item.valido_hasta %}<span><i class="bi bi-calendar-x"></i> {{ item.valido_hasta|date:'d/m/Y H:i' }}</span>{% endif %}
+        </div>
+    </div>
+    <div class="sp-odds-row__right">
+        {% if item.activa %}<span class="sp-badge sp-badge--green">Vigente</span>{% else %}<span class="sp-badge">Historica</span>{% endif %}
+    </div>
+</div>
+{% empty %}
+<div class="sp-empty"><i class="bi bi-graph-up-arrow"></i><p>No hay odds registradas.</p></div>
+{% endfor %}
+</div>
+{% include 'partials/pagination.html' %}
 {% endblock %}

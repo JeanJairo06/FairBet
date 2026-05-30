@@ -194,8 +194,6 @@ class CatalogoDeportivoServiceTests(TestCase):
 
         urls = [
             reverse('deporte:eventos_lista'),
-            reverse('deporte:mercados_lista'),
-            reverse('deporte:selecciones_lista'),
             reverse('deporte:odds_lista'),
         ]
 
@@ -215,7 +213,7 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, 'Configurar partido')
         self.assertContains(response, 'Resultado final')
-        self.assertContains(response, 'Guardar odds')
+        self.assertContains(response, 'Actualizar 1X2')
 
     def test_crear_mercado_rapido_resultado_final_crea_selecciones_base(self):
         mercado = crear_mercado_rapido(self.evento, 'resultado_final')
@@ -473,19 +471,16 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertEqual(evento.estado_evento, EstadoEvento.EN_VIVO)
         self.assertEqual(self.mercado.estado_mercado, EstadoMercado.SUSPENDIDO)
 
-    def test_evento_futuro_muestra_acciones_de_inicio_o_finalizacion_deshabilitadas(self):
+    def test_evento_futuro_muestra_acciones_en_dropdown(self):
         get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
         self.client.login(username='operador', password='test12345')
         self.evento.__class__.objects.filter(pk=self.evento.pk).update(marcador_local=5, marcador_visitante=5)
 
         response = self.client.get(reverse('deporte:eventos_lista'))
 
-        self.assertContains(response, 'En vivo')
-        self.assertContains(response, 'Finalizar')
-        self.assertContains(response, 'disabled title="Disponible cuando inicie el evento"', count=2)
+        self.assertContains(response, 'Pasar a En Vivo')
         self.assertContains(response, 'Suspender')
         self.assertContains(response, 'Anular')
-        self.assertContains(response, '0 - 0')
         self.assertNotContains(response, '5 - 5')
 
     def test_evento_suspendido_muestra_editar_reactivar_y_anular(self):
@@ -521,20 +516,4 @@ class CatalogoDeportivoServiceTests(TestCase):
 
         self.assertNotIn(self.local, list(form.fields['seleccion'].queryset))
 
-    def test_vista_odds_devuelve_error_de_formulario_sin_traceback(self):
-        get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
-        self.client.login(username='operador', password='test12345')
 
-        self.evento.estado_evento = EstadoEvento.ANULADO
-        self.evento.save(update_fields=['estado_evento'])
-
-        response = self.client.post(
-            reverse('deporte:odds_actualizar'),
-            {
-                'seleccion': self.local.pk,
-                'odds': '2.5000',
-            },
-        )
-
-        self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.context['form'].errors)

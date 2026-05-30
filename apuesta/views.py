@@ -60,8 +60,12 @@ class ApuestasWebView(LoginRequiredMixin, ListView):
         return context
 
     def post(self, request, *args, **kwargs):
-        seleccion_id = request.POST.get('seleccion_id')
+        seleccion_ids_raw = request.POST.get('seleccion_ids', '').strip()
         stake = request.POST.get('stake')
+
+        if not seleccion_ids_raw:
+            messages.error(request, 'Selecciona al menos una cuota.')
+            return redirect('apuesta:apuestas_web')
 
         try:
             stake = Decimal(str(stake))
@@ -69,19 +73,25 @@ class ApuestasWebView(LoginRequiredMixin, ListView):
             messages.error(request, 'Ingresa un monto valido para la apuesta.')
             return redirect('apuesta:apuestas_web')
 
-        try:
-            apuesta = crear_apuesta_simple(
-                usuario=request.user,
-                seleccion_id=seleccion_id,
-                stake=stake,
-                idempotency_key=f'web-{request.user.pk}-{seleccion_id}-{stake}-{timezone.now().timestamp()}',
-            )
-        except (ValidationError, BilleteraError) as exc:
-            mensaje = exc.messages[0] if hasattr(exc, 'messages') else str(exc)
-            messages.error(request, mensaje)
-            return redirect('apuesta:apuestas_web')
+        ids = [s.strip() for s in seleccion_ids_raw.split(',') if s.strip()]
+        creadas = 0
+        errores = []
+        for seleccion_id in ids:
+            try:
+                apuesta = crear_apuesta_simple(
+                    usuario=request.user,
+                    seleccion_id=seleccion_id,
+                    stake=stake,
+                    idempotency_key=f'web-{request.user.pk}-{seleccion_id}-{stake}-{timezone.now().timestamp()}',
+                )
+                creadas += 1
+            except (ValidationError, BilleteraError) as exc:
+                errores.append(str(exc))
 
-        messages.success(request, f'Apuesta #{apuesta.id_apuesta} registrada correctamente.')
+        if creadas:
+            messages.success(request, f'{creadas} apuesta(s) registrada(s) correctamente.')
+        for err in errores:
+            messages.error(request, err)
         return redirect('apuesta:mis_apuestas_web')
 
 

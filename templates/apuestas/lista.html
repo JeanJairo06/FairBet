@@ -76,23 +76,17 @@
             <h3>Confirma tu seleccion</h3>
             <form method="post" class="bet-slip" id="bet-slip">
                 {% csrf_token %}
-                <input type="hidden" name="seleccion_id" id="ticket-seleccion-id">
-                <div class="ticket-empty" id="ticket-empty">Selecciona una cuota para armar tu ticket.</div>
+                <div class="ticket-empty" id="ticket-empty">Selecciona una o mas cuotas para armar tu ticket combinado.</div>
                 <div class="ticket-content" id="ticket-content" hidden>
-                    <span class="ticket-label">Evento</span>
-                    <strong id="ticket-evento"></strong>
-                    <span class="ticket-label">Mercado</span>
-                    <strong id="ticket-mercado"></strong>
-                    <span class="ticket-label">Seleccion</span>
-                    <strong id="ticket-seleccion"></strong>
+                    <div id="ticket-items"></div>
                     <div class="ticket-numbers">
                         <div>
-                            <span>Cuota</span>
-                            <strong id="ticket-odds">0.0000</strong>
+                            <span>Cuota combinada</span>
+                            <strong id="ticket-odds">—</strong>
                         </div>
                         <div>
                             <span>Pago potencial</span>
-                            <strong id="ticket-payout">0.0000</strong>
+                            <strong id="ticket-payout">0.00</strong>
                         </div>
                     </div>
                     <label class="ticket-label" for="ticket-stake">Fichas a apostar</label>
@@ -104,7 +98,7 @@
                         <button type="button" data-stake="100">100</button>
                     </div>
                     <small id="ticket-limits"></small>
-                    <button type="submit" class="button button--primary button--full">Confirmar apuesta</button>
+                    <button type="submit" class="button button--primary button--full">Confirmar apuesta combinada</button>
                 </div>
             </form>
         </div>
