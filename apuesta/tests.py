@@ -103,6 +103,28 @@ class CrearApuestaSimpleTests(TestCase):
         self.assertEqual(detalle.odds_snapshot, Decimal('2.5000'))
         self.assertEqual(detalle.version_odds, 1)
 
+    def test_modulo_apuestas_muestra_evento_futuro_con_odds_activas(self):
+        self.client.login(username='daniel', password='test12345')
+
+        response = self.client.get('/apuestas/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Peru vs Brasil')
+        self.assertContains(response, 'Gana Peru')
+
+    def test_modulo_apuestas_muestra_evento_en_vivo_si_mercado_permite_in_play(self):
+        self.evento.inicia_en = timezone.now() - timezone.timedelta(hours=1)
+        self.evento.estado_evento = EstadoEvento.EN_VIVO
+        self.evento.save(update_fields=['inicia_en', 'estado_evento'])
+        self.mercado.permite_in_play = True
+        self.mercado.save(update_fields=['permite_in_play'])
+        self.client.login(username='daniel', password='test12345')
+
+        response = self.client.get('/apuestas/')
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, 'Peru vs Brasil')
+
     def test_no_crea_apuesta_si_mercado_no_esta_abierto(self):
         self.mercado.estado_mercado = EstadoMercado.CERRADO
         self.mercado.save(update_fields=['estado_mercado'])

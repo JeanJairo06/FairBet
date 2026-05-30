@@ -42,11 +42,14 @@ def validar_apuesta_simple(seleccion, odds_activa, stake):
     mercado = seleccion.mercado
     evento = mercado.evento
 
-    if evento.estado_evento != EstadoEvento.PROGRAMADO:
+    if evento.estado_evento not in {EstadoEvento.PROGRAMADO, EstadoEvento.EN_VIVO}:
         raise ValidationError('El evento no esta disponible para nuevas apuestas.')
 
-    if evento.inicia_en <= timezone.now():
+    if evento.estado_evento == EstadoEvento.PROGRAMADO and evento.inicia_en <= timezone.now():
         raise ValidationError('No se puede apostar sobre un evento que ya inicio.')
+
+    if evento.estado_evento == EstadoEvento.EN_VIVO and not mercado.permite_in_play:
+        raise ValidationError('El mercado no permite apuestas en vivo.')
 
     if seleccion.estado_seleccion != EstadoSeleccion.ACTIVA:
         raise ValidationError('La seleccion no esta activa para apostar.')

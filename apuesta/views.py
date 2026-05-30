@@ -3,6 +3,7 @@ from decimal import Decimal, InvalidOperation
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
+from django.db.models import Prefetch, Q
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.views.generic import ListView
@@ -13,7 +14,7 @@ from apuesta.servicios import crear_apuesta_simple
 from apuesta.serializers import ApuestaSerializer, CrearApuestaSimpleSerializer
 from billetera.exceptions import BilleteraError
 from core.choices import EstadoEvento, EstadoMercado, EstadoSeleccion
-from deporte.models import EventoDeportivo, HistorialOdds
+from deporte.models import EventoDeportivo, HistorialOdds, Mercado, SeleccionMercado
 
 
 class ApuestaListCreateView(ListCreateAPIView):
@@ -32,13 +33,29 @@ class ApuestasWebView(LoginRequiredMixin, ListView):
     login_url = 'login'
 
     def get_queryset(self):
+        ahora = timezone.now()
+        selecciones_apostables = SeleccionMercado.objects.filter(
+            estado_seleccion=EstadoSeleccion.ACTIVA,
+            historial_odds__activa=True,
+        ).prefetch_related('historial_odds').distinct()
+        mercados_apostables = Mercado.objects.filter(
+            estado_mercado=EstadoMercado.ABIERTO,
+        ).filter(
+            Q(evento__estado_evento=EstadoEvento.PROGRAMADO, evento__inicia_en__gt=ahora)
+            | Q(evento__estado_evento=EstadoEvento.EN_VIVO, permite_in_play=True)
+        ).prefetch_related(
+            Prefetch('selecciones', queryset=selecciones_apostables)
+        )
+
         return EventoDeportivo.objects.filter(
-            estado_evento=EstadoEvento.PROGRAMADO,
-            inicia_en__gt=timezone.now(),
             mercados__estado_mercado=EstadoMercado.ABIERTO,
             mercados__selecciones__estado_seleccion=EstadoSeleccion.ACTIVA,
+            mercados__selecciones__historial_odds__activa=True,
+        ).filter(
+            Q(estado_evento=EstadoEvento.PROGRAMADO, inicia_en__gt=ahora)
+            | Q(estado_evento=EstadoEvento.EN_VIVO, mercados__permite_in_play=True)
         ).distinct().prefetch_related(
-            'mercados__selecciones__historial_odds',
+            Prefetch('mercados', queryset=mercados_apostables),
         ).order_by('inicia_en')
 
     def get_context_data(self, **kwargs):
@@ -60,8 +77,12 @@ class ApuestasWebView(LoginRequiredMixin, ListView):
         return context
 
     def post(self, request, *args, **kwargs):
-        seleccion_id = request.POST.get('seleccion_id')
+        seleccion_ids_raw = request.POST.get('seleccion_ids', '').strip()
         stake = request.POST.get('stake')
+
+        if not seleccion_ids_raw:
+            messages.error(request, 'Selecciona al menos una cuota.')
+            return redirect('apuesta:apuestas_web')
 
         try:
             stake = Decimal(str(stake))
@@ -69,19 +90,25 @@ class ApuestasWebView(LoginRequiredMixin, ListView):
             messages.error(request, 'Ingresa un monto valido para la apuesta.')
             return redirect('apuesta:apuestas_web')
 
-        try:
-            apuesta = crear_apuesta_simple(
-                usuario=request.user,
-                seleccion_id=seleccion_id,
-                stake=stake,
-                idempotency_key=f'web-{request.user.pk}-{seleccion_id}-{stake}-{timezone.now().timestamp()}',
-            )
-        except (ValidationError, BilleteraError) as exc:
-            mensaje = exc.messages[0] if hasattr(exc, 'messages') else str(exc)
-            messages.error(request, mensaje)
-            return redirect('apuesta:apuestas_web')
+        ids = [s.strip() for s in seleccion_ids_raw.split(',') if s.strip()]
+        creadas = 0
+        errores = []
+        for seleccion_id in ids:
+            try:
+                apuesta = crear_apuesta_simple(
+                    usuario=request.user,
+                    seleccion_id=seleccion_id,
+                    stake=stake,
+                    idempotency_key=f'web-{request.user.pk}-{seleccion_id}-{stake}-{timezone.now().timestamp()}',
+                )
+                creadas += 1
+            except (ValidationError, BilleteraError) as exc:
+                errores.append(str(exc))
 
-        messages.success(request, f'Apuesta #{apuesta.id_apuesta} registrada correctamente.')
+        if creadas:
+            messages.success(request, f'{creadas} apuesta(s) registrada(s) correctamente.')
+        for err in errores:
+            messages.error(request, err)
         return redirect('apuesta:mis_apuestas_web')
 
 

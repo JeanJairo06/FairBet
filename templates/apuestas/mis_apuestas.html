@@ -36,9 +36,9 @@
                 {% for apuesta in apuestas %}
                     <tr>
                         <td><strong>#{{ apuesta.id_apuesta }}</strong><span>{{ apuesta.get_tipo_apuesta_display }}</span></td>
-                        <td>{{ apuesta.stake }}</td>
-                        <td>{{ apuesta.odds_total }}</td>
-                        <td>{{ apuesta.payout_potencial }}</td>
+                        <td>{{ apuesta.stake|floatformat:2 }}</td>
+                        <td>{{ apuesta.odds_total|floatformat:2 }}</td>
+                        <td>{{ apuesta.payout_potencial|floatformat:2 }}</td>
                         <td><span class="status-pill">{{ apuesta.get_estado_apuesta_display }}</span></td>
                         <td>{{ apuesta.created_at|date:'d/m/Y H:i' }}</td>
                     </tr>

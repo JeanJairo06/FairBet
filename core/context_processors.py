@@ -16,7 +16,7 @@ def wallet_header(request):
             return {
                 'header_wallet_available': True,
                 'header_wallet_balance': saldo,
-                'header_wallet_balance_display': f'{saldo:.4f}',
+                'header_wallet_balance_display': f'{saldo:.2f}',
                 'header_wallet_label': 'Monedas',
             }
         except CuentaNoEncontradaError:

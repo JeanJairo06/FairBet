@@ -1,650 +1,1098 @@
-.fb-event-dashboard,
-.fb-event-workspace,
-.fb-markets-section {
+/* ══════════════════════════════════════════════════════
+   FAIRBET SPORTS ADMIN — Sistema de diseño propio
+   No depende de main.css salvo variables CSS globales
+══════════════════════════════════════════════════════ */
+
+/* ─── Variables locales ─────────────────────────────── */
+:root {
+    --sp-bg:        #080e1a;
+    --sp-panel:     #0d1627;
+    --sp-panel-2:   #111e35;
+    --sp-line:      rgba(255,255,255,0.08);
+    --sp-line-2:    rgba(255,255,255,0.04);
+    --sp-text:      #e2eaf6;
+    --sp-muted:     #6b82a4;
+    --sp-accent:    #22c55e;
+    --sp-accent-dim:rgba(34,197,94,0.12);
+    --sp-blue:      #3b82f6;
+    --sp-blue-dim:  rgba(59,130,246,0.12);
+    --sp-yellow:    #f59e0b;
+    --sp-yellow-dim:rgba(245,158,11,0.1);
+    --sp-red:       #ef4444;
+    --sp-red-dim:   rgba(239,68,68,0.1);
+    --sp-purple:    #a855f7;
+    --sp-radius:    14px;
+    --sp-radius-sm: 8px;
+}
+
+/* Ancho contenido centrado en todo el módulo de deportes */
+.page-shell:has(.sp-root) {
+    max-width: 1080px;
+    margin: 0 auto;
+    width: 100%;
+}
+
+/* ─── Layout raíz (sin sidebar) ─────────────────────── */
+.sp-root {
     display: grid;
-    gap: 18px;
+    gap: 0;
 }
 
-.fb-event-card,
-.fb-panel,
-.fb-market-card,
-.fb-result-panel,
-.fb-empty-panel {
-    border: 1px solid var(--line);
-    border-radius: 22px;
-    background: linear-gradient(145deg, rgba(17, 28, 51, 0.92), rgba(15, 23, 42, 0.9));
-    box-shadow: 0 18px 56px rgba(0, 0, 0, 0.22);
+/* Vistas de formulario: contenedor estrecho centrado */
+.sp-root--narrow .sp-content__body {
+    max-width: 640px;
 }
 
-.fb-event-card {
-    position: relative;
-    display: grid;
-    gap: 18px;
-    padding: 22px;
-    overflow: hidden;
-}
-
-.fb-event-card::before {
-    content: '';
-    position: absolute;
-    inset: 0 auto 0 0;
-    width: 4px;
-    background: linear-gradient(180deg, var(--accent), rgba(34, 197, 94, 0.08));
-}
-
-.fb-event-card__content {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+/* ─── Topbar con título y acción ────────────────────── */
+.sp-topbar {
+    display: flex;
     align-items: center;
-    gap: 20px;
-    padding-right: 230px;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 4px;
 }
 
-.fb-event-competition {
-    margin: 0 0 8px;
-    color: var(--accent);
-    font-size: 0.78rem;
+.sp-topbar__title {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.sp-topbar__eyebrow {
+    font-size: 0.65rem;
     font-weight: 800;
-    letter-spacing: 0.1em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
+    color: var(--sp-accent);
 }
 
-.fb-event-card__main h3 {
-    color: var(--text);
-    font-size: clamp(1.18rem, 2.4vw, 1.6rem);
+.sp-topbar__title h1 {
+    margin: 0;
+    font-size: 1.35rem;
+    font-weight: 800;
+    color: var(--sp-text);
     line-height: 1.2;
 }
 
-.fb-event-card__main h3 span {
-    color: var(--muted);
-    font-size: 0.78em;
-    font-weight: 700;
-}
-
-.fb-event-date {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: 12px;
-    color: var(--muted);
-    font-size: 0.95rem;
-}
-
-.fb-score-card {
-    min-width: 126px;
-    padding: 14px 16px;
-    border: 1px solid rgba(255, 255, 255, 0.14);
-    border-radius: 18px;
-    text-align: center;
-    background: rgba(255, 255, 255, 0.055);
-}
-
-.fb-score-card span {
-    display: block;
-    color: var(--muted);
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-}
-
-.fb-score-card strong {
-    display: block;
-    margin-top: 4px;
-    color: var(--text);
-    font-size: 1.55rem;
-    line-height: 1;
-}
-
-.fb-event-card h3,
-.fb-event-header h2,
-.fb-panel h3,
-.fb-market-card h4 {
-    margin: 0;
-}
-
-.fb-event-card__status,
-.fb-event-card__metrics,
-.fb-event-meta,
-.fb-action-row,
-.fb-event-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 10px;
-}
-
-.fb-event-card__status {
-    position: absolute;
-    top: 18px;
-    right: 18px;
-    justify-content: flex-end;
-    max-width: 230px;
-    z-index: 1;
-}
-
-.fb-event-card__footer {
+/* ─── Tabs de navegación horizontal ────────────────── */
+.sp-tabs {
     display: flex;
     align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    padding-top: 16px;
-    border-top: 1px solid rgba(255, 255, 255, 0.09);
+    gap: 4px;
+    padding-bottom: 2px;
+    border-bottom: 1px solid var(--sp-line);
+    margin-bottom: 16px;
+    overflow-x: auto;
 }
 
-.fb-event-card__metrics a,
-.fb-event-card__metrics span,
-.fb-event-meta span,
-.fb-muted,
-.fb-panel p,
-.fb-market-card p,
-.fb-history-list span {
-    color: var(--muted);
-}
-
-.fb-event-card__metrics strong {
-    color: var(--accent);
-}
-
-.fb-event-card__metrics a,
-.fb-event-card__metrics span {
+.sp-tab {
     display: inline-flex;
     align-items: center;
     gap: 7px;
-    min-height: 32px;
-    padding: 0 10px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.035);
-    font-size: 0.9rem;
+    padding: 8px 14px;
+    border-radius: var(--sp-radius-sm) var(--sp-radius-sm) 0 0;
+    color: var(--sp-muted);
+    font-size: 0.84rem;
+    font-weight: 600;
+    text-decoration: none;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -1px;
+    transition: color 130ms, border-color 130ms;
+    white-space: nowrap;
 }
 
-.fb-event-card__metrics a:hover {
-    color: var(--text);
-    border-color: rgba(34, 197, 94, 0.35);
-    background: rgba(34, 197, 94, 0.08);
+.sp-tab:hover { color: var(--sp-text); }
+
+.sp-tab.active {
+    color: var(--sp-accent);
+    border-bottom-color: var(--sp-accent);
+    font-weight: 700;
 }
 
-.fb-event-card__metrics i {
-    color: var(--accent);
-}
+.sp-tab i { font-size: 0.9rem; }
 
-.fb-card-actions {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-}
-
-.fb-card-actions form {
-    margin: 0;
-}
-
-.fb-icon-action {
-    display: inline-grid;
-    place-items: center;
-    width: 38px;
-    height: 38px;
-    padding: 0;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    color: var(--muted);
-    background: rgba(255, 255, 255, 0.045);
-    font: inherit;
-    cursor: pointer;
-    transition: transform 140ms ease, border-color 140ms ease, background 140ms ease, color 140ms ease;
-}
-
-.fb-icon-action:hover:not(:disabled) {
-    color: #052e16;
-    border-color: var(--accent);
-    background: var(--accent);
-    transform: translateY(-1px);
-}
-
-.fb-icon-action--primary {
-    color: #052e16;
-    border-color: var(--accent);
-    background: var(--accent);
-}
-
-.fb-icon-action--primary:hover {
-    background: var(--accent-strong);
-}
-
-.fb-icon-action--danger:hover:not(:disabled) {
-    color: #450a0a;
-    border-color: var(--danger);
-    background: var(--danger);
-}
-
-.fb-icon-action:disabled {
-    cursor: not-allowed;
-    opacity: 0.45;
-}
-
-.fb-event-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 20px;
-    padding: 24px;
-    border: 1px solid var(--line);
-    border-radius: 26px;
-    background: radial-gradient(circle at top right, rgba(34, 197, 94, 0.14), transparent 34%), rgba(17, 28, 51, 0.88);
-}
-
-.fb-workspace-grid {
+.sp-content__body {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(320px, 0.8fr);
-    gap: 18px;
-}
-
-.fb-panel,
-.fb-result-panel,
-.fb-market-card {
-    padding: 18px;
-}
-
-.fb-panel__header,
-.fb-section-title,
-.fb-market-card-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 18px;
-    margin-bottom: 16px;
-}
-
-.fb-checklist {
-    display: grid;
-    gap: 10px;
-}
-
-.fb-checklist-item {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 12px;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.04);
-}
-
-.fb-checklist-item--done i {
-    color: var(--accent);
-}
-
-.fb-checklist-item--pending i {
-    color: #facc15;
-}
-
-.fb-market-toolbar {
     gap: 16px;
+    align-content: start;
 }
 
-.fb-market-builder {
+/* Nota informativa */
+.sp-hint {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: 0;
+    padding: 9px 14px;
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius-sm);
+    background: rgba(255,255,255,0.02);
+    color: var(--sp-muted);
+    font-size: 0.78rem;
+}
+
+.sp-hint i { color: var(--sp-blue); }
+.sp-hint strong { color: var(--sp-text); }
+
+/* ─── Búsqueda (compacta, busca con Enter) ──────────── */
+.sp-search {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 12px 4px 4px;
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius-sm);
+    background: var(--sp-panel);
+    max-width: 420px;
+    transition: border-color 130ms;
+}
+
+.sp-search:focus-within { border-color: var(--sp-accent); }
+
+.sp-search__icon {
     display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--sp-muted);
+    cursor: pointer;
+    font-size: 0.9rem;
+    flex-shrink: 0;
+    transition: color 130ms, background 130ms;
+}
+
+.sp-search__icon:hover { color: var(--sp-accent); background: var(--sp-accent-dim); }
+
+.sp-search input {
+    flex: 1;
+    min-width: 0;
+    border: none;
+    background: transparent;
+    color: var(--sp-text);
+    font: inherit;
+    font-size: 0.84rem;
+    outline: none;
+}
+
+.sp-search input::placeholder { color: var(--sp-muted); }
+
+/* ─── Botones base ──────────────────────────────────── */
+.sp-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius-sm);
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: background 130ms, color 130ms, border-color 130ms, transform 100ms;
+    text-decoration: none;
+    white-space: nowrap;
+    color: var(--sp-muted);
+    background: rgba(255,255,255,0.04);
+}
+
+.sp-btn:hover:not(:disabled) { color: var(--sp-text); background: rgba(255,255,255,0.08); transform: translateY(-1px); }
+.sp-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.sp-btn--primary { color: #052e16; background: var(--sp-accent); border-color: var(--sp-accent); }
+.sp-btn--primary:hover { background: #16a34a; border-color: #16a34a; color: #fff; }
+
+.sp-btn--live { color: #1e3a5f; background: var(--sp-blue); border-color: var(--sp-blue); }
+.sp-btn--live:hover:not(:disabled) { background: #2563eb; color: #fff; }
+
+.sp-btn--danger { color: var(--sp-muted); border-color: rgba(239,68,68,0.3); }
+.sp-btn--danger:hover:not(:disabled) { color: #fff; background: var(--sp-red); border-color: var(--sp-red); }
+
+.sp-btn--icon { padding: 8px; min-width: 36px; justify-content: center; }
+
+/* ─── Badges ────────────────────────────────────────── */
+.sp-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 3px 9px;
+    border-radius: 999px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    border: 1px solid var(--sp-line);
+    color: var(--sp-muted);
+    background: rgba(255,255,255,0.04);
+}
+
+.sp-badge--green  { color: var(--sp-accent);  border-color: rgba(34,197,94,0.3);  background: var(--sp-accent-dim); }
+.sp-badge--blue   { color: var(--sp-blue);    border-color: rgba(59,130,246,0.3); background: var(--sp-blue-dim); }
+.sp-badge--yellow { color: var(--sp-yellow);  border-color: rgba(245,158,11,0.3); background: var(--sp-yellow-dim); }
+.sp-badge--red    { color: var(--sp-red);     border-color: rgba(239,68,68,0.3);  background: var(--sp-red-dim); }
+.sp-badge--purple { color: var(--sp-purple);  border-color: rgba(168,85,247,0.3); background: rgba(168,85,247,0.1); }
+
+/* ─── Tarjetas de evento (lista) ────────────────────── */
+.sp-events-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
     gap: 12px;
 }
 
-.fb-market-builder-item {
-    border: 1px solid var(--line);
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.035);
+.sp-event-card {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius);
+    background: var(--sp-panel);
+    overflow: hidden;
+    transition: border-color 150ms;
+}
+
+.sp-event-card:hover { border-color: rgba(255,255,255,0.15); }
+
+.sp-event-card--en_vivo { border-color: rgba(59,130,246,0.25); }
+.sp-event-card--suspendido { border-color: rgba(245,158,11,0.2); }
+.sp-event-card--anulado { opacity: 0.6; }
+
+.sp-event-card__strip {
+    height: 3px;
+    background: var(--sp-line);
+}
+.sp-event-card--programado .sp-event-card__strip { background: var(--sp-accent); }
+.sp-event-card--en_vivo    .sp-event-card__strip { background: var(--sp-blue); }
+.sp-event-card--suspendido .sp-event-card__strip { background: var(--sp-yellow); }
+.sp-event-card--anulado    .sp-event-card__strip { background: var(--sp-red); }
+.sp-event-card--finalizado .sp-event-card__strip { background: var(--sp-purple); }
+
+.sp-event-card__top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px 6px;
+}
+
+.sp-competition {
+    flex: 1;
+    min-width: 0;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--sp-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.sp-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    color: var(--sp-blue);
+    text-transform: uppercase;
+}
+
+.sp-live-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--sp-blue);
+    flex-shrink: 0;
+    animation: sp-pulse 1.4s infinite;
+}
+
+@keyframes sp-pulse {
+    0%   { box-shadow: 0 0 0 0 rgba(59,130,246,0.6); }
+    70%  { box-shadow: 0 0 0 6px rgba(59,130,246,0); }
+    100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); }
+}
+
+.sp-ready { color: var(--sp-accent); font-size: 0.95rem; line-height: 1; }
+
+.sp-event-card__teams {
+    display: grid;
+    gap: 4px;
+    padding: 6px 14px 8px;
+}
+
+.sp-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.sp-row__team {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--sp-text);
+    line-height: 1.2;
+}
+
+.sp-row__score {
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: var(--sp-text);
+    flex-shrink: 0;
+    min-width: 18px;
+    text-align: center;
+}
+
+.sp-event-card__date {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 14px 8px;
+    font-size: 0.72rem;
+    color: var(--sp-muted);
+}
+
+.sp-event-card__counts {
+    display: flex;
+    gap: 14px;
+    padding: 8px 14px;
+    border-top: 1px solid var(--sp-line-2);
+    font-size: 0.72rem;
+    color: var(--sp-muted);
+}
+
+.sp-event-card__counts strong { color: var(--sp-text); font-weight: 800; }
+
+.sp-event-card__foot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 14px;
+    border-top: 1px solid var(--sp-line-2);
+    background: rgba(255,255,255,0.015);
+}
+
+.sp-event-card__foot form { margin: 0; }
+
+/* ─── Dropdown ──────────────────────────────────────── */
+.sp-dropdown { position: relative; }
+
+.sp-dropdown__menu {
+    display: none;
+    position: absolute;
+    bottom: calc(100% + 6px);
+    left: 0;
+    z-index: 100;
+    min-width: 190px;
+    padding: 6px;
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius);
+    background: rgba(10,16,32,0.98);
+    backdrop-filter: blur(16px);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5);
+}
+
+.sp-dropdown__menu.open { display: grid; gap: 2px; animation: dropIn 130ms ease; }
+
+@keyframes dropIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+.sp-dropdown__menu form { margin: 0; }
+
+.sp-dropdown__item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border: none;
+    border-radius: var(--sp-radius-sm);
+    color: var(--sp-muted);
+    background: transparent;
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-align: left;
+    width: 100%;
+    text-decoration: none;
+    transition: background 100ms, color 100ms;
+}
+
+.sp-dropdown__item:hover:not(:disabled) { color: var(--sp-text); background: rgba(255,255,255,0.07); }
+.sp-dropdown__item:disabled { opacity: 0.35; cursor: not-allowed; }
+.sp-dropdown__item--danger { color: var(--sp-red); }
+.sp-dropdown__item--danger:hover:not(:disabled) { background: var(--sp-red-dim); }
+
+.sp-dropdown__sep { height: 1px; background: var(--sp-line); margin: 3px 0; }
+
+/* ─── Tarjetas de mercado ───────────────────────────── */
+.sp-mkt-list { display: grid; gap: 10px; }
+
+.sp-mkt-card {
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius);
+    background: var(--sp-panel);
     overflow: hidden;
 }
 
-.fb-market-builder-item[open] {
-    border-color: rgba(34, 197, 94, 0.28);
-    background: rgba(34, 197, 94, 0.045);
+.sp-mkt-card__head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px 10px;
+    border-bottom: 1px solid var(--sp-line-2);
+    background: var(--sp-panel-2);
 }
 
-.fb-market-builder-item summary {
+.sp-mkt-card__event {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--sp-muted);
+    font-size: 0.72rem;
+    margin-bottom: 4px;
+}
+
+.sp-mkt-card__name {
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--sp-text);
+}
+
+.sp-mkt-card__badges { display: flex; flex-wrap: wrap; gap: 5px; flex-shrink: 0; }
+
+.sp-mkt-card__body {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 10px 16px;
+}
+
+.sp-mkt-stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--sp-muted);
+    font-size: 0.8rem;
+}
+
+.sp-mkt-stat i { color: var(--sp-accent); }
+
+.sp-mkt-card__foot {
+    display: flex;
+    gap: 6px;
+    padding: 8px 16px 10px;
+    border-top: 1px solid var(--sp-line-2);
+}
+
+/* ─── Lista de selecciones ──────────────────────────── */
+.sp-sel-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 8px;
+}
+
+.sp-sel-card {
+    display: grid;
+    grid-template-columns: 60px 1fr auto;
+    align-items: center;
+    gap: 12px;
+    padding: 11px 14px;
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius);
+    background: var(--sp-panel);
+    transition: border-color 130ms;
+}
+
+.sp-sel-card:hover { border-color: rgba(255,255,255,0.14); }
+
+.sp-odds-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 8px 6px;
+    border: 1px solid rgba(34,197,94,0.3);
+    border-radius: var(--sp-radius-sm);
+    background: var(--sp-accent-dim);
+    text-align: center;
+}
+
+.sp-odds-btn__val {
+    font-size: 1.1rem;
+    font-weight: 900;
+    color: var(--sp-accent);
+    line-height: 1;
+}
+
+.sp-odds-btn--empty {
+    border-color: var(--sp-line);
+    background: rgba(255,255,255,0.02);
+}
+
+.sp-odds-btn--empty .sp-odds-btn__val { color: var(--sp-muted); font-size: 1rem; }
+
+.sp-sel-card__crumb {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin-bottom: 4px;
+    font-size: 0.72rem;
+    color: var(--sp-muted);
+}
+
+.sp-sel-card__crumb i { font-size: 0.6rem; opacity: 0.4; }
+
+.sp-sel-card__name {
+    font-size: 0.92rem;
+    font-weight: 800;
+    color: var(--sp-text);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+}
+
+.sp-sel-code {
+    padding: 1px 6px;
+    border-radius: 5px;
+    color: var(--sp-blue);
+    background: var(--sp-blue-dim);
+    font-size: 0.72rem;
+    font-family: monospace;
+}
+
+.sp-sel-card__meta {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 0.72rem;
+    color: var(--sp-muted);
+}
+
+.sp-sel-card__actions { display: flex; gap: 5px; align-items: center; }
+
+/* ─── Lista de odds ─────────────────────────────────── */
+.sp-odds-list { display: grid; gap: 8px; }
+
+.sp-odds-row {
+    display: grid;
+    grid-template-columns: 76px 1fr auto;
+    align-items: center;
+    gap: 14px;
+    padding: 10px 16px;
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius);
+    background: var(--sp-panel);
+    transition: border-color 130ms;
+}
+
+.sp-odds-row--vigente { border-left: 3px solid var(--sp-accent); }
+.sp-odds-row--historica { opacity: 0.55; }
+.sp-odds-row--historica:hover { opacity: 1; }
+
+.sp-odds-val {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+}
+
+.sp-odds-num {
+    font-size: 1.3rem;
+    font-weight: 900;
+    color: var(--sp-muted);
+}
+
+.sp-odds-num--active { color: var(--sp-accent); }
+.sp-odds-version { font-size: 0.65rem; font-weight: 700; color: var(--sp-muted); }
+
+.sp-odds-row__crumb {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    flex-wrap: wrap;
+    font-size: 0.78rem;
+    color: var(--sp-muted);
+    margin-bottom: 4px;
+}
+
+.sp-odds-row__crumb i { font-size: 0.6rem; opacity: 0.4; }
+.sp-odds-row__crumb strong { color: var(--sp-text); font-weight: 700; }
+
+.sp-odds-row__meta {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    font-size: 0.72rem;
+    color: var(--sp-muted);
+}
+
+.sp-odds-row__meta span { display: inline-flex; align-items: center; gap: 4px; }
+.sp-odds-row__right { display: flex; align-items: center; gap: 8px; }
+
+/* ─── Formulario ────────────────────────────────────── */
+.sp-form { display: grid; gap: 2px; }
+
+.sp-form__section {
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius);
+    background: var(--sp-panel);
+    overflow: hidden;
+    margin-bottom: 10px;
+}
+
+.sp-form__section-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--sp-line-2);
+    background: var(--sp-panel-2);
+    font-size: 0.75rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--sp-muted);
+}
+
+.sp-form__section-header i { color: var(--sp-accent); }
+
+.sp-form__grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1px;
+    background: var(--sp-line-2);
+}
+
+.sp-form__field {
+    display: grid;
+    gap: 7px;
+    padding: 14px 16px;
+    background: var(--sp-panel);
+}
+
+.sp-form__field--full { grid-column: 1 / -1; }
+
+.sp-form__field label {
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--sp-muted);
+}
+
+.sp-form__field input,
+.sp-form__field select,
+.sp-form__field textarea {
+    width: 100%;
+    min-height: 40px;
+    padding: 0 12px;
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius-sm);
+    color: var(--sp-text);
+    background: var(--sp-panel-2);
+    font: inherit;
+    font-size: 0.88rem;
+    transition: border-color 130ms, background 130ms;
+}
+
+.sp-form__field input:focus,
+.sp-form__field select:focus {
+    outline: none;
+    border-color: var(--sp-accent);
+    background: rgba(34,197,94,0.03);
+}
+
+.sp-form__field select option { background: var(--sp-panel); }
+
+.sp-form__field--toggle {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
+}
+
+.sp-form__toggle-label strong {
+    display: block;
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--sp-text);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.sp-form__toggle-label small { color: var(--sp-muted); font-size: 0.73rem; }
+
+.sp-form__field--toggle input[type="checkbox"] {
+    width: 20px;
+    min-height: 20px;
+    accent-color: var(--sp-accent);
+    flex-shrink: 0;
+}
+
+.sp-form__error { color: var(--sp-red); font-size: 0.72rem; }
+
+.sp-form__footer {
+    display: flex;
+    gap: 10px;
+    padding-top: 4px;
+}
+
+/* ─── Banner contextual ─────────────────────────────── */
+.sp-ctx {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 16px;
+    border: 1px solid var(--sp-line);
+    border-left: 3px solid var(--sp-accent);
+    border-radius: var(--sp-radius);
+    background: var(--sp-panel);
+    font-size: 0.82rem;
+}
+
+.sp-ctx--warn { border-left-color: var(--sp-yellow); background: var(--sp-yellow-dim); }
+
+.sp-ctx__crumb {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    color: var(--sp-muted);
+}
+
+.sp-ctx__crumb i.bi-chevron-right { font-size: 0.6rem; opacity: 0.4; }
+.sp-ctx__crumb strong { color: var(--sp-text); font-weight: 700; }
+
+.sp-ctx__right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+/* ─── Workspace detalle de partido ──────────────────── */
+.sp-ws { display: grid; gap: 14px; }
+
+.sp-ws-header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
     gap: 14px;
-    padding: 14px 16px;
+    padding: 18px 20px;
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius);
+    background: var(--sp-panel);
+}
+
+.sp-ws-header__league {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--sp-accent);
+    margin: 0 0 5px;
+}
+
+.sp-ws-header__teams {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.sp-ws-team { font-size: 1rem; font-weight: 800; color: var(--sp-text); }
+
+.sp-ws-score-block { display: flex; flex-direction: column; align-items: center; gap: 3px; flex-shrink: 0; }
+
+.sp-ws-score {
+    font-size: 1.5rem;
+    font-weight: 900;
+    color: var(--sp-text);
+    line-height: 1;
+}
+
+.sp-ws-date { font-size: 0.72rem; color: var(--sp-muted); white-space: nowrap; }
+
+.sp-ws-header__right {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 7px;
+}
+
+/* ─── Barra de progreso ─────────────────────────────── */
+.sp-progress {
+    display: flex;
+    align-items: center;
+    padding: 14px 18px;
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius);
+    background: var(--sp-panel);
+}
+
+.sp-progress__step { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+
+.sp-progress__dot {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 2px solid var(--sp-line);
+    display: grid;
+    place-items: center;
+    font-size: 0.7rem;
+    font-weight: 800;
+    color: var(--sp-muted);
+    background: var(--sp-panel-2);
+}
+
+.sp-progress__step--done .sp-progress__dot {
+    border-color: var(--sp-accent);
+    color: var(--sp-accent);
+    background: var(--sp-accent-dim);
+}
+
+.sp-progress__label { font-size: 0.78rem; font-weight: 700; color: var(--sp-muted); white-space: nowrap; }
+.sp-progress__step--done .sp-progress__label { color: var(--sp-text); }
+.sp-progress__line { flex: 1; height: 2px; margin: 0 8px; background: var(--sp-line); border-radius: 1px; }
+
+/* ─── State bar ─────────────────────────────────────── */
+.sp-state-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 10px 14px;
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius);
+    background: var(--sp-panel);
+}
+
+.sp-state-bar__label {
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--sp-muted);
+    padding-right: 4px;
+    border-right: 1px solid var(--sp-line);
+    margin-right: 2px;
+}
+
+.sp-state-bar form { margin: 0; }
+
+/* ─── Section ───────────────────────────────────────── */
+.sp-section { display: grid; gap: 10px; }
+
+.sp-section__head {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+}
+
+.sp-section__head h3 { margin: 0; font-size: 0.9rem; font-weight: 800; color: var(--sp-text); }
+.sp-section__head span { font-size: 0.78rem; color: var(--sp-muted); }
+
+/* ─── Market templates grid ─────────────────────────── */
+.sp-mkt-tpl-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+.sp-mkt-tpl {
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius);
+    background: var(--sp-panel);
+    overflow: hidden;
+    transition: border-color 130ms;
+}
+
+.sp-mkt-tpl[open] { border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.02); }
+
+.sp-mkt-tpl summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 14px;
     cursor: pointer;
+    list-style: none;
+    user-select: none;
+}
+
+.sp-mkt-tpl summary::-webkit-details-marker { display: none; }
+.sp-mkt-tpl summary i:first-child { color: var(--sp-accent); flex-shrink: 0; }
+.sp-mkt-tpl summary span { font-size: 0.84rem; font-weight: 800; color: var(--sp-text); flex: 1; }
+.sp-mkt-tpl summary small { font-size: 0.72rem; color: var(--sp-muted); }
+
+.sp-mkt-tpl__arr { color: var(--sp-muted); font-size: 0.65rem; transition: transform 180ms; }
+.sp-mkt-tpl[open] .sp-mkt-tpl__arr { transform: rotate(180deg); }
+
+.sp-mkt-form { display: grid; gap: 10px; padding: 0 14px 14px; }
+
+.sp-mkt-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.sp-mkt-form-row--3 { grid-template-columns: repeat(3, 1fr); }
+
+.sp-mkt-form label {
+    display: grid;
+    gap: 5px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--sp-muted);
+}
+
+.sp-mkt-form input {
+    width: 100%;
+    min-height: 38px;
+    padding: 0 10px;
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius-sm);
+    color: var(--sp-text);
+    background: var(--sp-panel-2);
+    font: inherit;
+    font-size: 0.86rem;
+}
+
+.sp-mkt-form input:focus {
+    outline: none;
+    border-color: var(--sp-accent);
+}
+
+.sp-mkt-config {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 4px 0;
+    border-top: 1px solid var(--sp-line-2);
+}
+.sp-mkt-config select {
+    min-height: 32px;
+    padding: 0 8px;
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius-sm);
+    background: var(--sp-panel-2);
+    color: var(--sp-text);
+    font: inherit;
+    font-size: 0.78rem;
+}
+.sp-mkt-config label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--sp-muted);
+}
+.sp-mkt-config input[type=checkbox] {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--sp-accent);
+}
+
+/* ─── Mercado configurado ───────────────────────────── */
+.sp-conf-mkt {
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius);
+    background: var(--sp-panel);
+    overflow: hidden;
+}
+
+.sp-conf-mkt__head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--sp-line-2);
+    background: var(--sp-panel-2);
+}
+
+.sp-conf-mkt__title strong { display: block; font-size: 0.9rem; margin-bottom: 2px; color: var(--sp-text); }
+.sp-conf-mkt__title span { font-size: 0.72rem; color: var(--sp-muted); }
+.sp-conf-mkt__head-right { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+
+.sp-odds-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(90px, 1fr));
+    gap: 8px;
+    padding: 12px 16px;
+}
+
+.sp-odds-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 8px;
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius-sm);
+    background: rgba(255,255,255,0.02);
+    text-align: center;
+}
+
+.sp-odds-cell__name { font-size: 0.68rem; font-weight: 700; color: var(--sp-muted); line-height: 1.2; }
+.sp-odds-cell__val { font-size: 1.1rem; font-weight: 900; color: var(--sp-text); line-height: 1; }
+
+.sp-odds-cell--activa { border-color: rgba(34,197,94,0.25); background: var(--sp-accent-dim); }
+.sp-odds-cell--activa .sp-odds-cell__val { color: var(--sp-accent); }
+.sp-odds-cell--ganadora { border-color: rgba(168,85,247,0.3); background: rgba(168,85,247,0.08); }
+.sp-odds-cell--ganadora .sp-odds-cell__val { color: var(--sp-purple); }
+.sp-odds-cell--anulada { opacity: 0.35; }
+
+.sp-odds-editor {
+    border-top: 1px solid var(--sp-line-2);
+    background: rgba(255,255,255,0.01);
+}
+
+.sp-odds-editor summary {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 9px 16px;
+    cursor: pointer;
+    color: var(--sp-accent);
+    font-size: 0.78rem;
+    font-weight: 700;
     list-style: none;
 }
 
-.fb-market-builder-item summary::-webkit-details-marker {
-    display: none;
-}
+.sp-odds-editor summary::-webkit-details-marker { display: none; }
 
-.fb-market-builder-item summary span {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--text);
-    font-weight: 900;
-}
+.sp-odds-editor form { display: grid; gap: 10px; padding: 0 16px 14px; }
 
-.fb-market-builder-item summary i {
-    color: var(--accent);
-}
+.sp-odds-editor__grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap: 8px; }
 
-.fb-market-builder-item summary small {
-    color: var(--muted);
-    font-weight: 700;
-}
+.sp-odds-editor__item { display: grid; gap: 5px; font-size: 0.72rem; font-weight: 700; color: var(--sp-muted); }
 
-.fb-market-builder-body {
-    display: grid;
-    gap: 14px;
-    padding: 0 16px 16px;
-}
-
-.fb-market-builder-grid,
-.fb-market-builder-stakes,
-.fb-market-builder-odds {
-    display: grid;
-    gap: 12px;
-}
-
-.fb-market-builder-grid,
-.fb-market-builder-odds--three {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.fb-market-builder-stakes,
-.fb-market-builder-odds {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.fb-market-builder label {
-    display: grid;
-    gap: 7px;
-    color: var(--muted);
-    font-weight: 800;
-}
-
-.fb-quick-market-grid {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 12px;
-}
-
-.fb-inline-form,
-.fb-custom-market-form,
-.fb-result-form {
-    display: grid;
-    gap: 12px;
-}
-
-.fb-inline-form {
-    grid-template-columns: 1fr auto;
-    align-items: end;
-}
-
-.fb-inline-form label,
-.fb-result-form label {
-    display: grid;
-    gap: 6px;
-    color: var(--muted);
-    font-weight: 700;
-}
-
-.fb-custom-market-form {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    margin-top: 14px;
-}
-
-.fb-custom-market-form .button {
-    grid-column: 1 / -1;
-}
-
-.fb-advanced-box {
-    margin-top: 14px;
-    padding: 14px;
-    border: 1px solid var(--line);
-    border-radius: 16px;
-    background: rgba(255, 255, 255, 0.035);
-}
-
-.fb-advanced-box summary {
-    cursor: pointer;
-    color: var(--accent);
-    font-weight: 800;
-}
-
-.fb-selection-table {
-    display: grid;
-    gap: 8px;
-}
-
-.fb-selection-summary {
-    display: grid;
-    gap: 10px;
-}
-
-.fb-selection-summary-row {
+/* ─── Vacíos ─────────────────────────────────────────── */
+.sp-empty {
     display: flex;
+    flex-direction: column;
     align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    padding: 12px 14px;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.035);
-}
-
-.fb-selection-summary-row span {
-    display: block;
-    margin-top: 4px;
-    color: var(--muted);
-    font-size: 0.88rem;
-}
-
-.fb-odds-value {
-    min-width: 72px;
-    padding: 8px 10px;
-    border-radius: 12px;
-    color: var(--accent);
-    text-align: center;
-    background: rgba(34, 197, 94, 0.09);
-}
-
-.fb-selection-row {
-    display: grid;
-    grid-template-columns: 1.4fr 0.7fr 0.8fr 0.8fr;
-    align-items: center;
-    gap: 12px;
-    padding: 12px;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.04);
-}
-
-.fb-selection-row--head {
-    color: var(--muted);
-    font-size: 0.78rem;
-    font-weight: 800;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    background: transparent;
-}
-
-.fb-selection-info strong {
-    display: block;
-}
-
-.fb-odds-input {
-    width: 100%;
-    min-height: 40px;
-    padding: 0 10px;
-    border: 1px solid var(--line);
-    border-radius: 12px;
-    color: var(--text);
-    background: rgba(255, 255, 255, 0.06);
-}
-
-.fb-action-row--end {
-    justify-content: flex-end;
-    margin-top: 12px;
-}
-
-.fb-score-grid {
-    display: grid;
-    grid-template-columns: 1fr auto 1fr;
-    align-items: end;
-    gap: 14px;
-}
-
-.fb-score-grid > span {
-    padding-bottom: 12px;
-    color: var(--muted);
-    font-weight: 900;
-}
-
-.fb-result-options {
-    display: flex;
-    flex-wrap: wrap;
     gap: 10px;
-}
-
-.fb-result-options p {
-    flex-basis: 100%;
-    margin: 0;
-    color: var(--muted);
-    font-weight: 800;
-}
-
-.fb-result-choice {
-    display: inline-flex !important;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 14px;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.05);
-}
-
-.fb-history-list {
-    display: grid;
-    gap: 10px;
-}
-
-.fb-history-list > div {
-    display: grid;
-    grid-template-columns: 1fr auto;
-    gap: 6px 12px;
-    padding: 12px;
-    border: 1px solid var(--line);
-    border-radius: 14px;
-    background: rgba(255, 255, 255, 0.035);
-}
-
-.fb-empty-panel {
-    padding: 18px;
-    color: var(--muted);
+    padding: 40px 20px;
+    border: 1px dashed var(--sp-line);
+    border-radius: var(--sp-radius);
+    color: var(--sp-muted);
     text-align: center;
 }
 
-.fb-badge {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 28px;
-    padding: 0 10px;
-    border: 1px solid var(--line);
-    border-radius: 999px;
-    color: var(--muted);
-    background: rgba(255, 255, 255, 0.05);
-    font-size: 0.82rem;
-    font-weight: 800;
-}
+.sp-empty i { font-size: 2rem; opacity: 0.3; }
+.sp-empty p { margin: 0; font-size: 0.88rem; }
 
-.fb-badge--programado,
-.fb-badge--scheduled,
-.fb-badge--abierto,
-.fb-badge--open,
-.fb-badge--activa,
-.fb-badge--active,
-.fb-badge--current {
-    color: var(--accent);
-    border-color: rgba(34, 197, 94, 0.35);
-    background: rgba(34, 197, 94, 0.09);
-}
-
-.fb-badge--en_vivo,
-.fb-badge--live {
-    color: #60a5fa;
-    border-color: rgba(96, 165, 250, 0.35);
-    background: rgba(96, 165, 250, 0.1);
-}
-
-.fb-badge--finalizado,
-.fb-badge--finished,
-.fb-badge--liquidado,
-.fb-badge--settled,
-.fb-badge--ganadora,
-.fb-badge--winner {
-    color: #c084fc;
-    border-color: rgba(192, 132, 252, 0.35);
-    background: rgba(192, 132, 252, 0.1);
-}
-
-.fb-badge--suspendido,
-.fb-badge--suspended,
-.fb-badge--cerrado,
-.fb-badge--closed,
-.fb-badge--pending {
-    color: #facc15;
-    border-color: rgba(250, 204, 21, 0.35);
-    background: rgba(250, 204, 21, 0.09);
-}
-
-.fb-badge--anulado,
-.fb-badge--cancelled,
-.fb-badge--perdedora,
-.fb-badge--loser,
-.fb-badge--history {
-    color: #f87171;
-    border-color: rgba(248, 113, 113, 0.35);
-    background: rgba(248, 113, 113, 0.09);
-}
-
-@media (max-width: 960px) {
-    .fb-event-card,
-    .fb-event-header,
-    .fb-workspace-grid,
-    .fb-quick-market-grid,
-    .fb-market-builder-grid,
-    .fb-market-builder-stakes,
-    .fb-market-builder-odds,
-    .fb-custom-market-form,
-    .fb-selection-row,
-    .fb-score-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .fb-event-header,
-    .fb-panel__header,
-    .fb-section-title,
-    .fb-market-card-header {
-        flex-direction: column;
-    }
-
-    .fb-event-card__content {
-        padding-right: 0;
-    }
-
-    .fb-event-card__status {
-        position: static;
-        max-width: none;
-        justify-content: flex-start;
-    }
-
-    .fb-event-card__footer {
-        align-items: flex-start;
-        flex-direction: column;
-    }
-
-    .fb-card-actions {
-        justify-content: flex-start;
-    }
+/* ─── Responsive ────────────────────────────────────── */
+@media (max-width: 720px) {
+    .sp-topbar { flex-direction: column; align-items: flex-start; }
+    .sp-mkt-tpl-grid { grid-template-columns: 1fr; }
+    .sp-form__grid { grid-template-columns: 1fr; }
+    .sp-ws-header { grid-template-columns: auto 1fr; }
+    .sp-ws-header__right { grid-column: 1 / -1; flex-direction: row; align-items: center; }
+    .sp-sel-card { grid-template-columns: 60px 1fr; }
+    .sp-sel-card__actions { grid-column: 2 / -1; }
+    .sp-odds-row { grid-template-columns: 60px 1fr; }
+    .sp-odds-row__right { grid-column: 2 / -1; justify-content: flex-start; }
+    .sp-progress { overflow-x: auto; }
 }

@@ -1,32 +1,44 @@
-{% extends 'base.html' %}
-
+{% extends 'deporte/base_deporte.html' %}
 {% block title %}Finalizar evento | FairBet Lab{% endblock %}
+{% block eyebrow %}Resultado{% endblock %}
+{% block page_title %}Confirmar resultado{% endblock %}
+{% block root_class %}sp-root--narrow{% endblock %}
+{% block topbar_action %}
+<a href="{% url 'deporte:eventos_lista' %}" class="sp-btn"><i class="bi bi-arrow-left"></i> Volver</a>
+{% endblock %}
 
-{% block content %}
-<section class="module-header">
-    <div>
-        <p class="eyebrow">Resultado deportivo</p>
-        <h2>Finalizar evento</h2>
-        <p>{{ evento.equipo_local }} vs {{ evento.equipo_visitante }} - {{ evento.inicia_en|date:'d/m/Y H:i' }}</p>
-        <p>Ingresa el marcador final. FairBet resolvera todos los mercados automaticamente y liquidara las apuestas pendientes.</p>
+{% block deporte_content %}
+<div class="sp-ctx sp-ctx--warn">
+    <div class="sp-ctx__crumb">
+        <i class="bi bi-flag-fill"></i>
+        <strong>{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}</strong>
+        <span style="color:var(--sp-muted)">· {{ evento.competicion }}</span>
     </div>
-    <a href="{% url 'deporte:eventos_lista' %}" class="button button--secondary">
-        <i class="bi bi-arrow-left"></i> Volver
-    </a>
-</section>
+    <div class="sp-ctx__right">
+        <span class="sp-badge sp-badge--blue">{{ evento.get_estado_evento_display }}</span>
+        <span style="color:var(--sp-muted);font-size:.8rem;"><i class="bi bi-trophy"></i> {{ evento.marcador_local }} – {{ evento.marcador_visitante }}</span>
+    </div>
+</div>
 
-<form class="app-form" method="post">
+<p class="sp-hint"><i class="bi bi-info-circle"></i> Ingresa el marcador final. FairBet resolvera todos los mercados automaticamente y liquidara las apuestas pendientes.</p>
+
+<form class="sp-form" method="post" novalidate>
     {% csrf_token %}
     {{ form.non_field_errors }}
-    {% for field in form %}
-        <label class="form-row">
-            <span>{{ field.label }}</span>
-            {{ field }}
-            {% if field.errors %}<small>{{ field.errors|striptags }}</small>{% endif %}
-        </label>
-    {% endfor %}
-    <div class="form-actions">
-        <button type="submit" class="button button--primary"><i class="bi bi-check-circle"></i> Finalizar partido y liquidar mercados</button>
+    <div class="sp-form__section">
+        <div class="sp-form__section-header"><i class="bi bi-flag"></i> Resultado final</div>
+        <div class="sp-form__grid">
+            {% for field in form %}
+            <div class="sp-form__field">
+                <label>{{ field.label }}</label>{{ field }}
+                {% if field.errors %}<span class="sp-form__error">{{ field.errors|striptags }}</span>{% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    <div class="sp-form__footer">
+        <button type="submit" class="sp-btn sp-btn--primary"><i class="bi bi-check-circle"></i> Finalizar partido y liquidar mercados</button>
+        <a href="{% url 'deporte:eventos_lista' %}" class="sp-btn">Cancelar</a>
     </div>
 </form>
 {% endblock %}
