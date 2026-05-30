@@ -1,0 +1,273 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Apuestas deportivas | FairBet Lab{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/apuestas.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="module-header apuestas-header">
+    <div>
+        <p class="eyebrow">Apuestas deportivas</p>
+        <h2>Eventos disponibles</h2>
+        <p>Elige una seleccion, ingresa tus fichas virtuales y confirma tu apuesta educativa.</p>
+    </div>
+    <a href="{% url 'apuesta:mis_apuestas_web' %}" class="button button--secondary">
+        <i class="bi bi-receipt"></i> Mis apuestas
+    </a>
+</section>
+
+<section class="apuestas-layout">
+    <div class="apuestas-main">
+        <div class="responsible-strip">
+            <i class="bi bi-shield-check"></i>
+            <span>Juega con responsabilidad. Las fichas son virtuales y no tienen valor monetario real.</span>
+        </div>
+
+        <div id="eventos-container">
+            {% include 'apuestas/fragmento_eventos.html' %}
+        </div>
+    </div>
+
+    <aside class="apuestas-sidebar">
+        <div class="ticket-panel">
+            <div class="ticket-header">
+                <div class="ticket-header__left">
+                    <i class="bi bi-ticket-perforated"></i>
+                    <span class="ticket-header__title">Cupon de apuestas</span>
+                </div>
+                <span class="ticket-counter" id="ticket-counter">0/30</span>
+            </div>
+
+            <form method="post" class="bet-slip" id="bet-slip">
+                {% csrf_token %}
+                <div class="ticket-empty" id="ticket-empty">
+                    <i class="bi bi-inbox" style="font-size:2rem; color:var(--muted);"></i>
+                    <p>Selecciona cuotas del evento para agregar al cupon</p>
+                </div>
+                <div class="ticket-content" id="ticket-content" hidden>
+                    <div class="ticket-items-header">
+                        <span>Seleccion</span>
+                        <span>Cuota</span>
+                    </div>
+                    <div id="ticket-items"></div>
+
+                    <div class="ticket-summary">
+                        <div class="ticket-summary__row">
+                            <span>Cuota total</span>
+                            <strong id="ticket-odds">1.00</strong>
+                        </div>
+                        <div class="ticket-summary__row ticket-summary__row--highlight">
+                            <span>Ganancia potencial</span>
+                            <strong id="ticket-payout">0.00</strong>
+                        </div>
+                    </div>
+
+                    <div class="ticket-stake">
+                        <label for="ticket-stake">Monto a apostar</label>
+                        <div class="ticket-stake__input">
+                            <input type="number" name="stake" id="ticket-stake" step="0.01" min="1" placeholder="0.00">
+                        </div>
+                        <div class="quick-stakes">
+                            <button type="button" data-stake="10">10</button>
+                            <button type="button" data-stake="25">25</button>
+                            <button type="button" data-stake="50">50</button>
+                            <button type="button" data-stake="100">100</button>
+                        </div>
+                    </div>
+
+                    <small id="ticket-limits" class="ticket-limits"></small>
+                    <button type="submit" class="ticket-submit" id="ticket-submit">
+                        <i class="bi bi-check-circle"></i>
+                        <span>Apostar</span>
+                    </button>
+                </div>
+            </form>
+        </div>
+    </aside>
+</section>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'js/apuestas.js' %}"></script>
+<script>
+(function () {
+    const FRAGMENTO_URL = "{% url 'apuesta:eventos_fragmento' %}";
+    const contenedor = document.getElementById('eventos-container');
+    const wsScheme = location.protocol === 'https:' ? 'wss' : 'ws';
+
+    const socket = new WebSocket(`${wsScheme}://${location.host}/ws/eventos/`);
+    socket.onmessage = async (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type !== 'lista.eventos.cambio') return;
+
+        try {
+            const resp = await fetch(FRAGMENTO_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!resp.ok) return;
+            const html = await resp.text();
+            const seleccionesActivas = new Set(selecciones.map(s => s.seleccionId));
+
+            contenedor.innerHTML = html;
+            reconectarSocketsEventos();
+
+            seleccionesActivas.forEach(id => {
+                const btn = contenedor.querySelector(`.odd-button[data-seleccion-id="${id}"]`);
+                if (btn && !btn.disabled) btn.classList.add('is-selected');
+            });
+
+            if (msg.accion === 'creado') {
+                mostrarToast(`Nuevo partido disponible: ${msg.equipo_local} vs ${msg.equipo_visitante}`, 'info');
+            } else if (msg.accion === 'finalizado') {
+                mostrarToast(`Partido finalizado: ${msg.equipo_local} vs ${msg.equipo_visitante}`, 'warning');
+            }
+        } catch (err) {
+            console.warn('[WS] Error al recargar fragmento de eventos:', err);
+        }
+    };
+    socket.onerror = () => {};
+})();
+
+function reconectarSocketsEventos() {
+    document.querySelectorAll('.evento-card[data-evento-id]').forEach(conectarSocketEvento);
+}
+
+function conectarSocketEvento(card) {
+    if (card._wsSocket && card._wsSocket.readyState <= 1) return;
+
+    const idEvento = card.dataset.eventoId;
+    const wsScheme = location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${wsScheme}://${location.host}/ws/eventos/${idEvento}/`);
+    card._wsSocket = socket;
+
+    socket.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type === 'odds.update') actualizarOddsEnDOM(card, msg);
+        else if (msg.type === 'mercado.estado') actualizarEstadoMercadoEnDOM(card, msg);
+        else if (msg.type === 'evento.estado') actualizarEstadoEventoEnDOM(card, msg);
+    };
+    socket.onerror = (err) => console.warn(`[WS] Error evento ${idEvento}:`, err);
+}
+
+reconectarSocketsEventos();
+
+function actualizarOddsEnDOM(card, msg) {
+    const btn = card.querySelector(`.odd-button[data-seleccion-id="${msg.id_seleccion}"]`);
+    if (!btn) return;
+
+    const oddsAnterior = btn.dataset.odds;
+    btn.dataset.odds = msg.odds;
+    btn.dataset.version = msg.version;
+    btn.querySelector('.odd-value').textContent = parseFloat(msg.odds).toFixed(2);
+
+    const subio = parseFloat(msg.odds) > parseFloat(oddsAnterior);
+    btn.classList.remove('odds-up', 'odds-down');
+    btn.classList.add(subio ? 'odds-up' : 'odds-down');
+    setTimeout(() => btn.classList.remove('odds-up', 'odds-down'), 1500);
+
+    const enTicket = selecciones.findIndex(s => s.seleccionId === String(msg.id_seleccion));
+    if (enTicket !== -1) {
+        selecciones[enTicket].odds = msg.odds;
+        selecciones[enTicket].version = msg.version;
+        actualizarTicket();
+        mostrarAlertaRecotizacion(msg);
+    }
+}
+
+function actualizarEstadoMercadoEnDOM(card, msg) {
+    const fila = card.querySelector(`.mercado-row[data-mercado-id="${msg.id_mercado}"]`);
+    if (!fila) return;
+
+    const eventoEnVivo = card.dataset.estadoEvento === 'en_vivo';
+    const bloqueadoPorEstado = ['suspendido', 'cerrado', 'liquidado', 'anulado'].includes(msg.estado);
+    const bloqueadoPorInPlay = eventoEnVivo && msg.permite_in_play === false;
+    const bloqueado = bloqueadoPorEstado || bloqueadoPorInPlay;
+
+    fila.dataset.permiteInPlay = msg.permite_in_play ? 'true' : 'false';
+    fila.classList.toggle('mercado-row--locked', bloqueadoPorInPlay);
+    fila.querySelectorAll('.odd-button').forEach(btn => {
+        if (btn.classList.contains('is-apostada')) return;
+        btn.disabled = bloqueado;
+        btn.title = bloqueadoPorInPlay ? 'Este mercado no permite apuestas en vivo' : (bloqueadoPorEstado ? 'Mercado suspendido' : '');
+    });
+
+    let badge = fila.querySelector('.mercado-suspendido-badge');
+    if (bloqueado) {
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.className = 'mercado-suspendido-badge';
+            fila.querySelector('.mercado-row__header')?.appendChild(badge);
+        }
+        badge.textContent = bloqueadoPorInPlay ? 'No permite in-play' : 'Suspendido';
+    } else if (badge) {
+        badge.remove();
+    }
+}
+
+function actualizarEstadoEventoEnDOM(card, msg) {
+    card.dataset.estadoEvento = msg.estado;
+    const pill = card.querySelector('.status-pill');
+    if (pill) {
+        if (msg.estado === 'en_vivo') {
+            pill.textContent = 'En vivo';
+            pill.className = 'status-pill status-pill--live';
+        } else if (msg.estado === 'suspendido') {
+            pill.textContent = 'Suspendido';
+            pill.className = 'status-pill status-pill--warn';
+        } else if (msg.estado === 'finalizado' || msg.estado === 'anulado') {
+            pill.textContent = 'Finalizado';
+            pill.className = 'status-pill status-pill--off';
+            card.querySelectorAll('.odd-button').forEach(btn => btn.disabled = true);
+        }
+    }
+
+    if (msg.marcador_local !== undefined && msg.marcador_visitante !== undefined) {
+        const goals = card.querySelectorAll('.scoreboard__goals');
+        if (goals.length === 2) {
+            goals[0].textContent = msg.marcador_local;
+            goals[1].textContent = msg.marcador_visitante;
+            goals.forEach(goal => {
+                goal.classList.add('evento-marcador--flash');
+                setTimeout(() => goal.classList.remove('evento-marcador--flash'), 1200);
+            });
+        }
+    }
+}
+
+function mostrarAlertaRecotizacion(msg) {
+    let banner = document.getElementById('recotizacion-banner');
+    if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'recotizacion-banner';
+        banner.className = 'recotizacion-banner';
+        document.getElementById('bet-slip')?.prepend(banner);
+    }
+    banner.innerHTML = `
+        <i class="bi bi-exclamation-triangle"></i>
+        <span>Cuota cambiada a <strong>${parseFloat(msg.odds).toFixed(2)}</strong>. Revisa antes de confirmar.</span>
+    `;
+    banner.hidden = false;
+}
+
+function actualizarRelojes() {
+    document.querySelectorAll('.scoreboard__clock').forEach(reloj => {
+        const inicio = reloj.dataset.inicio;
+        if (!inicio) return;
+        const fechaInicio = new Date(inicio);
+        const ahora = new Date();
+        const diff = Math.floor((ahora - fechaInicio) / 1000);
+        if (diff < 0) {
+            reloj.textContent = '00:00';
+            return;
+        }
+        const min = Math.floor(diff / 60);
+        const seg = diff % 60;
+        reloj.textContent = `${String(min).padStart(2, '0')}:${String(seg).padStart(2, '0')}`;
+    });
+}
+
+setInterval(actualizarRelojes, 1000);
+actualizarRelojes();
+</script>
+{% endblock %}

@@ -12,6 +12,11 @@
             controles de juego responsable, ledger de partida doble y auditoria.
         </p>
         <div class="hero-actions">
+            {% if request.user.is_authenticated %}
+                {% if request.user.rol == 'OPERATOR' or request.user.rol == 'ADMIN' or request.user.is_superuser %}
+                    <a href="{% url 'deporte:eventos_lista' %}" class="button button--primary"><i class="bi bi-trophy"></i> Catalogo deportivo</a>
+                {% endif %}
+            {% endif %}
             <a href="/admin/" class="button button--primary"><i class="bi bi-speedometer2"></i> Abrir admin</a>
             <a href="/api/v1/docs/" class="button button--secondary"><i class="bi bi-file-earmark-code"></i> Ver API</a>
         </div>
@@ -22,7 +27,11 @@
             <li><i class="bi bi-check-circle"></i> Modelos del nucleo registrados</li>
             <li><i class="bi bi-check-circle"></i> Admin habilitado</li>
             <li><i class="bi bi-check-circle"></i> JWT listo para API v1</li>
-            <li><i class="bi bi-hourglass-split"></i> Servicios de negocio pendientes</li>
+            {% if request.user.is_authenticated %}
+                {% if request.user.rol == 'OPERATOR' or request.user.rol == 'ADMIN' or request.user.is_superuser %}
+                    <li><i class="bi bi-check-circle"></i> Catalogo deportivo disponible</li>
+                {% endif %}
+            {% endif %}
         </ul>
     </div>
 </section>

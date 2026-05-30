@@ -1,0 +1,154 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Editar cuenta | FairBet Lab{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/cuentas.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="accounts-page">
+    <div class="accounts-heading">
+        <div>
+            <p class="eyebrow">Cuentas / Edicion</p>
+            <h2>Editar {{ usuario.username }}</h2>
+            <p>Gestiona datos de acceso, rol, estado de cuenta y KYC cuando corresponda.</p>
+        </div>
+        <a href="{% url 'cuentas:cuentas' %}" class="accounts-back">
+            <i class="bi bi-arrow-left"></i>
+            Volver a cuentas
+        </a>
+    </div>
+
+    <article class="accounts-panel account-form-shell">
+        <div class="accounts-panel__header accounts-panel__header--stack">
+            <span class="section-chip"><i class="bi bi-pencil-square"></i> Cuenta</span>
+            <h3>Datos administrativos</h3>
+            <p>Los cambios de rol y KYC solo estan disponibles para administradores.</p>
+        </div>
+
+        <form method="post" class="account-form" novalidate>
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="account-form__errors">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <fieldset class="account-form__section">
+                <legend>Identidad</legend>
+                <div class="account-form__split">
+                    {% include 'cuentas/partials/form_field.html' with field=form.username label='Usuario' %}
+                    {% include 'cuentas/partials/form_field.html' with field=form.email label='Correo' %}
+                </div>
+                <div class="account-form__split">
+                    {% include 'cuentas/partials/form_field.html' with field=form.nombres label='Nombres' %}
+                    {% include 'cuentas/partials/form_field.html' with field=form.apellidos label='Apellidos' %}
+                </div>
+            </fieldset>
+
+            <fieldset class="account-form__section">
+                <legend>Control administrativo</legend>
+                <div class="account-readonly-field">
+                    <span>Rol</span>
+                    <strong>{{ usuario.get_rol_display }}</strong>
+                </div>
+
+                {% if usuario.perfil_jugador %}
+                    {% include 'cuentas/partials/form_field.html' with field=form.estado_cuenta label='Estado KYC' %}
+                {% else %}
+                    <input type="hidden" name="estado_cuenta" value="">
+                {% endif %}
+
+                {% if usuario.perfil_jugador %}
+                    <div class="account-form__split">
+                        {% include 'cuentas/partials/form_field.html' with field=form.dni label='DNI' %}
+                        {% include 'cuentas/partials/form_field.html' with field=form.fecha_nacimiento label='Nacimiento' %}
+                    </div>
+                    {% include 'cuentas/partials/form_field.html' with field=form.telefono label='Telefono' %}
+                {% endif %}
+            </fieldset>
+
+            {% if is_protected_admin %}
+                <section class="account-protected-notice">
+                    <i class="bi bi-shield-lock"></i>
+                    <div>
+                        <h3>Cuenta principal protegida</h3>
+                        <p>Los permisos criticos de esta cuenta no se pueden modificar desde este modulo.</p>
+                    </div>
+                </section>
+            {% elif usuario.rol == 'ADMIN' and not request.user.is_superuser %}
+                <section class="account-protected-notice">
+                    <i class="bi bi-shield-lock"></i>
+                    <div>
+                        <h3>Permisos administrativos protegidos</h3>
+                        <p>Solo el administrador principal puede modificar estado, staff o superusuario de una cuenta administrativa.</p>
+                    </div>
+                </section>
+            {% else %}
+                <fieldset class="account-form__section account-permissions-section">
+                    <legend>Permisos y estado</legend>
+                    <label class="account-permission-card">
+                        <span class="account-switch">
+                            {{ form.is_active }}
+                            <span class="account-switch__control"></span>
+                            <strong>Activo</strong>
+                        </span>
+                        <small>Indica si la cuenta esta habilitada para usar el sistema.</small>
+                        {{ form.is_active.errors }}
+                    </label>
+
+                    {% if usuario.rol == 'ADMIN' %}
+                        <label class="account-permission-card">
+                            <span class="account-switch">
+                                {{ form.is_staff }}
+                                <span class="account-switch__control"></span>
+                                <strong>Es staff</strong>
+                            </span>
+                            <small>Indica si el usuario puede entrar al panel administrativo o areas internas de administracion.</small>
+                            {{ form.is_staff.errors }}
+                        </label>
+
+                        <label class="account-permission-card">
+                            <span class="account-switch">
+                                {{ form.is_superuser }}
+                                <span class="account-switch__control"></span>
+                                <strong>Estado de superusuario</strong>
+                            </span>
+                            <small>Indica que este usuario tiene todos los permisos sin necesidad de asignarlos manualmente.</small>
+                            {{ form.is_superuser.errors }}
+                        </label>
+
+                        {% if not request.user.is_superuser %}
+                            <p class="permissions-note">
+                                Solo un superusuario puede modificar Es staff o Estado de superusuario.
+                            </p>
+                        {% endif %}
+                    {% endif %}
+                </fieldset>
+            {% endif %}
+
+            {% if usuario.pk == request.user.pk %}
+                <fieldset class="account-form__section">
+                    <legend>Cambio de contrasena</legend>
+                    <p class="account-form__hint">
+                        Esta accion solo afecta a tu cuenta autenticada. Completa ambos campos si deseas actualizarla.
+                    </p>
+                    <div class="account-form__split">
+                        {% include 'cuentas/partials/form_field.html' with field=form.password1 label='Nueva contrasena' %}
+                        {% include 'cuentas/partials/form_field.html' with field=form.password2 label='Confirmar contrasena' %}
+                    </div>
+                </fieldset>
+            {% endif %}
+
+            <div class="account-form-actions">
+                <a href="{% url 'cuentas:cuentas' %}" class="account-action account-action--ghost">Cancelar</a>
+                <button type="submit" class="button button--primary">
+                    <i class="bi bi-check2"></i>
+                    Guardar cambios
+                </button>
+            </div>
+        </form>
+    </article>
+</section>
+{% endblock %}

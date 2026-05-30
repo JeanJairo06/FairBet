@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mi perfil | FairBet Lab{% endblock %}
+
+{% block extra_css %}
+    <link rel="stylesheet" href="{% static 'css/cuentas.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="accounts-page">
+    <div class="accounts-heading">
+        <div>
+            <p class="eyebrow">Cuentas / Perfil</p>
+            <h2>Mis datos personales</h2>
+            <p>Actualiza la informacion personal permitida y cambia tu contrasena cuando lo necesites.</p>
+        </div>
+        <a href="{% url 'cuentas:cuentas' %}" class="accounts-back">
+            <i class="bi bi-arrow-left"></i>
+            Volver a cuentas
+        </a>
+    </div>
+
+    <article class="accounts-panel account-form-shell">
+        <div class="accounts-panel__header accounts-panel__header--stack">
+            <span class="section-chip"><i class="bi bi-person"></i> Perfil</span>
+            <h3>Datos editables</h3>
+            <p>Estos campos pertenecen a tu cuenta autenticada.</p>
+        </div>
+
+        <form method="post" class="account-form" novalidate>
+            {% csrf_token %}
+
+            {% if form.non_field_errors %}
+                <div class="account-form__errors">{{ form.non_field_errors }}</div>
+            {% endif %}
+
+            <fieldset class="account-form__section">
+                <legend>Cuenta</legend>
+                <div class="account-form__split">
+                    {% include 'cuentas/partials/form_field.html' with field=form.username label='Usuario' %}
+                    {% include 'cuentas/partials/form_field.html' with field=form.email label='Correo' %}
+                </div>
+            </fieldset>
+
+            <fieldset class="account-form__section">
+                <legend>Datos personales</legend>
+                <div class="account-form__split account-form__split--three">
+                    {% include 'cuentas/partials/form_field.html' with field=form.nombres label='Nombres' %}
+                    {% include 'cuentas/partials/form_field.html' with field=form.apellidos label='Apellidos' %}
+                    {% include 'cuentas/partials/form_field.html' with field=form.telefono label='Telefono' %}
+                </div>
+                {% if perfil %}
+                    <div class="account-form__split">
+                        {% include 'cuentas/partials/form_field.html' with field=form.dni label='DNI' %}
+                        {% include 'cuentas/partials/form_field.html' with field=form.fecha_nacimiento label='Nacimiento' %}
+                    </div>
+                {% endif %}
+            </fieldset>
+
+            <fieldset class="account-form__section">
+                <legend>Cambio de contrasena</legend>
+                <p class="account-form__hint">Completa estos campos solo si necesitas actualizar tu contrasena.</p>
+                <div class="account-form__split">
+                    {% include 'cuentas/partials/form_field.html' with field=form.password1 label='Nueva contrasena' %}
+                    {% include 'cuentas/partials/form_field.html' with field=form.password2 label='Confirmar contrasena' %}
+                </div>
+            </fieldset>
+
+            <div class="account-form-actions">
+                <a href="{% url 'cuentas:cuentas' %}" class="account-action account-action--ghost">Cancelar</a>
+                <button type="submit" class="button button--primary">
+                    <i class="bi bi-save"></i>
+                    Actualizar mis datos
+                </button>
+            </div>
+        </form>
+    </article>
+</section>
+{% endblock %}

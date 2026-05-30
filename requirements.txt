@@ -1,6 +1,7 @@
 asgiref==3.11.1
 celery==5.4.0
 channels==4.1.0
+daphne==4.1.2
 channels-redis==4.2.0
 Django==5.0.14
 django-cors-headers==4.4.0
@@ -13,3 +14,4 @@ python-decouple==3.8
 redis==5.0.8
 sqlparse==0.5.5
 tzdata==2026.1
+whitenoise==6.7.0

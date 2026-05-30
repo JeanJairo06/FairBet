@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+
+{% block title %}Registro exitoso | FairBet Lab{% endblock %}
+
+{% block content %}
+<section class="auth-layout">
+    <div class="auth-card" style="max-width: 480px; text-align: center;">
+        <div class="auth-card__header" style="justify-content: center;">
+            <i class="bi bi-check-circle" style="font-size: 3rem; color: var(--accent);"></i>
+            <div>
+                <p class="eyebrow">Registro completado</p>
+                <h2>Tu cuenta fue creada</h2>
+            </div>
+        </div>
+
+        <p style="color: var(--muted); margin: 16px 0;">
+            Tu cuenta de jugador ha sido registrada correctamente. Ya puedes iniciar sesion para comenzar a apostar.
+        </p>
+
+        <a href="{% url 'login' %}" class="button button--primary button--full">
+            <i class="bi bi-box-arrow-in-right"></i>
+            Iniciar sesion
+        </a>
+
+        <p style="text-align:center; margin-top:16px; font-size:0.88rem;">
+            <a href="{% url 'home' %}" style="color:var(--muted); text-decoration:none;">Volver al inicio</a>
+        </p>
+    </div>
+</section>
+{% endblock %}

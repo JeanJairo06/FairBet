@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Billetera | FairBet Lab{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'css/billetera.css' %}">
+{% endblock %}
+
+{% block content %}
+<section class="wallet-page">
+    <div class="module-header">
+        <div>
+            <p class="eyebrow">Billetera del jugador</p>
+            <h2>Gestiona tus fichas virtuales</h2>
+            <p>Consulta saldo, movimientos, limites y controles de juego responsable desde un solo lugar.</p>
+        </div>
+        <a href="{% url 'apuesta:apuestas_web' %}" class="button button--secondary">
+            <i class="bi bi-ticket-perforated"></i> Ir a apuestas
+        </a>
+    </div>
+
+    <section class="wallet-hero" aria-labelledby="wallet-balance-title">
+        <div class="wallet-hero__balance">
+            <span class="wallet-label"><i class="bi bi-wallet2"></i> Saldo disponible</span>
+            <h3 id="wallet-balance-title">S/ <span id="wallet-hero-saldo">{{ saldo_disponible|floatformat:2 }}</span></h3>
+            <p><i class="bi bi-lock"></i> Bloqueado en apuestas: <strong>S/ {{ fichas_bloqueadas|floatformat:2 }}</strong></p>
+        </div>
+        <div class="wallet-actions" aria-label="Acciones de billetera">
+            <form method="post" class="wallet-action-card">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="recargar">
+                <label for="id_recarga_monto">Recargar fichas</label>
+                <div class="wallet-inline-form">
+                    <input class="app-field" type="number" name="monto" id="id_recarga_monto" min="0.01" step="0.01" placeholder="Monto">
+                    <button type="submit" class="button button--primary"><i class="bi bi-plus-circle"></i> Recargar</button>
+                </div>
+            </form>
+            <form method="post" class="wallet-action-card">
+                {% csrf_token %}
+                <input type="hidden" name="accion" value="retirar">
+                <label for="id_retiro_monto">Retirar fichas</label>
+                <div class="wallet-inline-form">
+                    <input class="app-field" type="number" name="monto" id="id_retiro_monto" min="0.01" step="0.01" placeholder="Monto">
+                    <button type="submit" class="button button--secondary"><i class="bi bi-arrow-down-circle"></i> Retirar</button>
+                </div>
+            </form>
+        </div>
+    </section>
+
+    <section class="wallet-metrics" aria-label="Resumen del mes">
+        <article class="wallet-metric">
+            <span><i class="bi bi-arrow-down-left-circle"></i> Recargado este mes</span>
+            <strong>S/ {{ metricas_mes.recargado|floatformat:2 }}</strong>
+            <small>Fichas virtuales</small>
+        </article>
+        <article class="wallet-metric">
+            <span><i class="bi bi-ticket-detailed"></i> Apostado este mes</span>
+            <strong>S/ {{ metricas_mes.apostado|floatformat:2 }}</strong>
+            <small>En apuestas aceptadas</small>
+        </article>
+        <article class="wallet-metric wallet-metric--ok">
+            <span><i class="bi bi-trophy"></i> Ganado este mes</span>
+            <strong>S/ {{ metricas_mes.ganado|floatformat:2 }}</strong>
+            <small>Liquidaciones a favor</small>
+        </article>
+        <article class="wallet-metric {% if metricas_mes.balance_neto < 0 %}wallet-metric--danger{% endif %}">
+            <span><i class="bi bi-activity"></i> Balance neto</span>
+            <strong>S/ {{ metricas_mes.balance_neto|floatformat:2 }}</strong>
+            <small>Resultado del mes</small>
+        </article>
+    </section>
+
+    <section class="wallet-grid">
+        <article class="data-panel wallet-history">
+            <div class="wallet-section-header">
+                <div>
+                    <p class="eyebrow">Ledger</p>
+                    <h3>Historial de movimientos</h3>
+                </div>
+                <span class="status-pill status-pill--ok"><i class="bi bi-check-circle"></i> Contable</span>
+            </div>
+            <div class="table-wrap">
+                <table class="app-table wallet-table">
+                    <thead>
+                        <tr>
+                            <th>Tipo</th>
+                            <th>Direccion</th>
+                            <th>Monto</th>
+                            <th>Fecha</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for movimiento in movimientos %}
+                            <tr>
+                                <td>
+                                    <strong>{{ movimiento.transaccion.get_tipo_transaccion_display }}</strong>
+                                    <span>{{ movimiento.transaccion.get_estado_display }}</span>
+                                </td>
+                                <td>
+                                    {% if movimiento.direction == 'CREDIT' %}
+                                        <span class="wallet-badge wallet-badge--in"><i class="bi bi-arrow-down"></i> Entrada</span>
+                                    {% else %}
+                                        <span class="wallet-badge wallet-badge--out"><i class="bi bi-arrow-up"></i> Salida</span>
+                                    {% endif %}
+                                </td>
+                                <td class="wallet-amount {% if movimiento.direction == 'CREDIT' %}wallet-amount--in{% else %}wallet-amount--out{% endif %}">
+                                    {% if movimiento.direction == 'CREDIT' %}+{% else %}-{% endif %} S/ {{ movimiento.amount|floatformat:2 }}
+                                </td>
+                                <td>{{ movimiento.created_at|date:'d/m/Y H:i' }}</td>
+                            </tr>
+                        {% empty %}
+                            <tr>
+                                <td colspan="4" class="empty-state">Aun no tienes movimientos registrados.</td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% include 'partials/pagination.html' %}
+        </article>
+
+        <aside class="wallet-side">
+            <article class="data-panel wallet-control-panel">
+                <div class="wallet-section-header">
+                    <div>
+                        <p class="eyebrow">Juego responsable</p>
+                        <h3>Limites de recarga</h3>
+                    </div>
+                    <i class="bi bi-shield-check wallet-section-icon"></i>
+                </div>
+
+                <div class="wallet-limit-list">
+                    {% for limite in limites %}
+                        <div class="wallet-limit-card">
+                            <span>{{ limite.periodo_display }}</span>
+                            <strong>S/ {{ limite.limite_actual|floatformat:2 }}</strong>
+                            {% if limite.es_default %}
+                                <small>Limite por defecto</small>
+                            {% endif %}
+                            {% if limite.limite_pendiente %}
+                                <small class="wallet-pending"><i class="bi bi-hourglass-split"></i> Pendiente: S/ {{ limite.limite_pendiente|floatformat:2 }} desde {{ limite.pendiente_aplicar_en|date:'d/m/Y H:i' }}</small>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+
+                <p class="wallet-muted">Los cambios de limites se gestionan en el panel dedicado de Juego Responsable.</p>
+                <a href="{% url 'juego_responsable:panel' %}" class="button button--primary button--full wallet-direct-link">
+                    <i class="bi bi-shield-check"></i> Abrir Juego Responsable
+                </a>
+            </article>
+
+            <article class="data-panel wallet-control-panel wallet-control-panel--danger">
+                <div class="wallet-section-header">
+                    <div>
+                        <p class="eyebrow">Autoexclusion</p>
+                        <h3>Control de acceso</h3>
+                    </div>
+                    <i class="bi bi-shield-slash wallet-section-icon"></i>
+                </div>
+
+                {% if autoexclusion_activa %}
+                    <div class="wallet-alert wallet-alert--danger">
+                        <strong>Autoexclusion activa</strong>
+                        <span>{{ autoexclusion_activa.get_tipo_autoexclusion_display }}{% if autoexclusion_activa.finaliza_en %} hasta {{ autoexclusion_activa.finaliza_en|date:'d/m/Y H:i' }}{% endif %}</span>
+                    </div>
+                {% else %}
+                    <p class="wallet-muted">La autoexclusion se solicita desde el panel de Juego Responsable para mantener una sola experiencia de control.</p>
+                    <a href="{% url 'juego_responsable:panel' %}" class="button button--danger button--full wallet-direct-link">
+                        <i class="bi bi-exclamation-octagon"></i> Gestionar autoexclusion
+                    </a>
+                {% endif %}
+            </article>
+        </aside>
+    </section>
+</section>
+{% endblock %}

@@ -1,0 +1,93 @@
+{% extends 'deporte/base_deporte.html' %}
+{% block title %}Partidos | FairBet Lab{% endblock %}
+{% block eyebrow %}Catalogo deportivo{% endblock %}
+{% block page_title %}Partidos{% endblock %}
+{% block topbar_action %}
+<a href="{% url 'deporte:evento_crear' %}" class="sp-btn sp-btn--primary"><i class="bi bi-plus-circle-fill"></i> Nuevo partido</a>
+{% endblock %}
+
+{% block deporte_content %}
+<form class="sp-search" method="get" role="search">
+    <button type="submit" class="sp-search__icon" aria-label="Buscar"><i class="bi bi-search"></i></button>
+    <input type="search" name="q" value="{{ request.GET.q }}" placeholder="Buscar competicion o equipo y pulsa Enter…">
+</form>
+
+<div class="sp-events-grid">
+{% for evento in eventos %}
+<article class="sp-event-card sp-event-card--{{ evento.estado_evento }}" title="{{ evento.get_estado_evento_display }}">
+    <div class="sp-event-card__strip"></div>
+
+    <div class="sp-event-card__top">
+        <span class="sp-competition">{{ evento.competicion }}</span>
+        {% if evento.estado_evento == 'en_vivo' %}<span class="sp-live"><span class="sp-live-dot"></span> En vivo</span>{% endif %}
+        {% if evento.mercados_total and evento.selecciones_total and evento.odds_vigentes_total >= evento.selecciones_total %}
+            <span class="sp-ready" title="Listo para apostar"><i class="bi bi-check-circle-fill"></i></span>
+        {% endif %}
+    </div>
+
+    <div class="sp-event-card__teams">
+        <div class="sp-row">
+            <span class="sp-row__team">{{ evento.equipo_local }}</span>
+            <span class="sp-row__score">{% if evento.estado_evento == 'programado' %}–{% else %}{{ evento.marcador_local }}{% endif %}</span>
+        </div>
+        <div class="sp-row">
+            <span class="sp-row__team">{{ evento.equipo_visitante }}</span>
+            <span class="sp-row__score">{% if evento.estado_evento == 'programado' %}–{% else %}{{ evento.marcador_visitante }}{% endif %}</span>
+        </div>
+    </div>
+
+    <div class="sp-event-card__date"><i class="bi bi-clock"></i> {{ evento.inicia_en|date:'d/m/Y H:i' }}</div>
+
+    <div class="sp-event-card__counts">
+        <span><strong>{{ evento.mercados_total }}</strong> mercados</span>
+        <span><strong>{{ evento.selecciones_total }}</strong> selecc.</span>
+        <span><strong>{{ evento.odds_vigentes_total }}</strong> odds</span>
+    </div>
+
+    <div class="sp-event-card__foot">
+        <a href="{% url 'deporte:evento_detalle' evento.pk %}" class="sp-btn sp-btn--primary sp-btn--icon" title="Configurar mercados y odds"><i class="bi bi-sliders"></i></a>
+        <div class="sp-dropdown">
+            <button class="sp-btn sp-btn--icon" data-dropdown type="button" aria-label="Mas acciones"><i class="bi bi-three-dots"></i></button>
+            <div class="sp-dropdown__menu">
+                <a class="sp-dropdown__item" href="{% url 'deporte:evento_editar' evento.pk %}" title="Editar datos del partido"><i class="bi bi-pencil-square"></i></a>
+                {% if evento.estado_evento == 'programado' %}
+                    <form method="post" action="{% url 'deporte:evento_en_vivo' evento.pk %}" title="Pasar a En Vivo">{% csrf_token %}
+                        <button class="sp-dropdown__item" type="submit" {% if not evento.ha_iniciado %}disabled{% endif %}><i class="bi bi-broadcast"></i></button>
+                    </form>
+                    <form method="post" action="{% url 'deporte:evento_suspender' evento.pk %}" title="Suspender">{% csrf_token %}
+                        <button class="sp-dropdown__item" type="submit"><i class="bi bi-pause-circle"></i></button>
+                    </form>
+                    {% if evento.ha_iniciado %}<a class="sp-dropdown__item" href="{% url 'deporte:evento_confirmar_resultado' evento.pk %}" title="Finalizar"><i class="bi bi-flag"></i></a>{% endif %}
+                    <div class="sp-dropdown__sep"></div>
+                    <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}" title="Anular">{% csrf_token %}
+                        <button class="sp-dropdown__item sp-dropdown__item--danger" type="submit"><i class="bi bi-x-circle"></i></button>
+                    </form>
+                {% elif evento.estado_evento == 'en_vivo' %}
+                    <a class="sp-dropdown__item" href="{% url 'deporte:evento_confirmar_resultado' evento.pk %}" title="Finalizar"><i class="bi bi-flag-fill"></i></a>
+                    <form method="post" action="{% url 'deporte:evento_suspender' evento.pk %}" title="Suspender">{% csrf_token %}
+                        <button class="sp-dropdown__item" type="submit"><i class="bi bi-pause-circle"></i></button>
+                    </form>
+                    <div class="sp-dropdown__sep"></div>
+                    <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}" title="Anular">{% csrf_token %}
+                        <button class="sp-dropdown__item sp-dropdown__item--danger" type="submit"><i class="bi bi-x-circle"></i></button>
+                    </form>
+                {% elif evento.estado_evento == 'suspendido' %}
+                    <form method="post" action="{% url 'deporte:evento_reactivar' evento.pk %}" title="Reactivar">{% csrf_token %}
+                        <button class="sp-dropdown__item" type="submit"><i class="bi bi-play-circle"></i></button>
+                    </form>
+                    <div class="sp-dropdown__sep"></div>
+                    <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}" title="Anular">{% csrf_token %}
+                        <button class="sp-dropdown__item sp-dropdown__item--danger" type="submit"><i class="bi bi-x-circle"></i></button>
+                    </form>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</article>
+{% empty %}
+<div class="sp-empty" style="grid-column:1/-1"><i class="bi bi-calendar-x"></i><p>No hay partidos registrados.</p></div>
+{% endfor %}
+</div>
+
+{% include 'partials/pagination.html' %}
+{% endblock %}

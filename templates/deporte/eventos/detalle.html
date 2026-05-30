@@ -1,0 +1,292 @@
+{% extends 'deporte/base_deporte.html' %}
+{% block title %}Configurar partido | FairBet Lab{% endblock %}
+{% block eyebrow %}Partidos{% endblock %}
+{% block page_title %}Configurar partido{% endblock %}
+{% block topbar_action %}
+<a href="{% url 'deporte:eventos_lista' %}" class="sp-btn"><i class="bi bi-arrow-left"></i> Volver</a>
+{% endblock %}
+
+{% block deporte_content %}
+<div class="sp-ws">
+    <div class="sp-ws-header">
+        {% if evento_configurable %}
+            <a href="{% url 'deporte:evento_editar' evento.pk %}" class="sp-btn sp-btn--icon" title="Editar datos"><i class="bi bi-pencil-square"></i></a>
+        {% else %}
+            <span class="sp-btn sp-btn--icon" title="Solo lectura"><i class="bi bi-lock"></i></span>
+        {% endif %}
+        <div>
+            <p class="sp-ws-header__league">{{ evento.competicion }}</p>
+            <div class="sp-ws-header__teams">
+                <span class="sp-ws-team">{{ evento.equipo_local }}</span>
+                <div class="sp-ws-score-block">
+                    <span class="sp-ws-score">{{ evento.marcador_local }} – {{ evento.marcador_visitante }}</span>
+                    <span class="sp-ws-date"><i class="bi bi-calendar-event"></i> {{ evento.inicia_en|date:'d/m/Y H:i' }}</span>
+                </div>
+                <span class="sp-ws-team">{{ evento.equipo_visitante }}</span>
+            </div>
+        </div>
+        <div class="sp-ws-header__right">
+            <span class="sp-badge {% if evento.estado_evento == 'programado' %}sp-badge--green{% elif evento.estado_evento == 'en_vivo' %}sp-badge--blue{% elif evento.estado_evento == 'suspendido' %}sp-badge--yellow{% elif evento.estado_evento == 'anulado' %}sp-badge--red{% else %}sp-badge--purple{% endif %}">
+                {% if evento.estado_evento == 'en_vivo' %}<span class="sp-live-dot"></span>{% endif %}
+                {{ evento.get_estado_evento_display }}
+            </span>
+            {% if partido_listo %}<span class="sp-badge sp-badge--green"><i class="bi bi-check-circle-fill"></i> Listo</span>{% endif %}
+        </div>
+    </div>
+
+    <div class="sp-progress">
+        {% for label, done in checklist %}
+        <div class="sp-progress__step {% if done %}sp-progress__step--done{% endif %}">
+            <div class="sp-progress__dot">
+                {% if done %}<i class="bi bi-check"></i>{% else %}{{ forloop.counter }}{% endif %}
+            </div>
+            <span class="sp-progress__label">{{ label }}</span>
+        </div>
+        {% if not forloop.last %}<div class="sp-progress__line"></div>{% endif %}
+        {% endfor %}
+    </div>
+
+    <div class="sp-state-bar">
+        <span class="sp-state-bar__label">Acciones</span>
+        {% if evento.estado_evento == 'programado' %}
+            <form method="post" action="{% url 'deporte:evento_en_vivo' evento.pk %}">
+                {% csrf_token %}
+                <button class="sp-btn sp-btn--live" type="submit" {% if not evento.ha_iniciado %}disabled title="Disponible cuando inicie el partido"{% endif %}><i class="bi bi-broadcast"></i> En vivo</button>
+            </form>
+            {% if evento.ha_iniciado %}
+                <a class="sp-btn sp-btn--primary" href="{% url 'deporte:evento_confirmar_resultado' evento.pk %}"><i class="bi bi-flag"></i> Finalizar y liquidar</a>
+            {% else %}
+                <button class="sp-btn sp-btn--primary" type="button" disabled title="Disponible cuando inicie el partido"><i class="bi bi-flag"></i> Finalizar y liquidar</button>
+            {% endif %}
+            <form method="post" action="{% url 'deporte:evento_suspender' evento.pk %}">{% csrf_token %}<button class="sp-btn" type="submit"><i class="bi bi-pause-circle"></i> Suspender</button></form>
+            <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">{% csrf_token %}<button class="sp-btn sp-btn--danger" type="submit"><i class="bi bi-x-circle"></i> Anular</button></form>
+        {% elif evento.estado_evento == 'en_vivo' %}
+            <a class="sp-btn sp-btn--live" href="#marcador-en-vivo"><i class="bi bi-123"></i> Actualizar marcador</a>
+            <a class="sp-btn sp-btn--primary" href="{% url 'deporte:evento_confirmar_resultado' evento.pk %}"><i class="bi bi-flag-fill"></i> Finalizar y liquidar</a>
+            <form method="post" action="{% url 'deporte:evento_suspender' evento.pk %}">{% csrf_token %}<button class="sp-btn" type="submit"><i class="bi bi-pause-circle"></i> Suspender</button></form>
+            <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">{% csrf_token %}<button class="sp-btn sp-btn--danger" type="submit"><i class="bi bi-x-circle"></i> Anular</button></form>
+        {% elif evento.estado_evento == 'suspendido' %}
+            <form method="post" action="{% url 'deporte:evento_reactivar' evento.pk %}">{% csrf_token %}<button class="sp-btn" type="submit"><i class="bi bi-play-circle"></i> Reactivar</button></form>
+            <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">{% csrf_token %}<button class="sp-btn sp-btn--danger" type="submit"><i class="bi bi-x-circle"></i> Anular</button></form>
+        {% endif %}
+    </div>
+
+    {% if evento.estado_evento == 'en_vivo' %}
+    <div class="sp-marcador-widget" id="marcador-en-vivo">
+        <div class="sp-marcador-widget__header">
+            <span class="sp-live-dot"></span>
+            <strong>Marcador en vivo</strong>
+            <span class="sp-marcador-widget__score" id="op-marcador-display">
+                {{ evento.marcador_local }} – {{ evento.marcador_visitante }}
+            </span>
+        </div>
+        <form method="post"
+              action="{% url 'deporte:evento_marcador_update' evento.pk %}"
+              class="sp-marcador-widget__form"
+              id="form-marcador">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div class="sp-marcador-widget__inputs">
+                <div class="sp-marcador-input-group">
+                    <label>{{ evento.equipo_local }}</label>
+                    <div class="sp-marcador-stepper">
+                        <button type="button" class="sp-marcador-stepper__btn" data-target="id_ml" data-delta="-1">−</button>
+                        <input class="sp-marcador-stepper__val"
+                               id="id_ml" name="marcador_local"
+                               type="number" min="0" max="99"
+                               value="{{ marcador_form.marcador_local.value|default:evento.marcador_local }}" required>
+                        <button type="button" class="sp-marcador-stepper__btn" data-target="id_ml" data-delta="1">+</button>
+                    </div>
+                </div>
+                <span class="sp-marcador-widget__sep">vs</span>
+                <div class="sp-marcador-input-group">
+                    <label>{{ evento.equipo_visitante }}</label>
+                    <div class="sp-marcador-stepper">
+                        <button type="button" class="sp-marcador-stepper__btn" data-target="id_mv" data-delta="-1">−</button>
+                        <input class="sp-marcador-stepper__val"
+                               id="id_mv" name="marcador_visitante"
+                               type="number" min="0" max="99"
+                               value="{{ marcador_form.marcador_visitante.value|default:evento.marcador_visitante }}" required>
+                        <button type="button" class="sp-marcador-stepper__btn" data-target="id_mv" data-delta="1">+</button>
+                    </div>
+                </div>
+            </div>
+            <button type="submit" class="sp-btn sp-btn--live sp-marcador-widget__submit">
+                <i class="bi bi-send-fill"></i> Publicar marcador
+            </button>
+        </form>
+    </div>
+    {% endif %}
+
+    <p class="sp-hint"><i class="bi bi-info-circle"></i> Al finalizar el partido solo se ingresa el marcador. FairBet resuelve 1X2, ambos anotan, totales y handicap automaticamente.</p>
+
+    <div class="sp-section">
+        <div class="sp-section__head">
+            <h3>Mercados</h3>
+            <span>{{ mercados_total }} configurado(s) · {{ odds_vigentes_total }} odds vigente(s)</span>
+        </div>
+
+        <div class="sp-mkt-tpl-grid">
+            <details class="sp-mkt-tpl" {% if mercados_data.resultado_final.exists %}open{% endif %}>
+                <summary><i class="bi bi-trophy"></i><span>1X2 — Resultado final</span><small>Local · Empate · Visitante</small><i class="bi bi-chevron-down sp-mkt-tpl__arr"></i></summary>
+                {% with data=mercados_data.resultado_final %}
+                {% if data.editable %}
+                <form class="sp-mkt-form" method="post" action="{% if data.exists %}{% url 'deporte:evento_mercado_odds_actualizar' evento.pk data.mercado_pk %}{% else %}{% url 'deporte:evento_mercado_rapido' evento.pk %}{% endif %}">
+                    {% csrf_token %}
+                    {% if not data.exists %}<input type="hidden" name="plantilla" value="resultado_final">{% endif %}
+                    <div class="sp-mkt-form-row">
+                        <label>Stake min<input type="number" step="0.01" min="0.01" name="stake_minimo" value="1.00"></label>
+                        <label>Stake max<input type="number" step="0.01" min="0.01" name="stake_maximo" value="100.00"></label>
+                    </div>
+                    <div class="sp-mkt-form-row sp-mkt-form-row--3">
+                        {% with home=data.selections|first %}<label>{{ evento.equipo_local }}<input type="number" step="0.01" min="1.01" name="{% if data.exists %}odds_{{ home.pk }}{% else %}odds_HOME{% endif %}" placeholder="2.00" {% if data.exists and home.odds %}value="{{ home.odds|floatformat:2 }}"{% endif %}></label>{% endwith %}
+                        {% with draw=data.selections|slice:"1:2"|first %}<label>Empate<input type="number" step="0.01" min="1.01" name="{% if data.exists %}odds_{{ draw.pk }}{% else %}odds_DRAW{% endif %}" placeholder="3.50" {% if data.exists and draw.odds %}value="{{ draw.odds|floatformat:2 }}"{% endif %}></label>{% endwith %}
+                        {% with away=data.selections|last %}<label>{{ evento.equipo_visitante }}<input type="number" step="0.01" min="1.01" name="{% if data.exists %}odds_{{ away.pk }}{% else %}odds_AWAY{% endif %}" placeholder="3.00" {% if data.exists and away.odds %}value="{{ away.odds|floatformat:2 }}"{% endif %}></label>{% endwith %}
+                    </div>
+                    {% if data.exists %}
+                    <div class="sp-mkt-config">
+                        <label>Estado <select name="estado_mercado"><option value="abierto" {% if data.estado_mercado == 'abierto' %}selected{% endif %}>Abierto</option><option value="suspendido" {% if data.estado_mercado == 'suspendido' %}selected{% endif %}>Suspendido</option><option value="cerrado" {% if data.estado_mercado == 'cerrado' %}selected{% endif %}>Cerrado</option></select></label>
+                        <label><input type="checkbox" name="permite_in_play" {% if data.permite_in_play %}checked{% endif %}> In-play</label>
+                    </div>
+                    {% endif %}
+                    <button class="sp-btn sp-btn--primary" type="submit">{% if data.exists %}<i class="bi bi-arrow-repeat"></i> Actualizar{% else %}<i class="bi bi-plus-circle"></i> Crear{% endif %} 1X2</button>
+                </form>
+                {% else %}
+                <div class="sp-mkt-readonly">
+                    {% for sel in data.selections %}<span>{{ sel.nombre }}{% if sel.odds %} · {{ sel.odds|floatformat:2 }}{% endif %}</span>{% empty %}<span>Mercado no configurable.</span>{% endfor %}
+                </div>
+                {% endif %}
+                {% endwith %}
+            </details>
+
+            <details class="sp-mkt-tpl" {% if mercados_data.ambos_anotan.exists %}open{% endif %}>
+                <summary><i class="bi bi-check2-circle"></i><span>Ambos anotan</span><small>Si / No</small><i class="bi bi-chevron-down sp-mkt-tpl__arr"></i></summary>
+                {% with data=mercados_data.ambos_anotan %}
+                {% if data.editable %}
+                <form class="sp-mkt-form" method="post" action="{% if data.exists %}{% url 'deporte:evento_mercado_odds_actualizar' evento.pk data.mercado_pk %}{% else %}{% url 'deporte:evento_mercado_rapido' evento.pk %}{% endif %}">
+                    {% csrf_token %}
+                    {% if not data.exists %}<input type="hidden" name="plantilla" value="ambos_anotan">{% endif %}
+                    <div class="sp-mkt-form-row"><label>Stake min<input type="number" step="0.01" min="0.01" name="stake_minimo" value="1.00"></label><label>Stake max<input type="number" step="0.01" min="0.01" name="stake_maximo" value="100.00"></label></div>
+                    <div class="sp-mkt-form-row">
+                        {% with yes=data.selections|first %}<label>Si<input type="number" step="0.01" min="1.01" name="{% if data.exists %}odds_{{ yes.pk }}{% else %}odds_YES{% endif %}" placeholder="1.80" {% if data.exists and yes.odds %}value="{{ yes.odds|floatformat:2 }}"{% endif %}></label>{% endwith %}
+                        {% with no=data.selections|last %}<label>No<input type="number" step="0.01" min="1.01" name="{% if data.exists %}odds_{{ no.pk }}{% else %}odds_NO{% endif %}" placeholder="2.00" {% if data.exists and no.odds %}value="{{ no.odds|floatformat:2 }}"{% endif %}></label>{% endwith %}
+                    </div>
+                    {% if data.exists %}<div class="sp-mkt-config"><label>Estado <select name="estado_mercado"><option value="abierto" {% if data.estado_mercado == 'abierto' %}selected{% endif %}>Abierto</option><option value="suspendido" {% if data.estado_mercado == 'suspendido' %}selected{% endif %}>Suspendido</option><option value="cerrado" {% if data.estado_mercado == 'cerrado' %}selected{% endif %}>Cerrado</option></select></label><label><input type="checkbox" name="permite_in_play" {% if data.permite_in_play %}checked{% endif %}> In-play</label></div>{% endif %}
+                    <button class="sp-btn sp-btn--primary" type="submit">{% if data.exists %}<i class="bi bi-arrow-repeat"></i> Actualizar{% else %}<i class="bi bi-plus-circle"></i> Crear{% endif %} Ambos anotan</button>
+                </form>
+                {% else %}
+                <div class="sp-mkt-readonly">
+                    {% for sel in data.selections %}<span>{{ sel.nombre }}{% if sel.odds %} · {{ sel.odds|floatformat:2 }}{% endif %}</span>{% empty %}<span>Mercado no configurable.</span>{% endfor %}
+                </div>
+                {% endif %}
+                {% endwith %}
+            </details>
+
+            <details class="sp-mkt-tpl" {% if mercados_data.total_goles.exists %}open{% endif %}>
+                <summary><i class="bi bi-plus-slash-minus"></i><span>Total goles</span><small>Over / Under</small><i class="bi bi-chevron-down sp-mkt-tpl__arr"></i></summary>
+                {% with data=mercados_data.total_goles %}
+                {% if data.editable %}
+                <form class="sp-mkt-form" method="post" action="{% if data.exists %}{% url 'deporte:evento_mercado_odds_actualizar' evento.pk data.mercado_pk %}{% else %}{% url 'deporte:evento_mercado_rapido' evento.pk %}{% endif %}">
+                    {% csrf_token %}
+                    {% if not data.exists %}<input type="hidden" name="plantilla" value="total_goles">{% endif %}
+                    <div class="sp-mkt-form-row sp-mkt-form-row--3"><label>Linea<input type="number" step="0.5" name="linea" value="2.5"></label><label>Stake min<input type="number" step="0.01" min="0.01" name="stake_minimo" value="1.00"></label><label>Stake max<input type="number" step="0.01" min="0.01" name="stake_maximo" value="100.00"></label></div>
+                    <div class="sp-mkt-form-row">
+                        {% with over=data.selections|first %}<label>Over<input type="number" step="0.01" min="1.01" name="{% if data.exists %}odds_{{ over.pk }}{% else %}odds_OVER{% endif %}" placeholder="1.90" {% if data.exists and over.odds %}value="{{ over.odds|floatformat:2 }}"{% endif %}></label>{% endwith %}
+                        {% with under=data.selections|last %}<label>Under<input type="number" step="0.01" min="1.01" name="{% if data.exists %}odds_{{ under.pk }}{% else %}odds_UNDER{% endif %}" placeholder="1.95" {% if data.exists and under.odds %}value="{{ under.odds|floatformat:2 }}"{% endif %}></label>{% endwith %}
+                    </div>
+                    {% if data.exists %}<div class="sp-mkt-config"><label>Estado <select name="estado_mercado"><option value="abierto" {% if data.estado_mercado == 'abierto' %}selected{% endif %}>Abierto</option><option value="suspendido" {% if data.estado_mercado == 'suspendido' %}selected{% endif %}>Suspendido</option><option value="cerrado" {% if data.estado_mercado == 'cerrado' %}selected{% endif %}>Cerrado</option></select></label><label><input type="checkbox" name="permite_in_play" {% if data.permite_in_play %}checked{% endif %}> In-play</label></div>{% endif %}
+                    <button class="sp-btn sp-btn--primary" type="submit">{% if data.exists %}<i class="bi bi-arrow-repeat"></i> Actualizar{% else %}<i class="bi bi-plus-circle"></i> Crear{% endif %} Total goles</button>
+                </form>
+                {% else %}
+                <div class="sp-mkt-readonly">
+                    {% for sel in data.selections %}<span>{{ sel.nombre }}{% if sel.odds %} · {{ sel.odds|floatformat:2 }}{% endif %}</span>{% empty %}<span>Mercado no configurable.</span>{% endfor %}
+                </div>
+                {% endif %}
+                {% endwith %}
+            </details>
+
+            <details class="sp-mkt-tpl" {% if mercados_data.handicap.exists %}open{% endif %}>
+                <summary><i class="bi bi-arrows-expand"></i><span>Handicap</span><small>Con linea</small><i class="bi bi-chevron-down sp-mkt-tpl__arr"></i></summary>
+                {% with data=mercados_data.handicap %}
+                {% if data.editable %}
+                <form class="sp-mkt-form" method="post" action="{% if data.exists %}{% url 'deporte:evento_mercado_odds_actualizar' evento.pk data.mercado_pk %}{% else %}{% url 'deporte:evento_mercado_rapido' evento.pk %}{% endif %}">
+                    {% csrf_token %}
+                    {% if not data.exists %}<input type="hidden" name="plantilla" value="handicap">{% endif %}
+                    <div class="sp-mkt-form-row sp-mkt-form-row--3"><label>Linea<input type="number" step="0.5" name="linea" value="0"></label><label>Stake min<input type="number" step="0.01" min="0.01" name="stake_minimo" value="1.00"></label><label>Stake max<input type="number" step="0.01" min="0.01" name="stake_maximo" value="100.00"></label></div>
+                    <div class="sp-mkt-form-row">
+                        {% with home=data.selections|first %}<label>{{ evento.equipo_local }}<input type="number" step="0.01" min="1.01" name="{% if data.exists %}odds_{{ home.pk }}{% else %}odds_HOME_HANDICAP{% endif %}" placeholder="1.90" {% if data.exists and home.odds %}value="{{ home.odds|floatformat:2 }}"{% endif %}></label>{% endwith %}
+                        {% with away=data.selections|last %}<label>{{ evento.equipo_visitante }}<input type="number" step="0.01" min="1.01" name="{% if data.exists %}odds_{{ away.pk }}{% else %}odds_AWAY_HANDICAP{% endif %}" placeholder="1.90" {% if data.exists and away.odds %}value="{{ away.odds|floatformat:2 }}"{% endif %}></label>{% endwith %}
+                    </div>
+                    {% if data.exists %}<div class="sp-mkt-config"><label>Estado <select name="estado_mercado"><option value="abierto" {% if data.estado_mercado == 'abierto' %}selected{% endif %}>Abierto</option><option value="suspendido" {% if data.estado_mercado == 'suspendido' %}selected{% endif %}>Suspendido</option><option value="cerrado" {% if data.estado_mercado == 'cerrado' %}selected{% endif %}>Cerrado</option></select></label><label><input type="checkbox" name="permite_in_play" {% if data.permite_in_play %}checked{% endif %}> In-play</label></div>{% endif %}
+                    <button class="sp-btn sp-btn--primary" type="submit">{% if data.exists %}<i class="bi bi-arrow-repeat"></i> Actualizar{% else %}<i class="bi bi-plus-circle"></i> Crear{% endif %} Handicap</button>
+                </form>
+                {% else %}
+                <div class="sp-mkt-readonly">
+                    {% for sel in data.selections %}<span>{{ sel.nombre }}{% if sel.odds %} · {{ sel.odds|floatformat:2 }}{% endif %}</span>{% empty %}<span>Mercado no configurable.</span>{% endfor %}
+                </div>
+                {% endif %}
+                {% endwith %}
+            </details>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% if evento.estado_evento == 'en_vivo' %}
+{% block extra_js %}
+{{ block.super }}
+<script>
+(function () {
+    // ── Steppers del widget de marcador ──────────────────────────────────
+    document.querySelectorAll('.sp-marcador-stepper__btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const input = document.getElementById(btn.dataset.target);
+            const delta = parseInt(btn.dataset.delta, 10);
+            const val = parseInt(input.value || '0', 10);
+            const nuevo = Math.max(0, Math.min(99, val + delta));
+            input.value = nuevo;
+            actualizarPreview();
+        });
+    });
+
+    function actualizarPreview() {
+        const ml = document.getElementById('id_ml')?.value ?? '0';
+        const mv = document.getElementById('id_mv')?.value ?? '0';
+        const display = document.getElementById('op-marcador-display');
+        if (display) display.textContent = `${ml} – ${mv}`;
+    }
+
+    document.getElementById('id_ml')?.addEventListener('input', actualizarPreview);
+    document.getElementById('id_mv')?.addEventListener('input', actualizarPreview);
+
+    // ── WebSocket: recibir actualizaciones del marcador desde otros clientes ──
+    const idEvento = {{ evento.id_evento }};
+    const ws = new WebSocket(`ws://${location.host}/ws/eventos/${idEvento}/`);
+
+    ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type !== 'evento.estado') return;
+
+        // Actualizar marcador visual del header del workspace
+        const scoreBlock = document.querySelector('.sp-ws-score');
+        if (scoreBlock) {
+            scoreBlock.textContent = `${msg.marcador_local} – ${msg.marcador_visitante}`;
+            scoreBlock.classList.add('sp-score-flash');
+            setTimeout(() => scoreBlock.classList.remove('sp-score-flash'), 1200);
+        }
+
+        // Sincronizar los inputs del widget si otro operador publicó el marcador
+        const inputLocal = document.getElementById('id_ml');
+        const inputVisit = document.getElementById('id_mv');
+        if (inputLocal && inputVisit) {
+            inputLocal.value = msg.marcador_local;
+            inputVisit.value = msg.marcador_visitante;
+            actualizarPreview();
+        }
+    };
+    ws.onerror = () => {};
+})();
+</script>
+{% endblock %}
+{% endif %}
+

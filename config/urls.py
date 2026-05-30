@@ -14,16 +14,31 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+from django.conf import settings
+from django.conf.urls.static import static
 from django.contrib import admin
 from django.contrib.auth.views import LoginView, LogoutView
 from django.urls import include, path
 
-from core.views import HomeView
+from core.views import HomeView, RegistroExitosoView, RegistroJugadorView
 
 urlpatterns = [
     path('', HomeView.as_view(), name='home'),
     path('admin/', admin.site.urls),
     path('accounts/login/', LoginView.as_view(template_name='registration/login.html'), name='login'),
     path('accounts/logout/', LogoutView.as_view(), name='logout'),
+    path('accounts/registro/', RegistroJugadorView.as_view(), name='registro_jugador'),
+    path('accounts/registro/exito/', RegistroExitosoView.as_view(), name='registro_exitoso'),
+    path('apuestas/', include('apuesta.urls')),
+    path('deporte/', include('deporte.urls')),
+    path('', include('billetera.web_urls')),
     path('api/v1/', include('api.urls')),
-]
+
+
+    # Modulo de Cuentas: usuarios, roles y KYC simulado.
+    path('cuentas/', include('cuentas.urls')),
+
+
+    path('juego-responsable/', include('juego_responsable.urls')),
+
+] + static(settings.STATIC_URL, document_root=settings.BASE_DIR / 'static')

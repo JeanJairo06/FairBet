@@ -1,0 +1,43 @@
+{% extends 'deporte/base_deporte.html' %}
+{% block title %}Historial de odds | FairBet Lab{% endblock %}
+{% block eyebrow %}Auditoria{% endblock %}
+{% block page_title %}Historial de odds{% endblock %}
+
+{% block deporte_content %}
+<form class="sp-search" method="get" role="search">
+    <button type="submit" class="sp-search__icon" aria-label="Buscar"><i class="bi bi-search"></i></button>
+    <input type="search" name="q" value="{{ request.GET.q }}" placeholder="Buscar seleccion, mercado o evento y pulsa Enter…">
+</form>
+
+<p class="sp-hint"><i class="bi bi-info-circle"></i> Registro de auditoria. Las odds se actualizan desde <strong>Configurar partido</strong>.</p>
+
+<div class="sp-odds-list">
+{% for item in odds %}
+<div class="sp-odds-row {% if item.activa %}sp-odds-row--vigente{% else %}sp-odds-row--historica{% endif %}">
+    <div class="sp-odds-val">
+        <span class="sp-odds-num {% if item.activa %}sp-odds-num--active{% endif %}">{{ item.odds|floatformat:2 }}</span>
+        <span class="sp-odds-version">v{{ item.numero_version }}</span>
+    </div>
+    <div>
+        <div class="sp-odds-row__crumb">
+            {{ item.seleccion.mercado.evento.equipo_local }} vs {{ item.seleccion.mercado.evento.equipo_visitante }}
+            <i class="bi bi-chevron-right"></i>
+            {{ item.seleccion.mercado.nombre }}
+            <i class="bi bi-chevron-right"></i>
+            <strong>{{ item.seleccion.nombre }}</strong>
+        </div>
+        <div class="sp-odds-row__meta">
+            <span><i class="bi bi-calendar3"></i> {{ item.valido_desde|date:'d/m/Y H:i' }}</span>
+            {% if item.valido_hasta %}<span><i class="bi bi-calendar-x"></i> {{ item.valido_hasta|date:'d/m/Y H:i' }}</span>{% endif %}
+        </div>
+    </div>
+    <div class="sp-odds-row__right">
+        {% if item.activa %}<span class="sp-badge sp-badge--green">Vigente</span>{% else %}<span class="sp-badge">Historica</span>{% endif %}
+    </div>
+</div>
+{% empty %}
+<div class="sp-empty"><i class="bi bi-graph-up-arrow"></i><p>No hay odds registradas.</p></div>
+{% endfor %}
+</div>
+{% include 'partials/pagination.html' %}
+{% endblock %}

@@ -1,0 +1,120 @@
+<article class="accounts-panel accounts-panel--wide" id="gestion-cuentas">
+    <div class="accounts-panel__header">
+        <div>
+            <span class="section-chip"><i class="bi bi-search"></i> Gestion y busqueda</span>
+            <h3>Cuentas registradas</h3>
+            <p>Busca usuarios, filtra por rol, revisa KYC y administra accesos desde un solo listado.</p>
+        </div>
+        <div class="accounts-panel__tools">
+            <a href="{% url 'cuentas:crear_usuario' %}" class="account-create-button">
+                <i class="bi bi-person-plus"></i>
+                Crear usuario
+            </a>
+        </div>
+    </div>
+
+    <div class="accounts-filterbar">
+        <nav class="account-role-filters" aria-label="Filtros por rol">
+            {% for filter in role_filters %}
+                <a href="{{ filter.url }}" class="account-role-filter{% if filter.active %} account-role-filter--active{% endif %}">
+                    <i class="bi {{ filter.icon }}"></i>
+                    <span>{{ filter.label }}</span>
+                </a>
+            {% endfor %}
+        </nav>
+
+        <form method="get" class="accounts-search">
+            <i class="bi bi-search"></i>
+            {{ search_form.q }}
+            <input type="hidden" name="rol" value="{{ selected_role }}">
+            <button type="submit" class="accounts-search__button" title="Buscar" aria-label="Buscar">
+                <i class="bi bi-search"></i>
+            </button>
+        </form>
+    </div>
+
+    <div class="accounts-table-wrap">
+        <table class="accounts-table">
+            <thead>
+                <tr>
+                    <th>Cuenta</th>
+                    <th>Rol</th>
+                    <th>KYC / Perfil</th>
+                    <th>Estado</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for usuario in usuarios %}
+                    <tr>
+                        <td>
+                            <div class="account-user">
+                                <span class="account-user__avatar">{{ usuario.username|first|upper }}</span>
+                                <div>
+                                    <strong>{{ usuario.username }}</strong>
+                                    <small>{{ usuario.email }}</small>
+                                    <small>
+                                        {% if usuario.perfil_jugador %}
+                                            {{ usuario.perfil_jugador.nombres }} {{ usuario.perfil_jugador.apellidos }}
+                                        {% else %}
+                                            {{ usuario.first_name }} {{ usuario.last_name }}
+                                        {% endif %}
+                                    </small>
+                                </div>
+                                <div class="account-user__quick-actions">
+                                    {% if usuario.is_superuser and not request.user.is_superuser %}
+                                        <span class="account-icon-button account-icon-button--locked" title="Cuenta protegida" aria-label="Cuenta protegida">
+                                            <i class="bi bi-shield-lock"></i>
+                                        </span>
+                                    {% else %}
+                                        <a href="{% url 'cuentas:editar_cuenta' usuario.pk %}" class="account-icon-button" title="Editar cuenta" aria-label="Editar cuenta">
+                                            <i class="bi bi-pencil-square"></i>
+                                        </a>
+                                    {% endif %}
+
+                                    {% if usuario.pk == request.user.pk %}
+                                        <span class="account-current account-current--compact">Actual</span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <span class="account-pill account-pill--{{ usuario.rol|lower }}">
+                                {{ usuario.get_rol_display }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if usuario.perfil_jugador %}
+                                <div class="kyc-cell">
+                                    <span class="kyc-badge kyc-badge--{{ usuario.perfil_jugador.estado_cuenta }}">
+                                        {{ usuario.perfil_jugador.get_estado_cuenta_display }}
+                                    </span>
+                                    <small>DNI {{ usuario.perfil_jugador.dni }}</small>
+                                    {% if usuario.perfil_jugador.kyc_verificado_en %}
+                                        <small>Validado {{ usuario.perfil_jugador.kyc_verificado_en|date:'d/m/Y H:i' }}</small>
+                                    {% else %}
+                                        <small>Validacion local pendiente</small>
+                                    {% endif %}
+                                </div>
+                            {% else %}
+                                <span class="muted">No requiere KYC</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if usuario.is_active %}
+                                <span class="status-badge status-badge--active">Activo</span>
+                            {% else %}
+                                <span class="status-badge status-badge--inactive">Inactivo</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% empty %}
+                    <tr>
+                        <td colspan="4" class="accounts-empty">
+                            No se encontraron cuentas con los filtros actuales.
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</article>
