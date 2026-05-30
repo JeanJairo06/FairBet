@@ -513,6 +513,157 @@ class CuentaSelfUpdateForm(forms.Form):
 PerfilJugadorSelfForm = CuentaSelfUpdateForm
 
 
-RegistroJugadorForm = UsuarioRegistroForm
+class RegistroJugadorForm(forms.Form):
+    nombres = forms.CharField(max_length=150, label='Nombres', widget=forms.TextInput(attrs={'placeholder': 'Tus nombres'}))
+    apellidos = forms.CharField(max_length=150, label='Apellidos', widget=forms.TextInput(attrs={'placeholder': 'Tus apellidos'}))
+    dni = forms.CharField(
+        max_length=8,
+        label='DNI',
+        help_text='8 digitos de tu DNI peruano',
+        widget=forms.TextInput(attrs={'placeholder': '12345678', 'maxlength': '8', 'inputmode': 'numeric', 'class': 'dni-input'}),
+    )
+    digito_verificador = forms.CharField(
+        max_length=1,
+        label='DV',
+        help_text='Digito verificador (esquina superior derecha de tu DNI)',
+        widget=forms.TextInput(attrs={'placeholder': 'X', 'maxlength': '1', 'class': 'dv-input', 'style': 'text-transform:uppercase;'}),
+    )
+    fecha_nacimiento = forms.DateField(
+        label='Fecha de nacimiento',
+        input_formats=['%Y-%m-%d'],
+        widget=forms.DateInput(format='%Y-%m-%d', attrs={'type': 'date'}),
+    )
+    username = forms.CharField(
+        max_length=150,
+        label='Nombre de usuario',
+        widget=forms.TextInput(attrs={'placeholder': 'Elige un usuario'}),
+    )
+    email = forms.EmailField(
+        label='Correo electronico',
+        widget=forms.EmailInput(attrs={'placeholder': 'tu@correo.com'}),
+    )
+    password1 = forms.CharField(
+        label='Contrasena',
+        widget=forms.PasswordInput(attrs={'placeholder': 'Minimo 8 caracteres', 'autocomplete': 'new-password'}),
+    )
+    password2 = forms.CharField(
+        label='Confirmar contrasena',
+        widget=forms.PasswordInput(attrs={'placeholder': 'Repite tu contrasena', 'autocomplete': 'new-password'}),
+    )
+    terminos = forms.BooleanField(
+        label='Acepto los terminos y condiciones',
+        widget=forms.CheckboxInput(attrs={'class': 'terminos-check'}),
+    )
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        _decorate_fields(self.fields)
+        self.fields['fecha_nacimiento'].widget.attrs['max'] = get_adult_date_limit().isoformat()
+        self.fields['terminos'].label = 'Acepto los terminos y condiciones de uso'
+
+    def clean_username(self):
+        username = self.cleaned_data['username'].strip()
+        if Usuario.objects.filter(username=username).exists():
+            raise forms.ValidationError('Este nombre de usuario ya esta en uso.')
+        return username
+
+    def clean_email(self):
+        email = self.cleaned_data['email'].strip().lower()
+        if Usuario.objects.filter(email=email).exists():
+            raise forms.ValidationError('Este correo ya esta registrado.')
+        return email
+
+    def clean_dni(self):
+        dni = self.cleaned_data.get('dni', '').strip()
+        if not dni:
+            return dni
+        if len(dni) != 8 or not dni.isdigit():
+            raise forms.ValidationError('El DNI debe tener exactamente 8 digitos numericos.')
+        if PerfilJugador.objects.filter(dni=dni).exists():
+            raise forms.ValidationError('Ya existe un perfil registrado con este DNI.')
+        return dni
+
+    def clean_digito_verificador(self):
+        dv = self.cleaned_data.get('digito_verificador', '').strip().upper()
+        if not dv:
+            return dv
+        if len(dv) != 1:
+            raise forms.ValidationError('El digito verificador debe ser un solo caracter.')
+        if dv not in '0123456789KABCDEFGHIJ':
+            raise forms.ValidationError('Caracter invalido.')
+        return dv
+
+    def clean(self):
+        cleaned_data = super().clean()
+        dni = cleaned_data.get('dni')
+        dv = cleaned_data.get('digito_verificador')
+        fecha_nacimiento = cleaned_data.get('fecha_nacimiento')
+        password1 = cleaned_data.get('password1')
+        password2 = cleaned_data.get('password2')
+        terminos = cleaned_data.get('terminos')
+
+        if not terminos:
+            self.add_error('terminos', 'Debes aceptar los terminos y condiciones.')
+
+        if dni and dv:
+            from core.services import calcular_digito_verificador, SERIE_LETRA
+            dv_esperado_num = calcular_digito_verificador(dni)
+            dv_esperado_let = SERIE_LETRA[dv_esperado_num]
+            if dv != str(dv_esperado_num) and dv != dv_esperado_let:
+                self.add_error('digito_verificador', 'No coincide el digito verificador.')
+
+        if dni and fecha_nacimiento:
+            kyc_result = resolve_kyc_status(dni, fecha_nacimiento)
+            cleaned_data['kyc_result'] = kyc_result
+            if not kyc_result.is_valid:
+                self.add_error('dni', kyc_result.message)
+
+        if password1 and password2 and password1 != password2:
+            self.add_error('password2', 'Las contrasenas no coinciden.')
+
+        if password1:
+            try:
+                validate_password(password1)
+            except DjangoValidationError as exc:
+                self.add_error('password1', exc)
+
+        return cleaned_data
+
+    @transaction.atomic
+    def save(self):
+        user = Usuario.objects.create_user(
+            username=self.cleaned_data['username'],
+            email=self.cleaned_data['email'],
+            password=self.cleaned_data['password1'],
+            first_name=self.cleaned_data['nombres'],
+            last_name=self.cleaned_data['apellidos'],
+            rol=RolUsuario.PLAYER,
+            is_staff=False,
+            is_superuser=False,
+        )
+
+        kyc_result = self.cleaned_data.get('kyc_result')
+        PerfilJugador.objects.create(
+            usuario=user,
+            nombres=self.cleaned_data['nombres'],
+            apellidos=self.cleaned_data['apellidos'],
+            dni=self.cleaned_data['dni'],
+            fecha_nacimiento=self.cleaned_data['fecha_nacimiento'],
+            telefono='',
+            estado_cuenta=(
+                kyc_result.estado_cuenta
+                if kyc_result
+                else EstadoCuentaJugador.PENDIENTE_VERIFICACION
+            ),
+            kyc_verificado_en=(
+                None
+                if not kyc_result or not kyc_result.is_valid
+                else timezone.now()
+            ),
+        )
+        crear_cuenta_wallet_usuario(user)
+        return user
+
+
 CuentaRegistroForm = UsuarioRegistroForm
 CuentaGestionForm = CuentaAdminUpdateForm

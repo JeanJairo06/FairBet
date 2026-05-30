@@ -1,0 +1,172 @@
+{% extends 'base.html' %}
+
+{% block title %}Registro de jugador | FairBet Lab{% endblock %}
+
+{% block content %}
+<section class="auth-layout">
+    <div class="auth-card" style="max-width: 520px;">
+        <div class="auth-card__header">
+            <i class="bi bi-person-plus"></i>
+            <div>
+                <p class="eyebrow">Crear cuenta</p>
+                <h2>Registro de jugador</h2>
+            </div>
+        </div>
+
+        {% if messages %}
+            {% for message in messages %}
+                <div class="message message--{{ message.tags }}">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+
+        {% if form.non_field_errors %}
+            <div class="message message--error">
+                {% for error in form.non_field_errors %}
+                    <p>{{ error }}</p>
+                {% endfor %}
+            </div>
+        {% endif %}
+
+        <form method="post" class="auth-form" novalidate>
+            {% csrf_token %}
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div>
+                    <label for="{{ form.nombres.id_for_label }}">Nombres</label>
+                    {{ form.nombres }}
+                    {% if form.nombres.errors %}<span style="color:#ff6666; font-size:0.78rem;">{{ form.nombres.errors|striptags }}</span>{% endif %}
+                </div>
+                <div>
+                    <label for="{{ form.apellidos.id_for_label }}">Apellidos</label>
+                    {{ form.apellidos }}
+                    {% if form.apellidos.errors %}<span style="color:#ff6666; font-size:0.78rem;">{{ form.apellidos.errors|striptags }}</span>{% endif %}
+                </div>
+            </div>
+
+            <div style="margin-top:14px;">
+                <label style="font-size:0.82rem; font-weight:800; color:var(--muted);">Documento de identidad</label>
+                <div style="display:grid; grid-template-columns:1fr auto; gap:10px; align-items:end;">
+                    <div>
+                        <label for="{{ form.dni.id_for_label }}" style="font-size:0.72rem; color:var(--muted);">DNI (8 digitos)</label>
+                        {{ form.dni }}
+                        {% if form.dni.errors %}<span style="color:#ff6666; font-size:0.78rem;">{{ form.dni.errors|striptags }}</span>{% endif %}
+                    </div>
+                    <div>
+                        <label for="{{ form.digito_verificador.id_for_label }}" style="font-size:0.72rem; color:var(--muted);">DV</label>
+                        {{ form.digito_verificador }}
+                        {% if form.digito_verificador.errors %}<span style="color:#ff6666; font-size:0.78rem;">{{ form.digito_verificador.errors|striptags }}</span>{% endif %}
+                    </div>
+                </div>
+                <small style="color:var(--muted); font-size:0.72rem;">
+                    <i class="bi bi-info-circle"></i> El digito verificador se encuentra en la esquina superior derecha de tu DNI
+                </small>
+            </div>
+
+            <div style="margin-top:12px;">
+                <label for="{{ form.fecha_nacimiento.id_for_label }}">Fecha de nacimiento</label>
+                {{ form.fecha_nacimiento }}
+                <small style="color:var(--muted); font-size:0.72rem;">Debes ser mayor de 18 anios</small>
+                {% if form.fecha_nacimiento.errors %}<span style="color:#ff6666; font-size:0.78rem;">{{ form.fecha_nacimiento.errors|striptags }}</span>{% endif %}
+            </div>
+
+            <hr style="border:none; border-top:1px solid var(--line); margin:18px 0;">
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+                <div>
+                    <label for="{{ form.username.id_for_label }}">Nombre de usuario</label>
+                    {{ form.username }}
+                    {% if form.username.errors %}<span style="color:#ff6666; font-size:0.78rem;">{{ form.username.errors|striptags }}</span>{% endif %}
+                </div>
+                <div>
+                    <label for="{{ form.email.id_for_label }}">Correo electronico</label>
+                    {{ form.email }}
+                    {% if form.email.errors %}<span style="color:#ff6666; font-size:0.78rem;">{{ form.email.errors|striptags }}</span>{% endif %}
+                </div>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px;">
+                <div>
+                    <label for="{{ form.password1.id_for_label }}">Contrasena</label>
+                    {{ form.password1 }}
+                    {% if form.password1.errors %}<span style="color:#ff6666; font-size:0.78rem;">{{ form.password1.errors|striptags }}</span>{% endif %}
+                </div>
+                <div>
+                    <label for="{{ form.password2.id_for_label }}">Confirmar contrasena</label>
+                    {{ form.password2 }}
+                    {% if form.password2.errors %}<span style="color:#ff6666; font-size:0.78rem;">{{ form.password2.errors|striptags }}</span>{% endif %}
+                </div>
+            </div>
+
+            <div style="margin-top:16px;">
+                <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                    {{ form.terminos }}
+                    <span style="font-size:0.82rem; color:var(--muted);">Acepto los <a href="#" style="color:var(--accent);">terminos y condiciones</a></span>
+                </label>
+                {% if form.terminos.errors %}<span style="color:#ff6666; font-size:0.78rem; display:block; margin-top:4px;">{{ form.terminos.errors|striptags }}</span>{% endif %}
+            </div>
+
+            <button type="submit" class="button button--primary button--full" style="margin-top:18px;">
+                <i class="bi bi-person-plus"></i>
+                Crear cuenta
+            </button>
+        </form>
+
+        <p style="text-align:center; margin-top:16px; font-size:0.88rem;">
+            <span style="color:var(--muted);">Ya tienes cuenta?</span>
+            <a href="{% url 'login' %}" style="color:var(--accent); text-decoration:none; font-weight:700;">Iniciar sesion</a>
+        </p>
+    </div>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const dniInput = document.querySelector('.dni-input');
+    const dvInput = document.querySelector('.dv-input');
+    if (!dniInput || !dvInput) return;
+
+    const PESOS = [3, 2, 7, 6, 5, 4, 3, 2];
+    const SERIE_NUM = [6, 7, 8, 9, 0, 1, 1, 2, 3, 4, 5];
+    const SERIE_LET = ['K', 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J'];
+
+    function calcularDV(dni8) {
+        if (dni8.length !== 8 || !/^\d{8}$/.test(dni8)) return null;
+        let suma = 0;
+        for (let i = 0; i < 8; i++) suma += parseInt(dni8[i]) * PESOS[i];
+        let indice = 11 - (suma % 11);
+        if (indice === 11) indice = 0;
+        return { num: String(SERIE_NUM[indice]), let: SERIE_LET[indice] };
+    }
+
+    function validar() {
+        const dni = dniInput.value;
+        const dv = dvInput.value.toUpperCase().trim();
+
+        if (dni.length === 8 && dv.length === 1) {
+            const esperado = calcularDV(dni);
+            if (!esperado) return;
+
+            if (dv === esperado.num || dv === esperado.let) {
+                dvInput.style.borderColor = '#22c55e';
+                dvInput.style.boxShadow = '0 0 0 1px #22c55e';
+            } else {
+                dvInput.style.borderColor = '#ff6666';
+                dvInput.style.boxShadow = '0 0 0 1px #ff6666';
+            }
+        } else {
+            dvInput.style.borderColor = '';
+            dvInput.style.boxShadow = '';
+        }
+    }
+
+    dniInput.addEventListener('input', function() {
+        this.value = this.value.replace(/\D/g, '').substring(0, 8);
+        validar();
+    });
+
+    dvInput.addEventListener('input', function() {
+        this.value = this.value.replace(/[^0-9kK]/g, '').substring(0, 1).toUpperCase();
+        validar();
+    });
+});
+</script>
+{% endblock %}
