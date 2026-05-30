@@ -14,6 +14,7 @@ from apuesta.servicios import liquidar_apuestas_de_evento
 from core.choices import EstadoEvento, EstadoMercado, TipoMercado
 from core.decorators import operator_required
 from deporte.forms import (
+    ActualizarMarcadorEventoForm,
     ConfirmarResultadoEventoForm,
     EventoDeportivoForm,
     MercadoPersonalizadoEventoForm,
@@ -22,6 +23,7 @@ from deporte.forms import (
 from deporte.exceptions import ResultadoEventoError
 from deporte.models import EventoDeportivo, HistorialOdds, Mercado, SeleccionMercado
 from deporte.services import (
+    actualizar_marcador_en_vivo,
     actualizar_odds,
     anular_evento,
     anular_evento_y_liquidar,
@@ -48,7 +50,7 @@ class EventoListView(DeporteOperadorRequiredMixin, ListView):
     model = EventoDeportivo
     template_name = 'deporte/eventos/lista.html'
     context_object_name = 'eventos'
-    paginate_by = 10
+    paginate_by = 12
 
     def get_queryset(self):
         queryset = EventoDeportivo.objects.prefetch_related(
@@ -61,7 +63,7 @@ class EventoListView(DeporteOperadorRequiredMixin, ListView):
                 filter=Q(mercados__selecciones__historial_odds__activa=True),
                 distinct=True,
             ),
-        ).order_by('-inicia_en')
+        ).order_by('-id_evento')
         q = self.request.GET.get('q')
         if q:
             queryset = queryset.filter(
@@ -190,6 +192,12 @@ class EventoDetailView(DeporteOperadorRequiredMixin, DetailView):
                     initial={'stake_minimo': '1.00', 'stake_maximo': '100.00'}
                 ),
                 'resultado_form': ConfirmarResultadoEventoForm(evento=evento),
+                'marcador_form': ActualizarMarcadorEventoForm(
+                    initial={
+                        'marcador_local': evento.marcador_local,
+                        'marcador_visitante': evento.marcador_visitante,
+                    }
+                ),
                 'checklist': [
                     ('Datos del partido completos', True),
                     ('Tiene mercados creados', tiene_mercados),
@@ -406,6 +414,35 @@ class EventoMercadoOddsActualizarView(DeporteOperadorRequiredMixin, View):
         return HttpResponseRedirect(reverse('deporte:evento_detalle', args=[mercado.evento_id]))
 
 
+class EventoMarcadorUpdateView(DeporteOperadorRequiredMixin, View):
+    """Actualiza el marcador de un evento EN_VIVO sin finalizarlo.
+    El WebSocket difunde el nuevo marcador automáticamente vía señal post_save."""
+
+    def post(self, request, pk):
+        evento = get_object_or_404(EventoDeportivo, pk=pk)
+        form = ActualizarMarcadorEventoForm(request.POST)
+        if not form.is_valid():
+            messages.error(request, 'No se pudo actualizar el marcador. Verifica los goles ingresados.')
+            return HttpResponseRedirect(request.POST.get('next') or reverse('deporte:evento_detalle', args=[pk]))
+
+        try:
+            evento = actualizar_marcador_en_vivo(
+                evento,
+                form.cleaned_data['marcador_local'],
+                form.cleaned_data['marcador_visitante'],
+            )
+        except (ResultadoEventoError, ValueError, ValidationError) as exc:
+            messages.error(request, str(exc))
+        else:
+            messages.success(
+                request,
+                f'Marcador actualizado: {evento.marcador_local} – {evento.marcador_visitante}',
+            )
+        return HttpResponseRedirect(
+            request.POST.get('next') or reverse('deporte:evento_detalle', args=[pk])
+        )
+
+
 class EventoEstadoActionView(DeporteOperadorRequiredMixin, View):
     accion = None
     success_url = reverse_lazy('deporte:eventos_lista')
@@ -445,6 +482,9 @@ class EventoConfirmarResultadoView(DeporteOperadorRequiredMixin, FormView):
 
     def dispatch(self, request, *args, **kwargs):
         self.evento = EventoDeportivo.objects.get(pk=kwargs['pk'])
+        if self.evento.estado_evento in {EstadoEvento.FINALIZADO, EstadoEvento.ANULADO} or self.evento.resultado_confirmado:
+            messages.error(request, 'El partido ya fue finalizado o no permite confirmar resultado.')
+            return HttpResponseRedirect(reverse('deporte:evento_detalle', args=[self.evento.pk]))
         return super().dispatch(request, *args, **kwargs)
 
     def get_form_kwargs(self):
@@ -478,4 +518,4 @@ class EventoConfirmarResultadoView(DeporteOperadorRequiredMixin, FormView):
         return super().form_valid(form)
 
     def get_success_url(self):
-        return self.request.META.get('HTTP_REFERER') or reverse('deporte:evento_detalle', args=[self.evento.pk])
+        return reverse('deporte:evento_detalle', args=[self.evento.pk])

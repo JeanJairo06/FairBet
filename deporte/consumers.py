@@ -8,6 +8,23 @@ def _nombre_grupo(id_evento):
     return f"evento_{id_evento}"
 
 
+GRUPO_LISTA_EVENTOS = "lista_eventos"
+
+
+class ListaEventosConsumer(AsyncJsonWebsocketConsumer):
+    """Canal global: notifica cuando se crea, activa o finaliza un evento."""
+
+    async def connect(self):
+        await self.channel_layer.group_add(GRUPO_LISTA_EVENTOS, self.channel_name)
+        await self.accept()
+
+    async def disconnect(self, code):
+        await self.channel_layer.group_discard(GRUPO_LISTA_EVENTOS, self.channel_name)
+
+    async def lista_eventos_cambio(self, event):
+        await self.send_json(event)
+
+
 class EventoConsumer(AsyncJsonWebsocketConsumer):
     async def connect(self):
         self.id_evento = self.scope["url_route"]["kwargs"]["id_evento"]
@@ -43,12 +60,12 @@ class EventoConsumer(AsyncJsonWebsocketConsumer):
             return {}
 
         mercados = []
-        for mercado in evento.mercados.filter(estado_mercado="ABIERTO").prefetch_related(
-            "selecciones__historialodds_set"
+        for mercado in evento.mercados.filter(estado_mercado="abierto").prefetch_related(
+            "selecciones__historial_odds"
         ):
             selecciones = []
             for sel in mercado.selecciones.all():
-                odds_activa = sel.historialodds_set.filter(activa=True).order_by("-numero_version").first()
+                odds_activa = sel.historial_odds.filter(activa=True).order_by("-numero_version").first()
                 selecciones.append(
                     {
                         "id_seleccion": sel.id_seleccion,
@@ -65,6 +82,7 @@ class EventoConsumer(AsyncJsonWebsocketConsumer):
                     "nombre": mercado.nombre,
                     "tipo": mercado.tipo_mercado,
                     "estado": mercado.estado_mercado,
+                    "permite_in_play": mercado.permite_in_play,
                     "selecciones": selecciones,
                 }
             )

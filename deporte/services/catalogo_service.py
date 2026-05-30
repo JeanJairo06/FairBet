@@ -340,6 +340,34 @@ def validar_seleccion_apostable(seleccion):
 
 
 @transaction.atomic
+def actualizar_marcador_en_vivo(evento, marcador_local, marcador_visitante):
+    """Actualiza el marcador de un partido en vivo sin finalizarlo ni liquidar apuestas."""
+    evento = EventoDeportivo.objects.select_for_update().get(pk=_resolver_evento(evento).pk)
+
+    if evento.estado_evento != EstadoEvento.EN_VIVO:
+        raise ResultadoEventoError('Solo se puede actualizar el marcador de un evento en vivo.')
+    if evento.resultado_confirmado:
+        raise ResultadoEventoError('El resultado ya fue confirmado. Usa "Finalizar y liquidar".')
+
+    try:
+        marcador_local = int(marcador_local)
+        marcador_visitante = int(marcador_visitante)
+    except (TypeError, ValueError) as exc:
+        raise ValueError('El marcador debe ser un número entero no negativo.') from exc
+
+    if marcador_local < 0 or marcador_visitante < 0:
+        raise ValueError('El marcador no puede ser negativo.')
+    if marcador_local > 99 or marcador_visitante > 99:
+        raise ValueError('El marcador no puede ser mayor a 99.')
+
+    evento.marcador_local = marcador_local
+    evento.marcador_visitante = marcador_visitante
+    evento.full_clean()
+    evento.save(update_fields=['marcador_local', 'marcador_visitante', 'updated_at'])
+    return evento
+
+
+@transaction.atomic
 def pasar_evento_en_vivo(evento):
     evento = EventoDeportivo.objects.select_for_update().get(pk=_resolver_evento(evento).pk)
     if evento.resultado_confirmado:

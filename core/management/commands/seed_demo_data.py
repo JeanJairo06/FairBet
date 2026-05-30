@@ -151,9 +151,9 @@ class Command(BaseCommand):
 
     def _crear_juego_responsable(self, usuarios):
         limites_por_usuario = {
-            'jugador': Decimal('1000.0000'),
-            'sin_saldo': Decimal('1000.0000'),
-            'autoexcluido': Decimal('1000.0000'),
+            'jugador': Decimal('2500.0000'),
+            'sin_saldo': Decimal('5000.0000'),
+            'autoexcluido': Decimal('10000.0000'),
             'limite_bajo': Decimal('20.0000'),
         }
 

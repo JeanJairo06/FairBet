@@ -61,6 +61,7 @@
             <form method="post" action="{% url 'deporte:evento_suspender' evento.pk %}">{% csrf_token %}<button class="sp-btn" type="submit"><i class="bi bi-pause-circle"></i> Suspender</button></form>
             <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">{% csrf_token %}<button class="sp-btn sp-btn--danger" type="submit"><i class="bi bi-x-circle"></i> Anular</button></form>
         {% elif evento.estado_evento == 'en_vivo' %}
+            <a class="sp-btn sp-btn--live" href="#marcador-en-vivo"><i class="bi bi-123"></i> Actualizar marcador</a>
             <a class="sp-btn sp-btn--primary" href="{% url 'deporte:evento_confirmar_resultado' evento.pk %}"><i class="bi bi-flag-fill"></i> Finalizar y liquidar</a>
             <form method="post" action="{% url 'deporte:evento_suspender' evento.pk %}">{% csrf_token %}<button class="sp-btn" type="submit"><i class="bi bi-pause-circle"></i> Suspender</button></form>
             <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">{% csrf_token %}<button class="sp-btn sp-btn--danger" type="submit"><i class="bi bi-x-circle"></i> Anular</button></form>
@@ -69,6 +70,53 @@
             <form method="post" action="{% url 'deporte:evento_anular' evento.pk %}">{% csrf_token %}<button class="sp-btn sp-btn--danger" type="submit"><i class="bi bi-x-circle"></i> Anular</button></form>
         {% endif %}
     </div>
+
+    {% if evento.estado_evento == 'en_vivo' %}
+    <div class="sp-marcador-widget" id="marcador-en-vivo">
+        <div class="sp-marcador-widget__header">
+            <span class="sp-live-dot"></span>
+            <strong>Marcador en vivo</strong>
+            <span class="sp-marcador-widget__score" id="op-marcador-display">
+                {{ evento.marcador_local }} – {{ evento.marcador_visitante }}
+            </span>
+        </div>
+        <form method="post"
+              action="{% url 'deporte:evento_marcador_update' evento.pk %}"
+              class="sp-marcador-widget__form"
+              id="form-marcador">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{{ request.path }}">
+            <div class="sp-marcador-widget__inputs">
+                <div class="sp-marcador-input-group">
+                    <label>{{ evento.equipo_local }}</label>
+                    <div class="sp-marcador-stepper">
+                        <button type="button" class="sp-marcador-stepper__btn" data-target="id_ml" data-delta="-1">−</button>
+                        <input class="sp-marcador-stepper__val"
+                               id="id_ml" name="marcador_local"
+                               type="number" min="0" max="99"
+                               value="{{ marcador_form.marcador_local.value|default:evento.marcador_local }}" required>
+                        <button type="button" class="sp-marcador-stepper__btn" data-target="id_ml" data-delta="1">+</button>
+                    </div>
+                </div>
+                <span class="sp-marcador-widget__sep">vs</span>
+                <div class="sp-marcador-input-group">
+                    <label>{{ evento.equipo_visitante }}</label>
+                    <div class="sp-marcador-stepper">
+                        <button type="button" class="sp-marcador-stepper__btn" data-target="id_mv" data-delta="-1">−</button>
+                        <input class="sp-marcador-stepper__val"
+                               id="id_mv" name="marcador_visitante"
+                               type="number" min="0" max="99"
+                               value="{{ marcador_form.marcador_visitante.value|default:evento.marcador_visitante }}" required>
+                        <button type="button" class="sp-marcador-stepper__btn" data-target="id_mv" data-delta="1">+</button>
+                    </div>
+                </div>
+            </div>
+            <button type="submit" class="sp-btn sp-btn--live sp-marcador-widget__submit">
+                <i class="bi bi-send-fill"></i> Publicar marcador
+            </button>
+        </form>
+    </div>
+    {% endif %}
 
     <p class="sp-hint"><i class="bi bi-info-circle"></i> Al finalizar el partido solo se ingresa el marcador. FairBet resuelve 1X2, ambos anotan, totales y handicap automaticamente.</p>
 
@@ -183,3 +231,62 @@
     </div>
 </div>
 {% endblock %}
+
+{% if evento.estado_evento == 'en_vivo' %}
+{% block extra_js %}
+{{ block.super }}
+<script>
+(function () {
+    // ── Steppers del widget de marcador ──────────────────────────────────
+    document.querySelectorAll('.sp-marcador-stepper__btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const input = document.getElementById(btn.dataset.target);
+            const delta = parseInt(btn.dataset.delta, 10);
+            const val = parseInt(input.value || '0', 10);
+            const nuevo = Math.max(0, Math.min(99, val + delta));
+            input.value = nuevo;
+            actualizarPreview();
+        });
+    });
+
+    function actualizarPreview() {
+        const ml = document.getElementById('id_ml')?.value ?? '0';
+        const mv = document.getElementById('id_mv')?.value ?? '0';
+        const display = document.getElementById('op-marcador-display');
+        if (display) display.textContent = `${ml} – ${mv}`;
+    }
+
+    document.getElementById('id_ml')?.addEventListener('input', actualizarPreview);
+    document.getElementById('id_mv')?.addEventListener('input', actualizarPreview);
+
+    // ── WebSocket: recibir actualizaciones del marcador desde otros clientes ──
+    const idEvento = {{ evento.id_evento }};
+    const ws = new WebSocket(`ws://${location.host}/ws/eventos/${idEvento}/`);
+
+    ws.onmessage = (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type !== 'evento.estado') return;
+
+        // Actualizar marcador visual del header del workspace
+        const scoreBlock = document.querySelector('.sp-ws-score');
+        if (scoreBlock) {
+            scoreBlock.textContent = `${msg.marcador_local} – ${msg.marcador_visitante}`;
+            scoreBlock.classList.add('sp-score-flash');
+            setTimeout(() => scoreBlock.classList.remove('sp-score-flash'), 1200);
+        }
+
+        // Sincronizar los inputs del widget si otro operador publicó el marcador
+        const inputLocal = document.getElementById('id_ml');
+        const inputVisit = document.getElementById('id_mv');
+        if (inputLocal && inputVisit) {
+            inputLocal.value = msg.marcador_local;
+            inputVisit.value = msg.marcador_visitante;
+            actualizarPreview();
+        }
+    };
+    ws.onerror = () => {};
+})();
+</script>
+{% endblock %}
+{% endif %}
+

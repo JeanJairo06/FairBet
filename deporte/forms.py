@@ -172,5 +172,18 @@ class ConfirmarResultadoEventoForm(forms.Form):
     def __init__(self, *args, **kwargs):
         self.evento = kwargs.pop('evento')
         super().__init__(*args, **kwargs)
+        if not self.is_bound:
+            self.fields['marcador_local'].initial = self.evento.marcador_local
+            self.fields['marcador_visitante'].initial = self.evento.marcador_visitante
+        for field in self.fields.values():
+            field.widget.attrs.setdefault('class', 'app-field')
+
+
+class ActualizarMarcadorEventoForm(forms.Form):
+    marcador_local = forms.IntegerField(min_value=0, max_value=99)
+    marcador_visitante = forms.IntegerField(min_value=0, max_value=99)
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         for field in self.fields.values():
             field.widget.attrs.setdefault('class', 'app-field')

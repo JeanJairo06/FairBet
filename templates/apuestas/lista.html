@@ -26,86 +26,9 @@
             <span>Juega con responsabilidad. Las fichas son virtuales y no tienen valor monetario real.</span>
         </div>
 
-        {% for evento in eventos %}
-            <article class="evento-card" data-evento-id="{{ evento.id_evento }}">
-                {% if evento.estado_evento == 'EN_VIVO' %}
-                    <div class="scoreboard">
-                        <div class="scoreboard__team scoreboard__team--left">
-                            <span class="scoreboard__name">{{ evento.equipo_local }}</span>
-                        </div>
-                        <div class="scoreboard__center">
-                            <div class="scoreboard__badge">
-                                <span class="scoreboard__live-dot"></span>
-                                LIVE
-                            </div>
-                            <div class="scoreboard__score">
-                                <span class="scoreboard__goals">{{ evento.marcador_local }}</span>
-                                <span class="scoreboard__sep">-</span>
-                                <span class="scoreboard__goals">{{ evento.marcador_visitante }}</span>
-                            </div>
-                            <div class="scoreboard__time">
-                                <i class="bi bi-clock-fill"></i>
-                                <span class="scoreboard__clock" data-inicio="{{ evento.inicia_en|date:'c' }}">00:00</span>
-                            </div>
-                        </div>
-                        <div class="scoreboard__team scoreboard__team--right">
-                            <span class="scoreboard__name">{{ evento.equipo_visitante }}</span>
-                        </div>
-                    </div>
-                {% else %}
-                    <div class="evento-card__top">
-                        <span class="evento-card__league">{{ evento.competicion }}</span>
-                        <div class="evento-matchup">
-                            <span class="evento-matchup__team evento-matchup__team--left">{{ evento.equipo_local }}</span>
-                            <div class="evento-matchup__center">
-                                {% if evento.estado_evento == 'SUSPENDIDO' %}
-                                    <span class="status-pill status-pill--warn">Suspendido</span>
-                                {% else %}
-                                    <span class="evento-matchup__time">{{ evento.inicia_en|date:'d/m · H:i' }}</span>
-                                {% endif %}
-                            </div>
-                            <span class="evento-matchup__team evento-matchup__team--right">{{ evento.equipo_visitante }}</span>
-                        </div>
-                    </div>
-                {% endif %}
-
-                {% for mercado in evento.mercados.all %}
-                    {% if mercado.selecciones_activas %}
-                        <details class="mercado-row" data-mercado-id="{{ mercado.id_mercado }}" open>
-                            <summary class="mercado-row__header">
-                                <span class="mercado-row__icon"><i class="bi bi-diamond-half"></i></span>
-                                <span class="mercado-row__name">{{ mercado.nombre }}</span>
-                                <span class="mercado-row__count">({{ mercado.selecciones_activas|length }})</span>
-                                <i class="bi bi-chevron-down mercado-row__arrow"></i>
-                            </summary>
-                            <div class="odds-grid">
-                                {% for seleccion in mercado.selecciones_activas %}
-                                    <button
-                                        type="button"
-                                        class="odd-button{% if seleccion.id_seleccion in selecciones_apostadas %} is-apostada{% endif %}"
-                                        {% if seleccion.id_seleccion in selecciones_apostadas %}disabled title="Ya tienes una apuesta pendiente en esta seleccion"{% endif %}
-                                        data-seleccion-id="{{ seleccion.id_seleccion }}"
-                                        data-mercado-id="{{ mercado.id_mercado }}"
-                                        data-seleccion="{{ seleccion.nombre }}"
-                                        data-evento="{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}"
-                                        data-mercado="{{ mercado.nombre }}"
-                                        data-odds="{{ seleccion.odds_activa.odds }}"
-                                        data-version="{{ seleccion.odds_activa.numero_version }}"
-                                        data-min="{{ mercado.stake_minimo }}"
-                                        data-max="{{ mercado.stake_maximo }}"
-                                    >
-                                        <span>{{ seleccion.nombre }}</span>
-                                        <strong class="odd-value">{{ seleccion.odds_activa.odds|floatformat:2 }}</strong>
-                                    </button>
-                                {% endfor %}
-                            </div>
-                        </details>
-                    {% endif %}
-                {% endfor %}
-            </article>
-        {% empty %}
-            <section class="data-panel empty-state">No hay eventos disponibles para apostar en este momento.</section>
-        {% endfor %}
+        <div id="eventos-container">
+            {% include 'apuestas/fragmento_eventos.html' %}
+        </div>
     </div>
 
     <aside class="apuestas-sidebar">
@@ -170,21 +93,64 @@
 {% block extra_js %}
 <script src="{% static 'js/apuestas.js' %}"></script>
 <script>
-// WebSocket por cada evento visible
-document.querySelectorAll('.evento-card[data-evento-id]').forEach(card => {
+(function () {
+    const FRAGMENTO_URL = "{% url 'apuesta:eventos_fragmento' %}";
+    const contenedor = document.getElementById('eventos-container');
+    const wsScheme = location.protocol === 'https:' ? 'wss' : 'ws';
+
+    const socket = new WebSocket(`${wsScheme}://${location.host}/ws/eventos/`);
+    socket.onmessage = async (e) => {
+        const msg = JSON.parse(e.data);
+        if (msg.type !== 'lista.eventos.cambio') return;
+
+        try {
+            const resp = await fetch(FRAGMENTO_URL, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!resp.ok) return;
+            const html = await resp.text();
+            const seleccionesActivas = new Set(selecciones.map(s => s.seleccionId));
+
+            contenedor.innerHTML = html;
+            reconectarSocketsEventos();
+
+            seleccionesActivas.forEach(id => {
+                const btn = contenedor.querySelector(`.odd-button[data-seleccion-id="${id}"]`);
+                if (btn && !btn.disabled) btn.classList.add('is-selected');
+            });
+
+            if (msg.accion === 'creado') {
+                mostrarToast(`Nuevo partido disponible: ${msg.equipo_local} vs ${msg.equipo_visitante}`, 'info');
+            } else if (msg.accion === 'finalizado') {
+                mostrarToast(`Partido finalizado: ${msg.equipo_local} vs ${msg.equipo_visitante}`, 'warning');
+            }
+        } catch (err) {
+            console.warn('[WS] Error al recargar fragmento de eventos:', err);
+        }
+    };
+    socket.onerror = () => {};
+})();
+
+function reconectarSocketsEventos() {
+    document.querySelectorAll('.evento-card[data-evento-id]').forEach(conectarSocketEvento);
+}
+
+function conectarSocketEvento(card) {
+    if (card._wsSocket && card._wsSocket.readyState <= 1) return;
+
     const idEvento = card.dataset.eventoId;
-    const wsUrl = `ws://${location.host}/ws/eventos/${idEvento}/`;
-    const socket = new WebSocket(wsUrl);
-    socket.onopen  = () => console.log(`[WS] Conectado evento ${idEvento}`);
-    socket.onerror = (err) => console.warn(`[WS] Error evento ${idEvento}:`, err);
-    socket.onclose = () => console.log(`[WS] Cerrado evento ${idEvento}`);
+    const wsScheme = location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${wsScheme}://${location.host}/ws/eventos/${idEvento}/`);
+    card._wsSocket = socket;
+
     socket.onmessage = (e) => {
         const msg = JSON.parse(e.data);
-        if      (msg.type === 'odds.update')    actualizarOddsEnDOM(card, msg);
+        if (msg.type === 'odds.update') actualizarOddsEnDOM(card, msg);
         else if (msg.type === 'mercado.estado') actualizarEstadoMercadoEnDOM(card, msg);
-        else if (msg.type === 'evento.estado')  actualizarEstadoEventoEnDOM(card, msg);
+        else if (msg.type === 'evento.estado') actualizarEstadoEventoEnDOM(card, msg);
     };
-});
+    socket.onerror = (err) => console.warn(`[WS] Error evento ${idEvento}:`, err);
+}
+
+reconectarSocketsEventos();
 
 function actualizarOddsEnDOM(card, msg) {
     const btn = card.querySelector(`.odd-button[data-seleccion-id="${msg.id_seleccion}"]`);
@@ -212,47 +178,59 @@ function actualizarOddsEnDOM(card, msg) {
 function actualizarEstadoMercadoEnDOM(card, msg) {
     const fila = card.querySelector(`.mercado-row[data-mercado-id="${msg.id_mercado}"]`);
     if (!fila) return;
-    const suspendido = msg.estado === 'SUSPENDIDO' || msg.estado === 'CERRADO';
+
+    const eventoEnVivo = card.dataset.estadoEvento === 'en_vivo';
+    const bloqueadoPorEstado = ['suspendido', 'cerrado', 'liquidado', 'anulado'].includes(msg.estado);
+    const bloqueadoPorInPlay = eventoEnVivo && msg.permite_in_play === false;
+    const bloqueado = bloqueadoPorEstado || bloqueadoPorInPlay;
+
+    fila.dataset.permiteInPlay = msg.permite_in_play ? 'true' : 'false';
+    fila.classList.toggle('mercado-row--locked', bloqueadoPorInPlay);
     fila.querySelectorAll('.odd-button').forEach(btn => {
-        if (!btn.classList.contains('is-apostada')) {
-            btn.disabled = suspendido;
-            btn.title = suspendido ? 'Mercado suspendido' : '';
-        }
+        if (btn.classList.contains('is-apostada')) return;
+        btn.disabled = bloqueado;
+        btn.title = bloqueadoPorInPlay ? 'Este mercado no permite apuestas en vivo' : (bloqueadoPorEstado ? 'Mercado suspendido' : '');
     });
+
     let badge = fila.querySelector('.mercado-suspendido-badge');
-    if (suspendido) {
+    if (bloqueado) {
         if (!badge) {
             badge = document.createElement('span');
             badge.className = 'mercado-suspendido-badge';
             fila.querySelector('.mercado-row__header')?.appendChild(badge);
         }
-        badge.textContent = 'Suspendido';
+        badge.textContent = bloqueadoPorInPlay ? 'No permite in-play' : 'Suspendido';
     } else if (badge) {
         badge.remove();
     }
 }
 
 function actualizarEstadoEventoEnDOM(card, msg) {
+    card.dataset.estadoEvento = msg.estado;
     const pill = card.querySelector('.status-pill');
     if (pill) {
-        if (msg.estado === 'EN_VIVO') {
+        if (msg.estado === 'en_vivo') {
             pill.textContent = 'En vivo';
             pill.className = 'status-pill status-pill--live';
-        } else if (msg.estado === 'SUSPENDIDO') {
+        } else if (msg.estado === 'suspendido') {
             pill.textContent = 'Suspendido';
             pill.className = 'status-pill status-pill--warn';
-        } else if (msg.estado === 'FINALIZADO') {
+        } else if (msg.estado === 'finalizado' || msg.estado === 'anulado') {
             pill.textContent = 'Finalizado';
             pill.className = 'status-pill status-pill--off';
             card.querySelectorAll('.odd-button').forEach(btn => btn.disabled = true);
         }
     }
-    // Actualizar marcador en scoreboard (eventos en vivo)
+
     if (msg.marcador_local !== undefined && msg.marcador_visitante !== undefined) {
         const goals = card.querySelectorAll('.scoreboard__goals');
         if (goals.length === 2) {
             goals[0].textContent = msg.marcador_local;
             goals[1].textContent = msg.marcador_visitante;
+            goals.forEach(goal => {
+                goal.classList.add('evento-marcador--flash');
+                setTimeout(() => goal.classList.remove('evento-marcador--flash'), 1200);
+            });
         }
     }
 }
@@ -272,7 +250,6 @@ function mostrarAlertaRecotizacion(msg) {
     banner.hidden = false;
 }
 
-// Reloj en vivo - actualiza el tiempo de cada evento en vivo
 function actualizarRelojes() {
     document.querySelectorAll('.scoreboard__clock').forEach(reloj => {
         const inicio = reloj.dataset.inicio;

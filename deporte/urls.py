@@ -18,5 +18,6 @@ urlpatterns = [
     path('eventos/<int:pk>/suspender/', views.EventoEstadoActionView.as_view(accion='suspender'), name='evento_suspender'),
     path('eventos/<int:pk>/anular/', views.EventoEstadoActionView.as_view(accion='anular'), name='evento_anular'),
     path('eventos/<int:pk>/confirmar-resultado/', views.EventoConfirmarResultadoView.as_view(), name='evento_confirmar_resultado'),
+    path('partidos/<int:pk>/marcador/', views.EventoMarcadorUpdateView.as_view(), name='evento_marcador_update'),
     path('odds/', views.OddsListView.as_view(), name='odds_lista'),
 ]

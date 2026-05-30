@@ -1,4 +1,5 @@
 from .catalogo_service import (
+    actualizar_marcador_en_vivo,
     actualizar_odds,
     anular_evento_y_liquidar,
     anular_evento,
@@ -20,6 +21,7 @@ from .catalogo_service import (
 )
 
 __all__ = [
+    'actualizar_marcador_en_vivo',
     'actualizar_odds',
     'anular_evento_y_liquidar',
     'anular_evento',

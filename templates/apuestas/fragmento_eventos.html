@@ -1,0 +1,82 @@
+{% load static %}
+{% for evento in eventos %}
+    <article class="evento-card" data-evento-id="{{ evento.id_evento }}" data-estado-evento="{{ evento.estado_evento }}">
+        {% if evento.estado_evento == 'en_vivo' %}
+            <div class="scoreboard">
+                <div class="scoreboard__team scoreboard__team--left">
+                    <span class="scoreboard__name">{{ evento.equipo_local }}</span>
+                </div>
+                <div class="scoreboard__center">
+                    <div class="scoreboard__badge">
+                        <span class="scoreboard__live-dot"></span>
+                        LIVE
+                    </div>
+                    <div class="scoreboard__score" aria-label="{{ evento.marcador_local }} - {{ evento.marcador_visitante }}">
+                        <span class="scoreboard__goals">{{ evento.marcador_local }}</span>
+                        <span class="scoreboard__sep">-</span>
+                        <span class="scoreboard__goals">{{ evento.marcador_visitante }}</span>
+                    </div>
+                    <div class="scoreboard__time">
+                        <i class="bi bi-clock-fill"></i>
+                        <span class="scoreboard__clock" data-inicio="{{ evento.inicia_en|date:'c' }}">00:00</span>
+                    </div>
+                </div>
+                <div class="scoreboard__team scoreboard__team--right">
+                    <span class="scoreboard__name">{{ evento.equipo_visitante }}</span>
+                </div>
+            </div>
+        {% else %}
+            <div class="evento-card__top">
+                <span class="evento-card__league">{{ evento.competicion }}</span>
+                <div class="evento-matchup">
+                    <span class="evento-matchup__team evento-matchup__team--left">{{ evento.equipo_local }}</span>
+                    <div class="evento-matchup__center">
+                        {% if evento.estado_evento == 'suspendido' %}
+                            <span class="status-pill status-pill--warn">Suspendido</span>
+                        {% else %}
+                            <span class="evento-matchup__time">{{ evento.inicia_en|date:'d/m · H:i' }}</span>
+                        {% endif %}
+                    </div>
+                    <span class="evento-matchup__team evento-matchup__team--right">{{ evento.equipo_visitante }}</span>
+                </div>
+            </div>
+        {% endif %}
+
+        {% for mercado in evento.mercados.all %}
+            {% if mercado.selecciones_activas %}
+                <details class="mercado-row {% if evento.estado_evento == 'en_vivo' and not mercado.permite_in_play %}mercado-row--locked{% endif %}" data-mercado-id="{{ mercado.id_mercado }}" data-permite-in-play="{% if mercado.permite_in_play %}true{% else %}false{% endif %}" open>
+                    <summary class="mercado-row__header">
+                        <span class="mercado-row__icon"><i class="bi bi-diamond-half"></i></span>
+                        <span class="mercado-row__name">{{ mercado.nombre }}</span>
+                        <span class="mercado-row__count">({{ mercado.selecciones_activas|length }})</span>
+                        {% if evento.estado_evento == 'en_vivo' and not mercado.permite_in_play %}<span class="mercado-suspendido-badge">No permite in-play</span>{% endif %}
+                        <i class="bi bi-chevron-down mercado-row__arrow"></i>
+                    </summary>
+                    <div class="odds-grid">
+                        {% for seleccion in mercado.selecciones_activas %}
+                            <button
+                                type="button"
+                                class="odd-button{% if seleccion.id_seleccion in selecciones_apostadas %} is-apostada{% endif %}"
+                                data-seleccion-id="{{ seleccion.id_seleccion }}"
+                                data-mercado-id="{{ mercado.id_mercado }}"
+                                data-seleccion="{{ seleccion.nombre }}"
+                                data-evento="{{ evento.equipo_local }} vs {{ evento.equipo_visitante }}"
+                                data-mercado="{{ mercado.nombre }}"
+                                data-odds="{{ seleccion.odds_activa.odds }}"
+                                data-version="{{ seleccion.odds_activa.numero_version }}"
+                                data-min="{{ mercado.stake_minimo }}"
+                                data-max="{{ mercado.stake_maximo }}"
+                                {% if seleccion.id_seleccion in selecciones_apostadas %}disabled title="Ya tienes una apuesta pendiente en esta seleccion"{% elif evento.estado_evento == 'en_vivo' and not mercado.permite_in_play %}disabled title="Este mercado no permite apuestas en vivo"{% endif %}
+                            >
+                                <span>{{ seleccion.nombre }}</span>
+                                <strong class="odd-value">{{ seleccion.odds_activa.odds|floatformat:2 }}</strong>
+                            </button>
+                        {% endfor %}
+                    </div>
+                </details>
+            {% endif %}
+        {% endfor %}
+    </article>
+{% empty %}
+    <section class="data-panel empty-state" id="no-eventos-msg">No hay eventos disponibles para apostar en este momento.</section>
+{% endfor %}
