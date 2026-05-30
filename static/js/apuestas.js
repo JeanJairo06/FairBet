@@ -1,66 +1,112 @@
-const botonesCuota = document.querySelectorAll('.odd-button');
+const ticketItems = document.getElementById('ticket-items');
 const formularioTicket = document.getElementById('bet-slip');
 const ticketVacio = document.getElementById('ticket-empty');
 const ticketContenido = document.getElementById('ticket-content');
-const seleccionInput = document.getElementById('ticket-seleccion-id');
+const ticketOdds = document.getElementById('ticket-odds');
+const ticketPayout = document.getElementById('ticket-payout');
 const stakeInput = document.getElementById('ticket-stake');
-const payoutText = document.getElementById('ticket-payout');
-const oddsText = document.getElementById('ticket-odds');
-let cuotaActual = 0;
+const ticketLimits = document.getElementById('ticket-limits');
+
+let selecciones = [];
 
 function leerDecimal(valor) {
     return Number(String(valor || '0').replace(',', '.'));
 }
 
 function mostrarDecimal(valor) {
-    return Number(valor || 0).toFixed(2);
+    return leerDecimal(valor).toFixed(2);
 }
 
-function calcularPagoPotencial() {
+function oddsCombinada() {
+    return selecciones.reduce((prod, s) => prod * leerDecimal(s.odds), 1);
+}
+
+function actualizarTicket() {
+    ticketVacio.hidden = selecciones.length > 0;
+    ticketContenido.hidden = selecciones.length === 0;
+    if (selecciones.length === 0) return;
+
+    ticketItems.innerHTML = selecciones.map((s, i) =>
+        `<div class="ticket-item">
+            <div class="ticket-item__top">
+                <strong class="ticket-item__evento">${s.evento}</strong>
+                <button type="button" class="ticket-item__rm" data-idx="${i}" aria-label="Quitar">&times;</button>
+            </div>
+            <div class="ticket-item__detail">
+                <span>${s.mercado} &middot; ${s.seleccion}</span>
+                <strong>${mostrarDecimal(s.odds)}</strong>
+            </div>
+        </div>`
+    ).join('');
+
+    ticketItems.querySelectorAll('.ticket-item__rm').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const idx = parseInt(btn.dataset.idx, 10);
+            const sel = selecciones[idx];
+            selecciones.splice(idx, 1);
+            document.querySelectorAll('.odd-button').forEach(b => {
+                if (b.dataset.seleccionId === sel.seleccionId) b.classList.remove('is-selected');
+            });
+            actualizarTicket();
+        });
+    });
+
+    const comb = oddsCombinada();
+    ticketOdds.textContent = mostrarDecimal(comb);
+    ticketLimits.textContent = '';
+
     const stake = leerDecimal(stakeInput.value);
-    const pago = stake > 0 ? stake * cuotaActual : 0;
-    payoutText.textContent = mostrarDecimal(pago);
+    ticketPayout.textContent = stake > 0 ? mostrarDecimal(stake * comb) : '0.00';
 }
 
-botonesCuota.forEach((boton) => {
+document.querySelectorAll('.odd-button').forEach(boton => {
     boton.addEventListener('click', () => {
-        botonesCuota.forEach((item) => item.classList.remove('is-selected'));
-        boton.classList.add('is-selected');
+        const id = boton.dataset.seleccionId;
+        const idx = selecciones.findIndex(s => s.seleccionId === id);
 
-        cuotaActual = leerDecimal(boton.dataset.odds);
-        seleccionInput.value = boton.dataset.seleccionId;
-        document.getElementById('ticket-evento').textContent = boton.dataset.evento;
-        document.getElementById('ticket-mercado').textContent = boton.dataset.mercado;
-        document.getElementById('ticket-seleccion').textContent = boton.dataset.seleccion;
-        oddsText.textContent = mostrarDecimal(cuotaActual);
-        stakeInput.min = boton.dataset.min;
-        stakeInput.max = boton.dataset.max;
-        document.getElementById('ticket-limits').textContent = `Min ${boton.dataset.min} | Max ${boton.dataset.max}`;
-
-        ticketVacio.hidden = true;
-        ticketContenido.hidden = false;
-        stakeInput.focus();
-        calcularPagoPotencial();
+        if (idx !== -1) {
+            selecciones.splice(idx, 1);
+            boton.classList.remove('is-selected');
+        } else {
+            selecciones.push({
+                seleccionId: id,
+                evento: boton.dataset.evento,
+                mercado: boton.dataset.mercado,
+                seleccion: boton.dataset.seleccion,
+                odds: boton.dataset.odds,
+                min: boton.dataset.min,
+                max: boton.dataset.max,
+            });
+            boton.classList.add('is-selected');
+        }
+        actualizarTicket();
     });
 });
 
 if (stakeInput) {
-    stakeInput.addEventListener('input', calcularPagoPotencial);
+    stakeInput.addEventListener('input', actualizarTicket);
 }
 
-document.querySelectorAll('.quick-stakes button').forEach((boton) => {
+document.querySelectorAll('.quick-stakes button').forEach(boton => {
     boton.addEventListener('click', () => {
         stakeInput.value = boton.dataset.stake;
-        calcularPagoPotencial();
+        actualizarTicket();
     });
 });
 
 if (formularioTicket) {
     formularioTicket.addEventListener('submit', (event) => {
-        if (!seleccionInput.value) {
+        if (selecciones.length === 0) {
             event.preventDefault();
             ticketVacio.hidden = false;
             ticketContenido.hidden = true;
+            return;
         }
+        const ids = selecciones.map(s => s.seleccionId);
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'seleccion_ids';
+        input.value = ids.join(',');
+        formularioTicket.appendChild(input);
     });
 }
