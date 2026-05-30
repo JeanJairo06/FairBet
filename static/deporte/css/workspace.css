@@ -933,6 +933,21 @@
 
 .sp-mkt-form { display: grid; gap: 10px; padding: 0 14px 14px; }
 
+.sp-mkt-readonly {
+    display: grid;
+    gap: 8px;
+    padding: 0 14px 14px;
+    color: var(--sp-muted);
+    font-size: 0.78rem;
+}
+
+.sp-mkt-readonly span {
+    padding: 8px 10px;
+    border: 1px solid var(--sp-line);
+    border-radius: var(--sp-radius-sm);
+    background: rgba(255,255,255,0.025);
+}
+
 .sp-mkt-form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sp-mkt-form-row--3 { grid-template-columns: repeat(3, 1fr); }
 

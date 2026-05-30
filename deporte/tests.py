@@ -18,6 +18,7 @@ from core.choices import (
     EstadoEvento,
     EstadoMercado,
     EstadoSeleccion,
+    RolUsuario,
     TipoCuentaContable,
     TipoMercado,
 )
@@ -76,6 +77,15 @@ class CatalogoDeportivoServiceTests(TestCase):
                 'codigo_seleccion': 'DRAW',
                 'nombre': 'Empate',
             },
+        )
+
+    def _crear_operador(self, username='operador', email='op@test.com', password='test12345'):
+        return get_user_model().objects.create_user(
+            username=username,
+            email=email,
+            password=password,
+            rol=RolUsuario.OPERATOR,
+            is_staff=True,
         )
 
     def test_actualizar_odds_mantiene_solo_una_vigente(self):
@@ -154,7 +164,7 @@ class CatalogoDeportivoServiceTests(TestCase):
             fecha_nacimiento='2000-01-01',
             estado_cuenta=EstadoCuentaJugador.VERIFICADO,
         )
-        operador = get_user_model().objects.create_user(
+        operador = self._crear_operador(
             username='operador_resultado',
             email='operador_resultado@test.com',
             password='test12345',
@@ -296,7 +306,7 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertEqual(calcular_saldo(wallet), Decimal('50.0000'))
 
     def test_paginas_visuales_deporte_renderizan(self):
-        get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
+        self._crear_operador(username='operador', email='op@test.com', password='test12345')
         self.client.login(username='operador', password='test12345')
         actualizar_odds(self.local, Decimal('2.1000'))
 
@@ -310,8 +320,76 @@ class CatalogoDeportivoServiceTests(TestCase):
                 response = self.client.get(url)
                 self.assertEqual(response.status_code, 200)
 
+    def test_jugador_no_accede_a_catalogo_deportivo(self):
+        get_user_model().objects.create_user(
+            username='jugador_deporte',
+            email='jugador_deporte@test.com',
+            password='test12345',
+            rol=RolUsuario.PLAYER,
+        )
+        self.client.login(username='jugador_deporte', password='test12345')
+
+        response = self.client.get(reverse('deporte:eventos_lista'))
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_jugador_no_ejecuta_acciones_deportivas(self):
+        get_user_model().objects.create_user(
+            username='jugador_accion_deporte',
+            email='jugador_accion_deporte@test.com',
+            password='test12345',
+            rol=RolUsuario.PLAYER,
+        )
+        self.client.login(username='jugador_accion_deporte', password='test12345')
+
+        response = self.client.post(reverse('deporte:evento_en_vivo', args=[self.evento.pk]))
+
+        self.evento.refresh_from_db()
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(self.evento.estado_evento, EstadoEvento.PROGRAMADO)
+
+    def test_operador_y_admin_acceden_a_catalogo_deportivo(self):
+        self._crear_operador(username='operador_permiso', email='operador_permiso@test.com', password='test12345')
+        self.client.login(username='operador_permiso', password='test12345')
+        response = self.client.get(reverse('deporte:eventos_lista'))
+        self.assertEqual(response.status_code, 200)
+
+        self.client.logout()
+        get_user_model().objects.create_user(
+            username='admin_permiso',
+            email='admin_permiso@test.com',
+            password='test12345',
+            rol=RolUsuario.ADMIN,
+            is_staff=True,
+        )
+        self.client.login(username='admin_permiso', password='test12345')
+        response = self.client.get(reverse('deporte:eventos_lista'))
+        self.assertEqual(response.status_code, 200)
+
+    def test_anonimo_redirige_a_login_en_catalogo_deportivo(self):
+        response = self.client.get(reverse('deporte:eventos_lista'))
+
+        self.assertEqual(response.status_code, 302)
+
+    def test_menu_deportes_solo_aparece_para_operador_o_admin(self):
+        get_user_model().objects.create_user(
+            username='jugador_menu',
+            email='jugador_menu@test.com',
+            password='test12345',
+            rol=RolUsuario.PLAYER,
+        )
+        self.client.login(username='jugador_menu', password='test12345')
+        response = self.client.get(reverse('apuesta:apuestas_web'))
+        self.assertNotContains(response, 'Deportes')
+
+        self.client.logout()
+        self._crear_operador(username='operador_menu', email='operador_menu@test.com', password='test12345')
+        self.client.login(username='operador_menu', password='test12345')
+        response = self.client.get(reverse('deporte:eventos_lista'))
+        self.assertContains(response, 'Deportes')
+
     def test_detalle_partido_muestra_workspace_de_configuracion(self):
-        get_user_model().objects.create_user(username='operador_detalle', email='op_detalle@test.com', password='test12345')
+        self._crear_operador(username='operador_detalle', email='op_detalle@test.com', password='test12345')
         self.client.login(username='operador_detalle', password='test12345')
         actualizar_odds(self.local, Decimal('2.1000'))
         actualizar_odds(self.empate, Decimal('3.2000'))
@@ -367,7 +445,7 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertEqual(set(mercado.selecciones.values_list('codigo_seleccion', flat=True)), {'HOME_0', 'AWAY_0'})
 
     def test_vista_actualiza_odds_inline_desde_detalle(self):
-        get_user_model().objects.create_user(username='operador_odds_inline', email='op_odds_inline@test.com', password='test12345')
+        self._crear_operador(username='operador_odds_inline', email='op_odds_inline@test.com', password='test12345')
         self.client.login(username='operador_odds_inline', password='test12345')
 
         response = self.client.post(
@@ -383,7 +461,7 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertEqual(obtener_odds_vigente(self.empate).odds, Decimal('3.1000'))
 
     def test_vista_crea_mercado_total_goles_con_stake_y_odds_iniciales(self):
-        get_user_model().objects.create_user(username='operador_builder', email='op_builder@test.com', password='test12345')
+        self._crear_operador(username='operador_builder', email='op_builder@test.com', password='test12345')
         self.client.login(username='operador_builder', password='test12345')
 
         response = self.client.post(
@@ -419,8 +497,74 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertNotIn('marcador_local', form.fields)
         self.assertNotIn('marcador_visitante', form.fields)
 
+    def test_no_permite_actualizar_odds_de_mercado_liquidado(self):
+        self.evento.inicia_en = timezone.now() - timedelta(hours=2)
+        self.evento.save(update_fields=['inicia_en'])
+        actualizar_odds(self.local, Decimal('2.1000'))
+        finalizar_evento_y_liquidar(
+            self.evento,
+            {'marcador_local': 2, 'marcador_visitante': 1},
+            liquidado_por=None,
+        )
+
+        with self.assertRaises(ValidationError):
+            actualizar_odds(self.local, Decimal('2.2000'))
+
+    def test_no_permite_crear_mercado_en_evento_finalizado(self):
+        self.evento.inicia_en = timezone.now() - timedelta(hours=2)
+        self.evento.save(update_fields=['inicia_en'])
+        finalizar_evento_y_liquidar(
+            self.evento,
+            {'marcador_local': 1, 'marcador_visitante': 0},
+            liquidado_por=None,
+        )
+
+        with self.assertRaises(ValidationError):
+            crear_mercado_rapido(
+                self.evento,
+                'ambos_anotan',
+                stake_minimo=Decimal('1.0000'),
+                stake_maximo=Decimal('100.0000'),
+            )
+
+    def test_vista_no_permite_actualizar_mercado_liquidado(self):
+        self._crear_operador(username='operador_mercado_cerrado', email='op_mc@test.com', password='test12345')
+        self.client.login(username='operador_mercado_cerrado', password='test12345')
+        self.evento.inicia_en = timezone.now() - timedelta(hours=2)
+        self.evento.save(update_fields=['inicia_en'])
+        actualizar_odds(self.local, Decimal('2.1000'))
+        finalizar_evento_y_liquidar(
+            self.evento,
+            {'marcador_local': 2, 'marcador_visitante': 1},
+            liquidado_por=None,
+        )
+
+        response = self.client.post(
+            reverse('deporte:evento_mercado_odds_actualizar', args=[self.evento.pk, self.mercado.pk]),
+            {f'odds_{self.local.pk}': '2.20', 'estado_mercado': 'abierto'},
+        )
+
+        self.mercado.refresh_from_db()
+        self.assertRedirects(response, reverse('deporte:evento_detalle', args=[self.evento.pk]))
+        self.assertEqual(self.mercado.estado_mercado, EstadoMercado.LIQUIDADO)
+
+    def test_vista_editar_evento_finalizado_redirige_a_detalle(self):
+        self._crear_operador(username='operador_evento_cerrado', email='op_ec@test.com', password='test12345')
+        self.client.login(username='operador_evento_cerrado', password='test12345')
+        self.evento.inicia_en = timezone.now() - timedelta(hours=2)
+        self.evento.save(update_fields=['inicia_en'])
+        finalizar_evento_y_liquidar(
+            self.evento,
+            {'marcador_local': 2, 'marcador_visitante': 1},
+            liquidado_por=None,
+        )
+
+        response = self.client.get(reverse('deporte:evento_editar', args=[self.evento.pk]))
+
+        self.assertRedirects(response, reverse('deporte:evento_detalle', args=[self.evento.pk]))
+
     def test_editar_evento_mantiene_fecha_en_input(self):
-        get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
+        self._crear_operador(username='operador', email='op@test.com', password='test12345')
         self.client.login(username='operador', password='test12345')
 
         response = self.client.get(reverse('deporte:evento_editar', args=[self.evento.pk]))
@@ -430,7 +574,7 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertContains(response, f'value="{valor_fecha}"')
 
     def test_formulario_evento_guarda_futbol_por_defecto(self):
-        get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
+        self._crear_operador(username='operador', email='op@test.com', password='test12345')
         self.client.login(username='operador', password='test12345')
 
         response = self.client.post(
@@ -580,7 +724,7 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertEqual(self.mercado.estado_mercado, EstadoMercado.SUSPENDIDO)
 
     def test_evento_futuro_muestra_acciones_en_dropdown(self):
-        get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
+        self._crear_operador(username='operador', email='op@test.com', password='test12345')
         self.client.login(username='operador', password='test12345')
         self.evento.__class__.objects.filter(pk=self.evento.pk).update(marcador_local=5, marcador_visitante=5)
 
@@ -592,7 +736,7 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertNotContains(response, '5 - 5')
 
     def test_evento_suspendido_muestra_editar_reactivar_y_anular(self):
-        get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
+        self._crear_operador(username='operador', email='op@test.com', password='test12345')
         self.client.login(username='operador', password='test12345')
         suspender_evento(self.evento)
 
@@ -604,7 +748,7 @@ class CatalogoDeportivoServiceTests(TestCase):
         self.assertNotContains(response, 'Finalizar')
 
     def test_evento_en_vivo_muestra_suspender_anular_y_finalizar(self):
-        get_user_model().objects.create_user(username='operador', email='op@test.com', password='test12345')
+        self._crear_operador(username='operador', email='op@test.com', password='test12345')
         self.client.login(username='operador', password='test12345')
         self.evento.inicia_en = timezone.now() - timedelta(hours=1)
         self.evento.save(update_fields=['inicia_en'])

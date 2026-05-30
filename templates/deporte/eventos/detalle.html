@@ -9,7 +9,11 @@
 {% block deporte_content %}
 <div class="sp-ws">
     <div class="sp-ws-header">
-        <a href="{% url 'deporte:evento_editar' evento.pk %}" class="sp-btn sp-btn--icon" title="Editar datos"><i class="bi bi-pencil-square"></i></a>
+        {% if evento_configurable %}
+            <a href="{% url 'deporte:evento_editar' evento.pk %}" class="sp-btn sp-btn--icon" title="Editar datos"><i class="bi bi-pencil-square"></i></a>
+        {% else %}
+            <span class="sp-btn sp-btn--icon" title="Solo lectura"><i class="bi bi-lock"></i></span>
+        {% endif %}
         <div>
             <p class="sp-ws-header__league">{{ evento.competicion }}</p>
             <div class="sp-ws-header__teams">
@@ -78,6 +82,7 @@
             <details class="sp-mkt-tpl" {% if mercados_data.resultado_final.exists %}open{% endif %}>
                 <summary><i class="bi bi-trophy"></i><span>1X2 — Resultado final</span><small>Local · Empate · Visitante</small><i class="bi bi-chevron-down sp-mkt-tpl__arr"></i></summary>
                 {% with data=mercados_data.resultado_final %}
+                {% if data.editable %}
                 <form class="sp-mkt-form" method="post" action="{% if data.exists %}{% url 'deporte:evento_mercado_odds_actualizar' evento.pk data.mercado_pk %}{% else %}{% url 'deporte:evento_mercado_rapido' evento.pk %}{% endif %}">
                     {% csrf_token %}
                     {% if not data.exists %}<input type="hidden" name="plantilla" value="resultado_final">{% endif %}
@@ -98,12 +103,18 @@
                     {% endif %}
                     <button class="sp-btn sp-btn--primary" type="submit">{% if data.exists %}<i class="bi bi-arrow-repeat"></i> Actualizar{% else %}<i class="bi bi-plus-circle"></i> Crear{% endif %} 1X2</button>
                 </form>
+                {% else %}
+                <div class="sp-mkt-readonly">
+                    {% for sel in data.selections %}<span>{{ sel.nombre }}{% if sel.odds %} · {{ sel.odds|floatformat:2 }}{% endif %}</span>{% empty %}<span>Mercado no configurable.</span>{% endfor %}
+                </div>
+                {% endif %}
                 {% endwith %}
             </details>
 
             <details class="sp-mkt-tpl" {% if mercados_data.ambos_anotan.exists %}open{% endif %}>
                 <summary><i class="bi bi-check2-circle"></i><span>Ambos anotan</span><small>Si / No</small><i class="bi bi-chevron-down sp-mkt-tpl__arr"></i></summary>
                 {% with data=mercados_data.ambos_anotan %}
+                {% if data.editable %}
                 <form class="sp-mkt-form" method="post" action="{% if data.exists %}{% url 'deporte:evento_mercado_odds_actualizar' evento.pk data.mercado_pk %}{% else %}{% url 'deporte:evento_mercado_rapido' evento.pk %}{% endif %}">
                     {% csrf_token %}
                     {% if not data.exists %}<input type="hidden" name="plantilla" value="ambos_anotan">{% endif %}
@@ -115,12 +126,18 @@
                     {% if data.exists %}<div class="sp-mkt-config"><label>Estado <select name="estado_mercado"><option value="abierto" {% if data.estado_mercado == 'abierto' %}selected{% endif %}>Abierto</option><option value="suspendido" {% if data.estado_mercado == 'suspendido' %}selected{% endif %}>Suspendido</option><option value="cerrado" {% if data.estado_mercado == 'cerrado' %}selected{% endif %}>Cerrado</option></select></label><label><input type="checkbox" name="permite_in_play" {% if data.permite_in_play %}checked{% endif %}> In-play</label></div>{% endif %}
                     <button class="sp-btn sp-btn--primary" type="submit">{% if data.exists %}<i class="bi bi-arrow-repeat"></i> Actualizar{% else %}<i class="bi bi-plus-circle"></i> Crear{% endif %} Ambos anotan</button>
                 </form>
+                {% else %}
+                <div class="sp-mkt-readonly">
+                    {% for sel in data.selections %}<span>{{ sel.nombre }}{% if sel.odds %} · {{ sel.odds|floatformat:2 }}{% endif %}</span>{% empty %}<span>Mercado no configurable.</span>{% endfor %}
+                </div>
+                {% endif %}
                 {% endwith %}
             </details>
 
             <details class="sp-mkt-tpl" {% if mercados_data.total_goles.exists %}open{% endif %}>
                 <summary><i class="bi bi-plus-slash-minus"></i><span>Total goles</span><small>Over / Under</small><i class="bi bi-chevron-down sp-mkt-tpl__arr"></i></summary>
                 {% with data=mercados_data.total_goles %}
+                {% if data.editable %}
                 <form class="sp-mkt-form" method="post" action="{% if data.exists %}{% url 'deporte:evento_mercado_odds_actualizar' evento.pk data.mercado_pk %}{% else %}{% url 'deporte:evento_mercado_rapido' evento.pk %}{% endif %}">
                     {% csrf_token %}
                     {% if not data.exists %}<input type="hidden" name="plantilla" value="total_goles">{% endif %}
@@ -132,12 +149,18 @@
                     {% if data.exists %}<div class="sp-mkt-config"><label>Estado <select name="estado_mercado"><option value="abierto" {% if data.estado_mercado == 'abierto' %}selected{% endif %}>Abierto</option><option value="suspendido" {% if data.estado_mercado == 'suspendido' %}selected{% endif %}>Suspendido</option><option value="cerrado" {% if data.estado_mercado == 'cerrado' %}selected{% endif %}>Cerrado</option></select></label><label><input type="checkbox" name="permite_in_play" {% if data.permite_in_play %}checked{% endif %}> In-play</label></div>{% endif %}
                     <button class="sp-btn sp-btn--primary" type="submit">{% if data.exists %}<i class="bi bi-arrow-repeat"></i> Actualizar{% else %}<i class="bi bi-plus-circle"></i> Crear{% endif %} Total goles</button>
                 </form>
+                {% else %}
+                <div class="sp-mkt-readonly">
+                    {% for sel in data.selections %}<span>{{ sel.nombre }}{% if sel.odds %} · {{ sel.odds|floatformat:2 }}{% endif %}</span>{% empty %}<span>Mercado no configurable.</span>{% endfor %}
+                </div>
+                {% endif %}
                 {% endwith %}
             </details>
 
             <details class="sp-mkt-tpl" {% if mercados_data.handicap.exists %}open{% endif %}>
                 <summary><i class="bi bi-arrows-expand"></i><span>Handicap</span><small>Con linea</small><i class="bi bi-chevron-down sp-mkt-tpl__arr"></i></summary>
                 {% with data=mercados_data.handicap %}
+                {% if data.editable %}
                 <form class="sp-mkt-form" method="post" action="{% if data.exists %}{% url 'deporte:evento_mercado_odds_actualizar' evento.pk data.mercado_pk %}{% else %}{% url 'deporte:evento_mercado_rapido' evento.pk %}{% endif %}">
                     {% csrf_token %}
                     {% if not data.exists %}<input type="hidden" name="plantilla" value="handicap">{% endif %}
@@ -149,6 +172,11 @@
                     {% if data.exists %}<div class="sp-mkt-config"><label>Estado <select name="estado_mercado"><option value="abierto" {% if data.estado_mercado == 'abierto' %}selected{% endif %}>Abierto</option><option value="suspendido" {% if data.estado_mercado == 'suspendido' %}selected{% endif %}>Suspendido</option><option value="cerrado" {% if data.estado_mercado == 'cerrado' %}selected{% endif %}>Cerrado</option></select></label><label><input type="checkbox" name="permite_in_play" {% if data.permite_in_play %}checked{% endif %}> In-play</label></div>{% endif %}
                     <button class="sp-btn sp-btn--primary" type="submit">{% if data.exists %}<i class="bi bi-arrow-repeat"></i> Actualizar{% else %}<i class="bi bi-plus-circle"></i> Crear{% endif %} Handicap</button>
                 </form>
+                {% else %}
+                <div class="sp-mkt-readonly">
+                    {% for sel in data.selections %}<span>{{ sel.nombre }}{% if sel.odds %} · {{ sel.odds|floatformat:2 }}{% endif %}</span>{% empty %}<span>Mercado no configurable.</span>{% endfor %}
+                </div>
+                {% endif %}
                 {% endwith %}
             </details>
         </div>

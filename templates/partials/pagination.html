@@ -1,23 +1,44 @@
 {% if page_obj %}
 <div class="app-pagination-bar">
-    <p class="app-pagination-summary mb-0">
-        <i class="bi bi-list-check" aria-hidden="true"></i>
-        Mostrando <strong>{{ page_obj.start_index }}</strong>-<strong>{{ page_obj.end_index }}</strong> de <strong>{{ paginator.count }}</strong> registros
-    </p>
+    <div class="app-pagination-summary">
+        <span class="app-pagination-summary__icon"><i class="bi bi-list-check" aria-hidden="true"></i></span>
+        <span>
+            Mostrando <strong>{{ page_obj.start_index }}</strong>-<strong>{{ page_obj.end_index }}</strong> de <strong>{{ paginator.count }}</strong>
+            <small>Pagina {{ page_obj.number }} de {{ paginator.num_pages }}</small>
+        </span>
+    </div>
 
     {% if is_paginated %}
         <nav aria-label="Paginacion">
             <ul class="pagination pagination-sm app-pagination mb-0">
                 {% if page_obj.has_previous %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" aria-label="Pagina anterior">
+                        <a class="page-link page-link--edge" href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.seleccion %}&seleccion={{ request.GET.seleccion }}{% endif %}" aria-label="Primera pagina">
+                            <i class="bi bi-chevron-double-left" aria-hidden="true"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link page-link--edge" href="?page={{ page_obj.previous_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.seleccion %}&seleccion={{ request.GET.seleccion }}{% endif %}" aria-label="Pagina anterior">
                             <i class="bi bi-chevron-left" aria-hidden="true"></i>
                         </a>
                     </li>
                 {% else %}
                     <li class="page-item disabled">
-                        <span class="page-link" aria-hidden="true"><i class="bi bi-chevron-left"></i></span>
+                        <span class="page-link page-link--edge" aria-hidden="true"><i class="bi bi-chevron-double-left"></i></span>
                     </li>
+                    <li class="page-item disabled">
+                        <span class="page-link page-link--edge" aria-hidden="true"><i class="bi bi-chevron-left"></i></span>
+                    </li>
+                {% endif %}
+
+                {% if page_obj.number > 3 %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page=1{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.seleccion %}&seleccion={{ request.GET.seleccion }}{% endif %}" aria-label="Ir a pagina 1">1</a>
+                    </li>
+                {% endif %}
+
+                {% if page_obj.number > 4 %}
+                    <li class="page-item disabled page-item--ellipsis"><span class="page-link" aria-hidden="true">...</span></li>
                 {% endif %}
 
                 {% for page_number in paginator.page_range %}
@@ -27,20 +48,38 @@
                         </li>
                     {% elif page_number >= page_obj.number|add:'-2' and page_number <= page_obj.number|add:'2' %}
                         <li class="page-item">
-                            <a class="page-link" href="?page={{ page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" aria-label="Ir a pagina {{ page_number }}">{{ page_number }}</a>
+                            <a class="page-link" href="?page={{ page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.seleccion %}&seleccion={{ request.GET.seleccion }}{% endif %}" aria-label="Ir a pagina {{ page_number }}">{{ page_number }}</a>
                         </li>
                     {% endif %}
                 {% endfor %}
 
+                {% if page_obj.number < paginator.num_pages|add:'-3' %}
+                    <li class="page-item disabled page-item--ellipsis"><span class="page-link" aria-hidden="true">...</span></li>
+                {% endif %}
+
+                {% if page_obj.number < paginator.num_pages|add:'-2' %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.seleccion %}&seleccion={{ request.GET.seleccion }}{% endif %}" aria-label="Ir a pagina {{ paginator.num_pages }}">{{ paginator.num_pages }}</a>
+                    </li>
+                {% endif %}
+
                 {% if page_obj.has_next %}
                     <li class="page-item">
-                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}" aria-label="Pagina siguiente">
+                        <a class="page-link page-link--edge" href="?page={{ page_obj.next_page_number }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.seleccion %}&seleccion={{ request.GET.seleccion }}{% endif %}" aria-label="Pagina siguiente">
                             <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link page-link--edge" href="?page={{ paginator.num_pages }}{% if request.GET.q %}&q={{ request.GET.q }}{% endif %}{% if request.GET.seleccion %}&seleccion={{ request.GET.seleccion }}{% endif %}" aria-label="Ultima pagina">
+                            <i class="bi bi-chevron-double-right" aria-hidden="true"></i>
                         </a>
                     </li>
                 {% else %}
                     <li class="page-item disabled">
-                        <span class="page-link" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+                        <span class="page-link page-link--edge" aria-hidden="true"><i class="bi bi-chevron-right"></i></span>
+                    </li>
+                    <li class="page-item disabled">
+                        <span class="page-link page-link--edge" aria-hidden="true"><i class="bi bi-chevron-double-right"></i></span>
                     </li>
                 {% endif %}
             </ul>
