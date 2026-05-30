@@ -1,17 +1,18 @@
 from decimal import Decimal
 
 from django.contrib import messages
-from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
 from django.db.models import Count, Prefetch, Q
 from django.http import HttpResponseRedirect
+from django.utils.decorators import method_decorator
 from django.shortcuts import get_object_or_404
 from django.urls import reverse, reverse_lazy
 from django.views import View
 from django.views.generic import CreateView, DetailView, FormView, ListView, UpdateView
 
 from apuesta.servicios import liquidar_apuestas_de_evento
-from core.choices import EstadoMercado, TipoMercado
+from core.choices import EstadoEvento, EstadoMercado, TipoMercado
+from core.decorators import operator_required
 from deporte.forms import (
     ConfirmarResultadoEventoForm,
     EventoDeportivoForm,
@@ -32,14 +33,18 @@ from deporte.services import (
     pasar_evento_en_vivo,
     reactivar_evento,
     suspender_evento,
+    validar_evento_configurable,
+    validar_mercado_configurable,
 )
 
 
-class DeporteLoginRequiredMixin(LoginRequiredMixin):
-    login_url = 'login'
+class DeporteOperadorRequiredMixin:
+    @method_decorator(operator_required(raise_exception=True))
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
 
 
-class EventoListView(DeporteLoginRequiredMixin, ListView):
+class EventoListView(DeporteOperadorRequiredMixin, ListView):
     model = EventoDeportivo
     template_name = 'deporte/eventos/lista.html'
     context_object_name = 'eventos'
@@ -67,7 +72,7 @@ class EventoListView(DeporteLoginRequiredMixin, ListView):
         return queryset
 
 
-class EventoCreateView(DeporteLoginRequiredMixin, CreateView):
+class EventoCreateView(DeporteOperadorRequiredMixin, CreateView):
     model = EventoDeportivo
     form_class = EventoDeportivoForm
     template_name = 'deporte/eventos/formulario.html'
@@ -80,18 +85,27 @@ class EventoCreateView(DeporteLoginRequiredMixin, CreateView):
         return reverse('deporte:evento_detalle', args=[self.object.pk])
 
 
-class EventoUpdateView(DeporteLoginRequiredMixin, UpdateView):
+class EventoUpdateView(DeporteOperadorRequiredMixin, UpdateView):
     model = EventoDeportivo
     form_class = EventoDeportivoForm
     template_name = 'deporte/eventos/formulario.html'
     success_url = reverse_lazy('deporte:eventos_lista')
+
+    def dispatch(self, request, *args, **kwargs):
+        self.object = self.get_object()
+        try:
+            validar_evento_configurable(self.object)
+        except ValidationError as exc:
+            messages.error(request, EventoEstadoActionView._format_error(exc))
+            return HttpResponseRedirect(reverse('deporte:evento_detalle', args=[self.object.pk]))
+        return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
         messages.success(self.request, 'Evento deportivo actualizado correctamente.')
         return super().form_valid(form)
 
 
-class EventoDetailView(DeporteLoginRequiredMixin, DetailView):
+class EventoDetailView(DeporteOperadorRequiredMixin, DetailView):
     model = EventoDeportivo
     template_name = 'deporte/eventos/detalle.html'
     context_object_name = 'evento'
@@ -111,6 +125,7 @@ class EventoDetailView(DeporteLoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         evento = self.object
         mercados = list(evento.mercados.all())
+        evento_configurable = evento.estado_evento not in {EstadoEvento.FINALIZADO, EstadoEvento.ANULADO} and not evento.resultado_confirmado
 
         template_map = {
             'resultado_final': TipoMercado.UNO_X_DOS,
@@ -157,14 +172,16 @@ class EventoDetailView(DeporteLoginRequiredMixin, DetailView):
                     'estado_mercado': mercado.estado_mercado,
                     'permite_in_play': mercado.permite_in_play,
                     'selections': selections,
+                    'editable': evento_configurable and mercado.estado_mercado not in {EstadoMercado.LIQUIDADO, EstadoMercado.ANULADO},
                 }
             else:
-                mercados_data[template] = {'exists': False}
+                mercados_data[template] = {'exists': False, 'editable': evento_configurable}
 
         context.update(
             {
                 'mercados': mercados,
                 'mercados_data': mercados_data,
+                'evento_configurable': evento_configurable,
                 'historial_odds_reciente': HistorialOdds.objects.select_related('seleccion__mercado').filter(
                     seleccion__mercado__evento=evento
                 ).order_by('-created_at')[:12],
@@ -189,7 +206,7 @@ class EventoDetailView(DeporteLoginRequiredMixin, DetailView):
         return context
 
 
-class OddsListView(DeporteLoginRequiredMixin, ListView):
+class OddsListView(DeporteOperadorRequiredMixin, ListView):
     model = HistorialOdds
     template_name = 'deporte/odds/lista.html'
     context_object_name = 'odds'
@@ -215,7 +232,7 @@ class OddsListView(DeporteLoginRequiredMixin, ListView):
         return queryset
 
 
-class EventoMercadoRapidoView(DeporteLoginRequiredMixin, View):
+class EventoMercadoRapidoView(DeporteOperadorRequiredMixin, View):
     def post(self, request, pk):
         evento = get_object_or_404(EventoDeportivo, pk=pk)
         form = MercadoRapidoForm(request.POST)
@@ -224,6 +241,7 @@ class EventoMercadoRapidoView(DeporteLoginRequiredMixin, View):
             return HttpResponseRedirect(reverse('deporte:evento_detalle', args=[evento.pk]))
 
         try:
+            validar_evento_configurable(evento)
             mercado = crear_mercado_rapido(
                 evento,
                 form.cleaned_data['plantilla'],
@@ -268,10 +286,12 @@ class EventoMercadoRapidoView(DeporteLoginRequiredMixin, View):
     def _format_error(exc):
         if hasattr(exc, 'message_dict'):
             return ' '.join(error for errors in exc.message_dict.values() for error in errors)
+        if hasattr(exc, 'messages'):
+            return ' '.join(exc.messages)
         return str(exc)
 
 
-class EventoMercadoPersonalizadoView(DeporteLoginRequiredMixin, View):
+class EventoMercadoPersonalizadoView(DeporteOperadorRequiredMixin, View):
     def post(self, request, pk):
         evento = get_object_or_404(EventoDeportivo, pk=pk)
         form = MercadoPersonalizadoEventoForm(request.POST)
@@ -280,6 +300,7 @@ class EventoMercadoPersonalizadoView(DeporteLoginRequiredMixin, View):
             return HttpResponseRedirect(reverse('deporte:evento_detalle', args=[evento.pk]))
 
         try:
+            validar_evento_configurable(evento)
             mercado = crear_mercado_rapido(
                 evento,
                 'personalizado',
@@ -292,9 +313,14 @@ class EventoMercadoPersonalizadoView(DeporteLoginRequiredMixin, View):
         return HttpResponseRedirect(reverse('deporte:evento_detalle', args=[evento.pk]))
 
 
-class EventoOddsActualizarView(DeporteLoginRequiredMixin, View):
+class EventoOddsActualizarView(DeporteOperadorRequiredMixin, View):
     def post(self, request, pk):
         evento = get_object_or_404(EventoDeportivo, pk=pk)
+        try:
+            validar_evento_configurable(evento)
+        except ValidationError as exc:
+            messages.error(request, self._format_error(exc))
+            return HttpResponseRedirect(reverse('deporte:evento_detalle', args=[evento.pk]))
         selecciones = SeleccionMercado.objects.select_related('mercado').filter(mercado__evento=evento)
         selecciones_por_id = {str(seleccion.pk): seleccion for seleccion in selecciones}
         actualizadas = 0
@@ -323,10 +349,23 @@ class EventoOddsActualizarView(DeporteLoginRequiredMixin, View):
             messages.warning(request, 'No ingresaste odds para actualizar.')
         return HttpResponseRedirect(reverse('deporte:evento_detalle', args=[evento.pk]))
 
+    @staticmethod
+    def _format_error(exc):
+        if hasattr(exc, 'message_dict'):
+            return ' '.join(error for errors in exc.message_dict.values() for error in errors)
+        if hasattr(exc, 'messages'):
+            return ' '.join(exc.messages)
+        return str(exc)
 
-class EventoMercadoOddsActualizarView(DeporteLoginRequiredMixin, View):
+
+class EventoMercadoOddsActualizarView(DeporteOperadorRequiredMixin, View):
     def post(self, request, pk, mercado_pk):
         mercado = get_object_or_404(Mercado.objects.select_related('evento'), pk=mercado_pk, evento_id=pk)
+        try:
+            validar_mercado_configurable(mercado)
+        except ValidationError as exc:
+            messages.error(request, EventoEstadoActionView._format_error(exc))
+            return HttpResponseRedirect(reverse('deporte:evento_detalle', args=[mercado.evento_id]))
         selecciones = SeleccionMercado.objects.filter(mercado=mercado)
         actualizadas = 0
         for key, value in request.POST.items():
@@ -367,7 +406,7 @@ class EventoMercadoOddsActualizarView(DeporteLoginRequiredMixin, View):
         return HttpResponseRedirect(reverse('deporte:evento_detalle', args=[mercado.evento_id]))
 
 
-class EventoEstadoActionView(DeporteLoginRequiredMixin, View):
+class EventoEstadoActionView(DeporteOperadorRequiredMixin, View):
     accion = None
     success_url = reverse_lazy('deporte:eventos_lista')
 
@@ -399,7 +438,7 @@ class EventoEstadoActionView(DeporteLoginRequiredMixin, View):
             return ' '.join(error for errors in exc.message_dict.values() for error in errors)
         return str(exc)
 
-class EventoConfirmarResultadoView(DeporteLoginRequiredMixin, FormView):
+class EventoConfirmarResultadoView(DeporteOperadorRequiredMixin, FormView):
     form_class = ConfirmarResultadoEventoForm
     template_name = 'deporte/eventos/confirmar_resultado.html'
     success_url = reverse_lazy('deporte:eventos_lista')

@@ -1,5 +1,6 @@
 from decimal import Decimal, InvalidOperation
 
+from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import Max, Q
 from django.utils import timezone
@@ -7,6 +8,11 @@ from django.utils import timezone
 from core.choices import EstadoEvento, EstadoMercado, EstadoSeleccion, TipoMercado
 from deporte.exceptions import OddsNoDisponibleError, ResultadoEventoError, SeleccionNoApostableError
 from deporte.models import EventoDeportivo, HistorialOdds, Mercado, SeleccionMercado
+
+
+EVENTOS_TERMINALES = {EstadoEvento.FINALIZADO, EstadoEvento.ANULADO}
+MERCADOS_TERMINALES = {EstadoMercado.LIQUIDADO, EstadoMercado.ANULADO}
+SELECCIONES_TERMINALES = {EstadoSeleccion.GANADORA, EstadoSeleccion.PERDEDORA, EstadoSeleccion.ANULADA}
 
 
 def _to_decimal(valor, nombre_campo):
@@ -34,6 +40,31 @@ def _resolver_seleccion(seleccion):
     return SeleccionMercado.objects.select_related('mercado__evento').get(pk=seleccion)
 
 
+def validar_evento_configurable(evento):
+    evento = _resolver_evento(evento)
+    if evento.pk:
+        evento.refresh_from_db(fields=['estado_evento', 'resultado_confirmado'])
+    if evento.estado_evento in EVENTOS_TERMINALES or evento.resultado_confirmado:
+        raise ValidationError('No se puede modificar un evento finalizado o anulado.')
+    return True
+
+
+def validar_mercado_configurable(mercado):
+    mercado = _resolver_mercado(mercado)
+    validar_evento_configurable(mercado.evento)
+    if mercado.estado_mercado in MERCADOS_TERMINALES:
+        raise ValidationError('No se puede modificar un mercado liquidado o anulado.')
+    return True
+
+
+def validar_seleccion_configurable(seleccion):
+    seleccion = _resolver_seleccion(seleccion)
+    validar_mercado_configurable(seleccion.mercado)
+    if seleccion.estado_seleccion in SELECCIONES_TERMINALES:
+        raise ValidationError('No se puede modificar una seleccion resuelta o anulada.')
+    return True
+
+
 def crear_evento(datos):
     datos = {**datos, 'deporte': 'Futbol'}
     evento = EventoDeportivo(**datos)
@@ -44,6 +75,7 @@ def crear_evento(datos):
 
 def crear_mercado(evento, datos):
     evento = _resolver_evento(evento)
+    validar_evento_configurable(evento)
     mercado = Mercado(evento=evento, **datos)
     mercado.full_clean()
     mercado.save()
@@ -52,6 +84,7 @@ def crear_mercado(evento, datos):
 
 def crear_seleccion(mercado, datos):
     mercado = _resolver_mercado(mercado)
+    validar_mercado_configurable(mercado)
     seleccion = SeleccionMercado(mercado=mercado, **datos)
     seleccion.full_clean()
     seleccion.save()
@@ -142,6 +175,7 @@ def crear_mercado_rapido(
     cambiado_por=None,
 ):
     evento = _resolver_evento(evento)
+    validar_evento_configurable(evento)
     stake_minimo = _to_decimal(stake_minimo or '1.0000', 'stake_minimo')
     stake_maximo = _to_decimal(stake_maximo or '100.0000', 'stake_maximo')
 
@@ -228,6 +262,15 @@ def crear_mercado_rapido(
 @transaction.atomic
 def actualizar_odds(seleccion, odds, cambiado_por=None):
     seleccion = SeleccionMercado.objects.select_for_update().get(pk=_resolver_seleccion(seleccion).pk)
+    validar_seleccion_configurable(seleccion)
+    mercado = seleccion.mercado
+    evento = mercado.evento
+    if seleccion.estado_seleccion != EstadoSeleccion.ACTIVA:
+        raise ValidationError('Solo selecciones activas pueden actualizar odds.')
+    if mercado.estado_mercado != EstadoMercado.ABIERTO:
+        raise ValidationError('Solo mercados abiertos pueden actualizar odds.')
+    if evento.estado_evento == EstadoEvento.EN_VIVO and not mercado.permite_in_play:
+        raise ValidationError('El mercado no permite actualizar odds en vivo.')
     odds = _to_decimal(odds, 'odds')
     if odds <= Decimal('1'):
         raise ValueError('odds debe ser mayor que 1.')

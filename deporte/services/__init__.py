@@ -13,7 +13,10 @@ from .catalogo_service import (
     pasar_evento_en_vivo,
     reactivar_evento,
     suspender_evento,
+    validar_evento_configurable,
+    validar_mercado_configurable,
     validar_seleccion_apostable,
+    validar_seleccion_configurable,
 )
 
 __all__ = [
@@ -31,5 +34,8 @@ __all__ = [
     'pasar_evento_en_vivo',
     'reactivar_evento',
     'suspender_evento',
+    'validar_evento_configurable',
+    'validar_mercado_configurable',
     'validar_seleccion_apostable',
+    'validar_seleccion_configurable',
 ]
