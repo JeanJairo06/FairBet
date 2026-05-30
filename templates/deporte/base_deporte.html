@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{% static 'deporte/css/workspace.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="sp-root {% block root_class %}{% endblock %}">
+
+    <div class="sp-topbar">
+        <div class="sp-topbar__title">
+            <span class="sp-topbar__eyebrow">{% block eyebrow %}Deportes{% endblock %}</span>
+            <h1>{% block page_title %}{% endblock %}</h1>
+        </div>
+        {% block topbar_action %}{% endblock %}
+    </div>
+
+    <nav class="sp-tabs">
+        <a href="{% url 'deporte:eventos_lista' %}" class="sp-tab {% if request.resolver_match.url_name == 'eventos_lista' or request.resolver_match.url_name == 'evento_detalle' or 'evento' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-calendar-event"></i> Partidos
+        </a>
+        <a href="{% url 'deporte:odds_lista' %}" class="sp-tab {% if 'odds' in request.resolver_match.url_name %}active{% endif %}">
+            <i class="bi bi-clock-history"></i> Auditoria de odds
+        </a>
+    </nav>
+
+    <div class="sp-content__body">
+        {% block deporte_content %}{% endblock %}
+    </div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('click', function(e) {
+    const trigger = e.target.closest('[data-dropdown]');
+    const allMenus = document.querySelectorAll('.sp-dropdown__menu');
+    if (trigger) {
+        e.stopPropagation();
+        const menu = trigger.closest('.sp-dropdown').querySelector('.sp-dropdown__menu');
+        const open = menu.classList.contains('open');
+        allMenus.forEach(m => m.classList.remove('open'));
+        if (!open) menu.classList.add('open');
+    } else {
+        allMenus.forEach(m => m.classList.remove('open'));
+    }
+});
+</script>
+{% endblock %}

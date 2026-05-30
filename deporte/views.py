@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib import messages
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.core.exceptions import ValidationError
@@ -9,15 +11,12 @@ from django.views import View
 from django.views.generic import CreateView, DetailView, FormView, ListView, UpdateView
 
 from apuesta.servicios import liquidar_apuestas_de_evento
+from core.choices import EstadoMercado, TipoMercado
 from deporte.forms import (
-    ActualizarOddsForm,
     ConfirmarResultadoEventoForm,
     EventoDeportivoForm,
     MercadoPersonalizadoEventoForm,
     MercadoRapidoForm,
-    MercadoForm,
-    SeleccionInlineForm,
-    SeleccionMercadoForm,
 )
 from deporte.exceptions import ResultadoEventoError
 from deporte.models import EventoDeportivo, HistorialOdds, Mercado, SeleccionMercado
@@ -26,7 +25,6 @@ from deporte.services import (
     anular_evento,
     confirmar_resultado_evento,
     crear_mercado_rapido,
-    crear_seleccion,
     marcar_seleccion_ganadora,
     pasar_evento_en_vivo,
     reactivar_evento,
@@ -110,6 +108,15 @@ class EventoDetailView(DeporteLoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         evento = self.object
         mercados = list(evento.mercados.all())
+
+        template_map = {
+            'resultado_final': TipoMercado.UNO_X_DOS,
+            'ambos_anotan': TipoMercado.BTTS,
+            'total_goles': TipoMercado.OVER_UNDER,
+            'handicap': TipoMercado.HANDICAP,
+        }
+
+        tipos_plantilla = set(template_map.values())
         selecciones_total = 0
         odds_vigentes_total = 0
 
@@ -119,18 +126,42 @@ class EventoDetailView(DeporteLoginRequiredMixin, DetailView):
                 historial = list(seleccion.historial_odds.all())
                 seleccion.odds_vigente = next((odds for odds in historial if odds.activa), None)
                 seleccion.historial_reciente = historial[:4]
-                selecciones_total += 1
-                if seleccion.odds_vigente:
-                    odds_vigentes_total += 1
+                if mercado.tipo_mercado in tipos_plantilla:
+                    selecciones_total += 1
+                    if seleccion.odds_vigente:
+                        odds_vigentes_total += 1
 
         tiene_mercados = bool(mercados)
         tiene_selecciones = selecciones_total > 0
         tiene_odds = tiene_selecciones and odds_vigentes_total >= selecciones_total
         listo = tiene_mercados and tiene_selecciones and tiene_odds
 
+        mercados_data = {}
+        for template, tipo in template_map.items():
+            mercado = next((m for m in mercados if m.tipo_mercado == tipo), None)
+            if mercado:
+                selections = []
+                for sel in mercado.selecciones_workspace:
+                    selections.append({
+                        'pk': sel.pk,
+                        'codigo': sel.codigo_seleccion,
+                        'nombre': sel.nombre,
+                        'odds': sel.odds_vigente.odds if sel.odds_vigente else None,
+                    })
+                mercados_data[template] = {
+                    'exists': True,
+                    'mercado_pk': mercado.pk,
+                    'estado_mercado': mercado.estado_mercado,
+                    'permite_in_play': mercado.permite_in_play,
+                    'selections': selections,
+                }
+            else:
+                mercados_data[template] = {'exists': False}
+
         context.update(
             {
                 'mercados': mercados,
+                'mercados_data': mercados_data,
                 'historial_odds_reciente': HistorialOdds.objects.select_related('seleccion__mercado').filter(
                     seleccion__mercado__evento=evento
                 ).order_by('-created_at')[:12],
@@ -138,7 +169,6 @@ class EventoDetailView(DeporteLoginRequiredMixin, DetailView):
                 'mercado_personalizado_form': MercadoPersonalizadoEventoForm(
                     initial={'stake_minimo': '1.0000', 'stake_maximo': '100.0000'}
                 ),
-                'seleccion_inline_form': SeleccionInlineForm(),
                 'resultado_form': ConfirmarResultadoEventoForm(evento=evento),
                 'checklist': [
                     ('Datos del partido completos', True),
@@ -154,109 +184,6 @@ class EventoDetailView(DeporteLoginRequiredMixin, DetailView):
             }
         )
         return context
-
-
-class MercadoListView(DeporteLoginRequiredMixin, ListView):
-    model = Mercado
-    template_name = 'deporte/mercados/lista.html'
-    context_object_name = 'mercados'
-    paginate_by = 10
-
-    def get_queryset(self):
-        queryset = Mercado.objects.select_related('evento').prefetch_related('selecciones').order_by('-created_at')
-        evento_id = self.request.GET.get('evento')
-        if evento_id:
-            queryset = queryset.filter(evento_id=evento_id)
-        q = self.request.GET.get('q')
-        if q:
-            queryset = queryset.filter(
-                Q(nombre__icontains=q)
-                | Q(evento__equipo_local__icontains=q)
-                | Q(evento__equipo_visitante__icontains=q)
-                | Q(evento__competicion__icontains=q)
-            )
-        return queryset
-
-
-class MercadoCreateView(DeporteLoginRequiredMixin, CreateView):
-    model = Mercado
-    form_class = MercadoForm
-    template_name = 'deporte/mercados/formulario.html'
-    success_url = reverse_lazy('deporte:mercados_lista')
-
-    def get_initial(self):
-        initial = super().get_initial()
-        evento_id = self.request.GET.get('evento')
-        if evento_id:
-            initial['evento'] = evento_id
-        return initial
-
-    def form_valid(self, form):
-        messages.success(self.request, 'Mercado creado correctamente.')
-        return super().form_valid(form)
-
-
-class MercadoUpdateView(DeporteLoginRequiredMixin, UpdateView):
-    model = Mercado
-    form_class = MercadoForm
-    template_name = 'deporte/mercados/formulario.html'
-    success_url = reverse_lazy('deporte:mercados_lista')
-
-    def form_valid(self, form):
-        messages.success(self.request, 'Mercado actualizado correctamente.')
-        return super().form_valid(form)
-
-
-class SeleccionListView(DeporteLoginRequiredMixin, ListView):
-    model = SeleccionMercado
-    template_name = 'deporte/selecciones/lista.html'
-    context_object_name = 'selecciones'
-    paginate_by = 10
-
-    def get_queryset(self):
-        queryset = SeleccionMercado.objects.select_related('mercado__evento').order_by('-created_at')
-        mercado_id = self.request.GET.get('mercado')
-        if mercado_id:
-            queryset = queryset.filter(mercado_id=mercado_id)
-        q = self.request.GET.get('q')
-        if q:
-            queryset = queryset.filter(
-                Q(codigo_seleccion__icontains=q)
-                | Q(nombre__icontains=q)
-                | Q(mercado__nombre__icontains=q)
-                | Q(mercado__evento__equipo_local__icontains=q)
-                | Q(mercado__evento__equipo_visitante__icontains=q)
-            )
-        return queryset
-
-
-class SeleccionCreateView(DeporteLoginRequiredMixin, CreateView):
-    model = SeleccionMercado
-    form_class = SeleccionMercadoForm
-    template_name = 'deporte/selecciones/formulario.html'
-    success_url = reverse_lazy('deporte:selecciones_lista')
-
-    def get_initial(self):
-        initial = super().get_initial()
-        mercado_id = self.request.GET.get('mercado')
-        if mercado_id:
-            initial['mercado'] = mercado_id
-        return initial
-
-    def form_valid(self, form):
-        messages.success(self.request, 'Seleccion creada correctamente.')
-        return super().form_valid(form)
-
-
-class SeleccionUpdateView(DeporteLoginRequiredMixin, UpdateView):
-    model = SeleccionMercado
-    form_class = SeleccionMercadoForm
-    template_name = 'deporte/selecciones/formulario.html'
-    success_url = reverse_lazy('deporte:selecciones_lista')
-
-    def form_valid(self, form):
-        messages.success(self.request, 'Seleccion actualizada correctamente.')
-        return super().form_valid(form)
 
 
 class OddsListView(DeporteLoginRequiredMixin, ListView):
@@ -283,39 +210,6 @@ class OddsListView(DeporteLoginRequiredMixin, ListView):
                 | Q(seleccion__mercado__evento__equipo_visitante__icontains=q)
             )
         return queryset
-
-
-class OddsUpdateView(DeporteLoginRequiredMixin, FormView):
-    form_class = ActualizarOddsForm
-    template_name = 'deporte/odds/formulario.html'
-    success_url = reverse_lazy('deporte:odds_lista')
-
-    def get_initial(self):
-        initial = super().get_initial()
-        seleccion_id = self.request.GET.get('seleccion')
-        if seleccion_id:
-            initial['seleccion'] = seleccion_id
-        return initial
-
-    def form_valid(self, form):
-        try:
-            actualizar_odds(
-                seleccion=form.cleaned_data['seleccion'],
-                odds=form.cleaned_data['odds'],
-                cambiado_por=self.request.user if self.request.user.is_authenticated else None,
-            )
-        except ValidationError as exc:
-            if hasattr(exc, 'message_dict'):
-                for field_name, errors in exc.message_dict.items():
-                    target_field = field_name if field_name in form.fields else None
-                    for error in errors:
-                        form.add_error(target_field, error)
-            else:
-                form.add_error(None, exc)
-            return self.form_invalid(form)
-
-        messages.success(self.request, 'Odds actualizada y version anterior cerrada correctamente.')
-        return super().form_valid(form)
 
 
 class EventoMercadoRapidoView(DeporteLoginRequiredMixin, View):
@@ -395,23 +289,6 @@ class EventoMercadoPersonalizadoView(DeporteLoginRequiredMixin, View):
         return HttpResponseRedirect(reverse('deporte:evento_detalle', args=[evento.pk]))
 
 
-class MercadoSeleccionCrearView(DeporteLoginRequiredMixin, View):
-    def post(self, request, pk):
-        mercado = get_object_or_404(Mercado.objects.select_related('evento'), pk=pk)
-        form = SeleccionInlineForm(request.POST)
-        if not form.is_valid():
-            messages.error(request, 'No se pudo agregar la seleccion. Revisa codigo y nombre.')
-            return HttpResponseRedirect(reverse('deporte:evento_detalle', args=[mercado.evento_id]))
-
-        try:
-            crear_seleccion(mercado, form.cleaned_data)
-        except ValidationError as exc:
-            messages.error(request, EventoEstadoActionView._format_error(exc))
-        else:
-            messages.success(request, 'Seleccion agregada correctamente.')
-        return HttpResponseRedirect(reverse('deporte:evento_detalle', args=[mercado.evento_id]))
-
-
 class EventoOddsActualizarView(DeporteLoginRequiredMixin, View):
     def post(self, request, pk):
         evento = get_object_or_404(EventoDeportivo, pk=pk)
@@ -442,6 +319,49 @@ class EventoOddsActualizarView(DeporteLoginRequiredMixin, View):
         else:
             messages.warning(request, 'No ingresaste odds para actualizar.')
         return HttpResponseRedirect(reverse('deporte:evento_detalle', args=[evento.pk]))
+
+
+class EventoMercadoOddsActualizarView(DeporteLoginRequiredMixin, View):
+    def post(self, request, pk, mercado_pk):
+        mercado = get_object_or_404(Mercado.objects.select_related('evento'), pk=mercado_pk, evento_id=pk)
+        selecciones = SeleccionMercado.objects.filter(mercado=mercado)
+        actualizadas = 0
+        for key, value in request.POST.items():
+            if not key.startswith('odds_') or value == '':
+                continue
+            seleccion_id = key.removeprefix('odds_')
+            try:
+                seleccion = selecciones.get(pk=seleccion_id)
+            except SeleccionMercado.DoesNotExist:
+                continue
+            try:
+                actualizar_odds(seleccion, value, cambiado_por=request.user if request.user.is_authenticated else None)
+                actualizadas += 1
+            except (ValueError, ValidationError):
+                pass
+
+        # Actualizar config del mercado si se enviaron campos
+        config_changed = False
+        estado = request.POST.get('estado_mercado')
+        if estado and estado in dict(EstadoMercado.choices):
+            mercado.estado_mercado = estado
+            config_changed = True
+        permite = request.POST.get('permite_in_play')
+        if permite is not None:
+            mercado.permite_in_play = permite == 'on'
+            config_changed = True
+        if config_changed:
+            try:
+                mercado.full_clean()
+                mercado.save(update_fields=['estado_mercado', 'permite_in_play'])
+            except ValidationError:
+                messages.warning(request, 'Configuracion del mercado no valida, solo se actualizaron las odds.')
+
+        if actualizadas:
+            messages.success(request, f'Odds de {mercado.nombre} actualizadas correctamente.')
+        else:
+            messages.warning(request, 'No se ingresaron odds para actualizar.')
+        return HttpResponseRedirect(reverse('deporte:evento_detalle', args=[mercado.evento_id]))
 
 
 class EventoEstadoActionView(DeporteLoginRequiredMixin, View):
