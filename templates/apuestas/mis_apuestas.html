@@ -4,52 +4,106 @@
 {% block title %}Mis apuestas | FairBet Lab{% endblock %}
 
 {% block extra_css %}
-<link rel="stylesheet" href="{% static 'css/apuestas.css' %}">
+<link rel="stylesheet" href="{% static 'css/apuestas.css' %}?v=3">
 {% endblock %}
 
 {% block content %}
-<section class="module-header">
-    <div>
-        <p class="eyebrow">Apuestas deportivas</p>
-        <h2>Mis apuestas</h2>
-        <p>Consulta el estado de tus apuestas con fichas virtuales.</p>
-    </div>
-    <a href="{% url 'apuesta:apuestas_web' %}" class="button button--primary">
-        <i class="bi bi-plus-circle"></i> Nueva apuesta
-    </a>
-</section>
+<div class="ma-shell">
 
-<section class="data-panel">
-    <div class="table-wrap">
-        <table class="app-table">
-            <thead>
-                <tr>
-                    <th>Apuesta</th>
-                    <th>Stake</th>
-                    <th>Cuota</th>
-                    <th>Pago potencial</th>
-                    <th>Estado</th>
-                    <th>Fecha</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for apuesta in apuestas %}
-                    <tr>
-                        <td><strong>#{{ apuesta.id_apuesta }}</strong><span>{{ apuesta.get_tipo_apuesta_display }}</span></td>
-                        <td>{{ apuesta.stake|floatformat:2 }}</td>
-                        <td>{{ apuesta.odds_total|floatformat:2 }}</td>
-                        <td>{{ apuesta.payout_potencial|floatformat:2 }}</td>
-                        <td><span class="status-pill">{{ apuesta.get_estado_apuesta_display }}</span></td>
-                        <td>{{ apuesta.created_at|date:'d/m/Y H:i' }}</td>
-                    </tr>
-                {% empty %}
-                    <tr>
-                        <td colspan="6" class="empty-state">Aun no tienes apuestas registradas.</td>
-                    </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+    <div class="ma-header">
+        <div>
+            <p class="ma-eyebrow">Apuestas deportivas</p>
+            <h2 class="ma-title">Mis apuestas</h2>
+        </div>
+        <a href="{% url 'apuesta:apuestas_web' %}" class="ma-btn ma-btn--primary">
+            <i class="bi bi-plus-circle-fill"></i> Nueva apuesta
+        </a>
     </div>
+
+    {% if apuestas %}
+    <div class="ma-list">
+        {% for apuesta in apuestas %}
+        <div class="ma-card ma-card--{{ apuesta.estado_apuesta }}">
+
+            <div class="ma-card__strip"></div>
+
+            <div class="ma-card__head">
+                <div class="ma-card__id">
+                    <span class="ma-ticket-icon"><i class="bi bi-ticket-perforated"></i></span>
+                    <span>#{{ apuesta.id_apuesta }}</span>
+                    {% if apuesta.tipo_apuesta == 'combinada' %}
+                        <span class="ma-pill ma-pill--combinada"><i class="bi bi-diagram-3-fill"></i> Combinada</span>
+                    {% else %}
+                        <span class="ma-pill ma-pill--simple"><i class="bi bi-circle-fill"></i> Simple</span>
+                    {% endif %}
+                </div>
+                {% if apuesta.estado_apuesta == 'won' %}
+                    <span class="ma-pill ma-pill--won"><i class="bi bi-check-circle-fill"></i> Ganada</span>
+                {% elif apuesta.estado_apuesta == 'lost' %}
+                    <span class="ma-pill ma-pill--lost"><i class="bi bi-x-circle-fill"></i> Perdida</span>
+                {% elif apuesta.estado_apuesta == 'accepted' %}
+                    <span class="ma-pill ma-pill--pending"><i class="bi bi-hourglass-split"></i> Pendiente</span>
+                {% elif apuesta.estado_apuesta == 'void' %}
+                    <span class="ma-pill ma-pill--void"><i class="bi bi-slash-circle"></i> Anulada</span>
+                {% else %}
+                    <span class="ma-pill">{{ apuesta.get_estado_apuesta_display }}</span>
+                {% endif %}
+            </div>
+
+            <div class="ma-card__sels">
+                {% for detalle in apuesta.detalles.all %}
+                {% if not forloop.first %}
+                <div class="ma-sel__connector"><i class="bi bi-plus-lg"></i></div>
+                {% endif %}
+                <div class="ma-sel">
+                    <span class="ma-sel__event"><i class="bi bi-calendar-event"></i> {{ detalle.seleccion.mercado.evento }}</span>
+                    <div class="ma-sel__row">
+                        <div>
+                            <span class="ma-sel__name">{{ detalle.seleccion.nombre }}</span>
+                            <span class="ma-sel__market">{{ detalle.seleccion.mercado.nombre }}</span>
+                        </div>
+                        <span class="ma-sel__odds">{{ detalle.odds_snapshot|floatformat:2 }}x</span>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+
+            <div class="ma-card__foot">
+                <div class="ma-stat">
+                    <span>Monto apostado</span>
+                    <strong>{{ apuesta.stake|floatformat:2 }}</strong>
+                </div>
+                <div class="ma-stat__sep"></div>
+                <div class="ma-stat">
+                    <span>{% if apuesta.tipo_apuesta == 'combinada' %}Cuota combinada{% else %}Cuota{% endif %}</span>
+                    <strong>{{ apuesta.odds_total|floatformat:2 }}x</strong>
+                </div>
+                <div class="ma-stat__sep"></div>
+                <div class="ma-stat ma-stat--payout">
+                    <span>{% if apuesta.estado_apuesta == 'won' %}Ganancia{% else %}Pago potencial{% endif %}</span>
+                    <strong class="ma-payout ma-payout--{{ apuesta.estado_apuesta }}">{{ apuesta.payout_potencial|floatformat:2 }}</strong>
+                </div>
+                <div class="ma-card__date">
+                    <i class="bi bi-clock"></i> {{ apuesta.created_at|date:'d/m/Y H:i' }}
+                </div>
+            </div>
+
+        </div>
+        {% endfor %}
+    </div>
+
+    {% else %}
+    <div class="ma-empty">
+        <div class="ma-empty__icon"><i class="bi bi-inbox"></i></div>
+        <h3>Sin apuestas todavia</h3>
+        <p>Selecciona una cuota de los eventos disponibles y coloca tu primera apuesta.</p>
+        <a href="{% url 'apuesta:apuestas_web' %}" class="ma-btn ma-btn--primary">
+            <i class="bi bi-search"></i> Ver eventos
+        </a>
+    </div>
+    {% endif %}
+
     {% include 'partials/pagination.html' %}
-</section>
+
+</div>
 {% endblock %}

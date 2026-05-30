@@ -14,3 +14,4 @@ python-decouple==3.8
 redis==5.0.8
 sqlparse==0.5.5
 tzdata==2026.1
+whitenoise==6.7.0
