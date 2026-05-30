@@ -7,7 +7,9 @@ from django.db.models import Prefetch, Q
 from django.shortcuts import redirect
 from django.utils import timezone
 from django.views.generic import ListView
+from rest_framework import status
 from rest_framework.generics import ListCreateAPIView
+from rest_framework.response import Response
 
 from apuesta.models import Apuesta
 from apuesta.servicios import crear_apuesta_simple
@@ -25,6 +27,21 @@ class ApuestaListCreateView(ListCreateAPIView):
         if self.request.method == 'POST':
             return CrearApuestaSimpleSerializer
         return ApuestaSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        try:
+            serializer.is_valid(raise_exception=True)
+        except Exception as exc:
+            # Detectar error de re-cotización para devolver 409 en lugar de 400.
+            errors = getattr(exc, 'detail', {})
+            if isinstance(errors, list) and errors and isinstance(errors[0], dict):
+                if errors[0].get('requiere_reconfirmacion'):
+                    return Response(errors[0], status=status.HTTP_409_CONFLICT)
+            raise
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
 
 
 class ApuestasWebView(LoginRequiredMixin, ListView):
