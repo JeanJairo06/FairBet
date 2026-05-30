@@ -38,7 +38,7 @@ def obtener_odds_activa(seleccion):
     return seleccion.historial_odds.filter(activa=True).order_by('-numero_version').first()
 
 
-def validar_apuesta_simple(seleccion, odds_activa, stake):
+def validar_apuesta_simple(seleccion, odds_activa, stake, usuario=None):
     mercado = seleccion.mercado
     evento = mercado.evento
 
@@ -65,37 +65,67 @@ def validar_apuesta_simple(seleccion, odds_activa, stake):
 
 
 @transaction.atomic
-def crear_apuesta_simple(usuario, seleccion_id, stake, idempotency_key=None):
+def crear_apuesta_ticket(usuario, seleccion_ids, stake, idempotency_key=None):
+    """
+    Crea UNA apuesta (ticket) con una o múltiples selecciones.
+    Si hay varias, es una combinada: odds_total = producto de todas las cuotas.
+    Regla: máximo una selección por mercado en el ticket.
+    """
     if idempotency_key:
         apuesta_existente = Apuesta.objects.filter(idempotency_key=idempotency_key).first()
         if apuesta_existente:
             return apuesta_existente
 
     stake = Decimal(stake)
-    seleccion = SeleccionMercado.objects.select_related('mercado__evento').get(pk=seleccion_id)
-    odds_activa = obtener_odds_activa(seleccion)
+    selecciones = list(
+        SeleccionMercado.objects.select_related('mercado__evento')
+        .filter(pk__in=seleccion_ids)
+    )
+
+    if not selecciones:
+        raise ValidationError('No se encontraron selecciones validas.')
 
     validar_usuario_puede_apostar(usuario)
-    validar_apuesta_simple(seleccion, odds_activa, stake)
 
-    odds_total = odds_activa.odds
-    payout_potencial = stake * odds_total
+    # Validar cada seleccion y calcular odds combinada
+    mercados_vistos = {}
+    odds_total = Decimal('1')
+    detalles_data = []
+
+    for seleccion in selecciones:
+        mid = seleccion.mercado_id
+
+        # Una sola seleccion por mercado en el mismo ticket
+        if mid in mercados_vistos:
+            raise ValidationError(
+                f'Solo puedes elegir una opcion del mercado "{seleccion.mercado.nombre}".'
+            )
+        mercados_vistos[mid] = True
+
+        odds_activa = obtener_odds_activa(seleccion)
+        validar_apuesta_simple(seleccion, odds_activa, stake, usuario=None)
+
+        odds_total *= odds_activa.odds
+        detalles_data.append((seleccion, odds_activa))
+
+    tipo = TipoApuesta.SIMPLE if len(selecciones) == 1 else TipoApuesta.COMBINADA
 
     apuesta = Apuesta.objects.create(
         usuario=usuario,
-        tipo_apuesta=TipoApuesta.SIMPLE,
+        tipo_apuesta=tipo,
         stake=stake,
         odds_total=odds_total,
-        payout_potencial=payout_potencial,
+        payout_potencial=stake * odds_total,
         idempotency_key=idempotency_key,
     )
 
-    DetalleApuesta.objects.create(
-        apuesta=apuesta,
-        seleccion=seleccion,
-        odds_snapshot=odds_activa.odds,
-        version_odds=odds_activa.numero_version,
-    )
+    for seleccion, odds_activa in detalles_data:
+        DetalleApuesta.objects.create(
+            apuesta=apuesta,
+            seleccion=seleccion,
+            odds_snapshot=odds_activa.odds,
+            version_odds=odds_activa.numero_version,
+        )
 
     transaccion_bloqueo = bloquear_stake(
         usuario=usuario,
@@ -107,6 +137,17 @@ def crear_apuesta_simple(usuario, seleccion_id, stake, idempotency_key=None):
     apuesta.save(update_fields=['estado_apuesta', 'transaction_bloqueo', 'aceptada_en'])
 
     return apuesta
+
+
+@transaction.atomic
+def crear_apuesta_simple(usuario, seleccion_id, stake, idempotency_key=None):
+    """Mantiene compatibilidad con la API REST existente."""
+    return crear_apuesta_ticket(
+        usuario=usuario,
+        seleccion_ids=[seleccion_id],
+        stake=stake,
+        idempotency_key=idempotency_key,
+    )
 
 
 @transaction.atomic
@@ -198,20 +239,30 @@ def liquidar_apuestas_de_evento(evento, liquidado_por=None, observacion='Liquida
     liquidaciones = []
     for apuesta in apuestas:
         detalles = list(apuesta.detalles.all())
-        if len(detalles) != 1:
-            raise ValidationError('La liquidacion automatica solo soporta apuestas simples.')
 
-        detalle = detalles[0]
-        resultado = _resultado_liquidacion_desde_seleccion(detalle.seleccion)
+        if len(detalles) == 1:
+            resultado = _resultado_liquidacion_desde_seleccion(detalles[0].seleccion)
+        else:
+            # Combinada: pierde si cualquier seleccion pierde; anula si todas anuladas; gana si el resto gana
+            resultados = [_resultado_liquidacion_desde_seleccion(d.seleccion) for d in detalles]
+            if any(r == ResultadoLiquidacion.LOST for r in resultados):
+                resultado = ResultadoLiquidacion.LOST
+            elif all(r == ResultadoLiquidacion.VOID for r in resultados):
+                resultado = ResultadoLiquidacion.VOID
+            else:
+                resultado = ResultadoLiquidacion.WON
+
         liquidacion = liquidar_apuesta(
             apuesta=apuesta,
             resultado=resultado,
             liquidado_por=liquidado_por,
             observacion=observacion,
         )
-        detalle.estado_detalle = _estado_detalle_desde_resultado(resultado)
-        detalle.resultada_en = liquidacion.liquidado_en
-        detalle.save(update_fields=['estado_detalle', 'resultada_en'])
+        for detalle in detalles:
+            resultado_detalle = _resultado_liquidacion_desde_seleccion(detalle.seleccion)
+            detalle.estado_detalle = _estado_detalle_desde_resultado(resultado_detalle)
+            detalle.resultada_en = liquidacion.liquidado_en
+            detalle.save(update_fields=['estado_detalle', 'resultada_en'])
         liquidaciones.append(liquidacion)
 
     return liquidaciones
